@@ -1,0 +1,5 @@
+__pycache__/
+telegram/
+telegramCryptoTrader.log*
+data.pickle
+data.bkp

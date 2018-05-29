@@ -1,0 +1,5 @@
+{
+  "telegramAPI": "YOURBOTTOKEN",
+  "telegramUserId": YOURTELEGRAMID,
+  "updateInterval": 1
+}
