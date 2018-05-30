@@ -54,13 +54,18 @@ class CryptoTrader:
         if not all([self.exchange.has[x] for x in checkThese]):
             raise Exception('Exchange %s does not support all required features (cancelOrder,LimitOrder,getBalance,getTicker)'%exchName)
         self.updating = False
+        self.authenticated = False
         try:
             # check if keys work
             self.exchange.fetch_balance ()
             self.authenticated = True
         except getattr(ccxt,'AuthenticationError') as e:#
-            self.authenticated = False
             self.message('Failed to authenticate at exchange %s. Please check your keys'%exchName,'error')
+        except getattr(ccxt,'ExchangeError') as e:#
+            if 'key' in str(e).lower():
+                self.message('Failed to authenticate at exchange %s. Please check your keys'%exchName,'error')
+            else:
+                self.message('An error occured during checking authentication:\n%s'%str(e),'error')
           
     def __reduce__(self):
         # function needes for serializing the object
@@ -87,6 +92,30 @@ class CryptoTrader:
                 return indices[0]
         else:
             raise TypeError('Wrong trade set identifier Type')
+           
+            
+    def updateKeys(self,key,secret,password=None,uid=None):
+        if key:
+            self.exchange.apiKey = key
+        else:
+            raise TypeError('key argument not given to class')
+        if secret:
+            self.exchange.secret = secret
+        else:
+            raise TypeError('key argument not given to class')
+        if password:
+            self.exchange.password = password
+        if uid:
+            self.exchange.uid = uid
+        self.exchange.loadMarkets()            
+        try:
+            # check if keys work
+            self.exchange.fetch_balance ()
+            self.authenticated = True
+        except getattr(ccxt,'AuthenticationError') as e:#
+            self.authenticated = False
+            self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
+          
             
     def newTradeSet(self,symbol,buyLevels=[],buyAmounts=[],sellLevels=[],sellAmounts=[],sl=None,candleAbove=[],initBal=0,force=False,*moreArgs):
         if symbol not in self.exchange.symbols:

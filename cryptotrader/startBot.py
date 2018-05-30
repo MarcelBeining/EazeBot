@@ -107,7 +107,7 @@ def startCmd(bot, update,user_data):
     logging.info('User %s %s (username: %s, id: %s) started the bot'%(update.message.from_user.first_name,update.message.from_user.last_name,update.message.from_user.username,update.message.from_user.id))
     # initiate user_data if it does not exist yet
     if config['telegramUserId'] != update.message.from_user.id:
-        bot.send_message(user_data['chatId'],'Sorry your ID is not recognized! Bye!')
+        bot.send_message(user_data['chatId'],'Sorry your Telegram ID (%d) is not recognized! Bye!'%update.message.from_user.id)
         return
         
     if user_data:
@@ -157,7 +157,7 @@ def printTradeStatus(bot,update,user_data):
 
 def createTradeSet(bot,update,user_data):
     # check if user is registered and has any authenticated exchange
-    if 'exchanges' in user_data and len(user_data['exchanges'])>0:
+    if 'trade' in user_data and len(user_data['trade'])>0:
         # check if exchange was already chosen
         if user_data['chosenExchange']:
             user_data['lastFct'] = None
@@ -274,37 +274,37 @@ def addExchanges(bot,update,user_data):
     hasSecret = [re.search('(?<=^apiSecret).*',val).group(0) for val in keys if re.search('(?<=^apiSecret).*',val,re.IGNORECASE) is not None ]
     hasUid = [re.search('(?<=^apiUid).*',val).group(0) for val in keys if re.search('(?<=^apiUid).*',val,re.IGNORECASE) is not None ]
     hasPassword = [re.search('(?<=^apiPassword).*',val).group(0) for val in keys if re.search('(?<=^apiPassword).*',val,re.IGNORECASE) is not None ]
-
     availableExchanges = set(hasKey).intersection(set(hasSecret))
-        
     if len(availableExchanges) > 0:
         authenticatedExchanges = []
         for a in availableExchanges:
             exch = a.lower()
-            user_data['exchanges'][exch] = {'key': APIs['apiKey%s'%a] , 'secret': APIs['apiSecret%s'%a]}
+            exchParams = {'key': APIs['apiKey%s'%a] , 'secret': APIs['apiSecret%s'%a]}
             if a in hasUid:
-                user_data['exchanges'][exch]['uid'] = APIs['apiUid%s'%a]
+                exchParams['uid'] = APIs['apiUid%s'%a]
             if a in hasPassword:
-                user_data['exchanges'][exch]['password'] = APIs['apiPassword%s'%a]
+                exchParams['password'] = APIs['apiPassword%s'%a]
             # if no CryptoTrader object has been created yet, create one, but also check for correct authentication, otherwise remove again
             if exch not in user_data['trade']:
-                user_data['trade'][exch] = CryptoTrader(exch,**user_data['exchanges'][exch],messagerFct = lambda a,b='info': broadcastMsg(bot,update.effective_user.id,a,b))
-                if not user_data['trade'][exch].authenticated:
-                    user_data['trade'].pop(exch)
-                else:
-                    authenticatedExchanges.append(a)
-        bot.send_message(user_data['chatId'],'New exchanges %s added'%authenticatedExchanges)
+                user_data['trade'][exch] = CryptoTrader(exch,**exchParams,messagerFct = lambda a,b='info': broadcastMsg(bot,user_data['chatId'],a,b))
+            else:
+                user_data['trade'][exch].updateKeys(**exchParams)
+            if not user_data['trade'][exch].authenticated:
+                user_data['trade'].pop(exch)
+            else:
+                authenticatedExchanges.append(a)
+        bot.send_message(user_data['chatId'],'Exchanges %s added/updated'%authenticatedExchanges)
     else:
         bot.send_message(user_data['chatId'],'No exchange found to add')    
-        return MAINMENU
+        if update is not None:
+            return MAINMENU
 
 def botInfo(bot,update,user_data):
-    remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/cryptotrader/contents/cryptotrader/version.py').json()['content'])
-    remoteTxt = compile(remoteTxt,'bla','exec')
-    exec(remoteTxt)
+    remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/cryptotrader/contents/cryptotrader/version.txt').json()['content'])
+    remoteVersion = re.search('(?<=version = )\d+\.\d+',str(remoteTxt)).group(0)
     string = '<b>******** CryptoTrader (v%s) ********</b>\n<i>Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges</i>\n'%__thisVersion__
-    if float(__version__) > float(__thisVersion__):
-        string += '\n<b>There is a new version of CryptoTrader available on git (v%s)!</b>\n'%__version__
+    if float(remoteVersion) > float(thisVersion):
+        string += '\n<b>There is a new version of CryptoTrader available on git (v%s)!</b>\n'%remoteVersion
     string+='\nCryptoTrader has partnership with @Coin_Analyse. Join us for free chart analysis, signals and chat.\n\nReward my efforts on this bot by donating some cryptos!'
     bot.send_message(user_data['chatId'],string,parse_mode='html',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Donate',callback_data='xxx/xxx/1')]]))
     return MAINMENU
@@ -491,10 +491,10 @@ def save_data(*arg):
         dill.dump(updater.dispatcher.user_data, f)
     logging.info('User data autosaved')
         
-def load_data(updater):
+def load_data(filename='data.pickle'):
     # load latest user data
     try:
-        with open('data.pickle', 'rb') as f:
+        with open(filename, 'rb') as f:
             logging.info('Loading user data')
             return dill.load(f)
     except:
@@ -509,12 +509,11 @@ if isinstance(config['telegramUserId'],str):
 if isinstance(config['updateInterval'],str):
     config['updateInterval'] = int(config['updateInterval'])
 
-with open('version.py') as fh:
-    code = compile(fh.read(), 'version.py', 'exec')
-    exec(code)
-    __thisVersion__ = __version__
+with open('version.txt') as fh:
+    thisVersion = re.search('(?<=version = )\d+\.\d+',str(fh.read())).group(0)
+
 #%% init menues
-mainMenu = [['Status of Trade Sets', 'New Trade Set'],['Add exchanges from API.json','Bot Info']]
+mainMenu = [['Status of Trade Sets', 'New Trade Set'],['Add/update exchanges (API.json)','Bot Info']]
 markupMainMenu = ReplyKeyboardMarkup(mainMenu)#, one_time_keyboard=True)
 
 tradeSetMenu = [['Add buy position', 'Add sell position'],
@@ -528,7 +527,7 @@ conv_handler = ConversationHandler(
         states={
             MAINMENU: [RegexHandler('^Status of Trade Sets$',printTradeStatus,pass_user_data=True),
                         RegexHandler('^New Trade Set$',createTradeSet,pass_user_data=True),
-                        RegexHandler('^Add exchanges from API.json$',addExchanges,pass_user_data=True),
+                        RegexHandler('^Add/update exchanges',addExchanges,pass_user_data=True),
                         RegexHandler('^Bot Info$',botInfo,pass_user_data=True),
                         CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
             SYMBOL:   [RegexHandler('\w+/\w+',receivedSymbol,pass_user_data=True),
@@ -556,8 +555,9 @@ updater = Updater(token=config['telegramAPI'])
 updater.dispatcher.add_handler(conv_handler)
 updater.dispatcher.add_handler(unknown_handler)
 
-updater.dispatcher.user_data = load_data(updater)
-
+updater.dispatcher.user_data = load_data()
+time.sleep(2) # wait because of possibility of temporary exchange lockout
+addExchanges(updater.bot,None,updater.dispatcher.user_data[config['telegramUserId']])
 # start a job updating the trade sets each minute
 job_update = updater.job_queue.run_repeating(updateTradeSets, interval=60*config['updateInterval'], first=60,context=updater)
 # start a job checking every day 10 sec after midnight if any 'candleAbove' buys need to be initiated
