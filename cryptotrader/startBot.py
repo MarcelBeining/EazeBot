@@ -104,7 +104,7 @@ def receivedFloat(bot,update,user_data):
         
 ## define menu function
 def startCmd(bot, update,user_data):
-    logging.info('User %s %s (username: %s, id: %s) started the bot'%(update.message.from_user.first_name,update.message.from_user.last_name,update.message.from_user.username,update.message.from_user.id))
+    logging.info('User %s %s (username: %s, id: %s) (re)started the bot'%(update.message.from_user.first_name,update.message.from_user.last_name,update.message.from_user.username,update.message.from_user.id))
     # initiate user_data if it does not exist yet
     if config['telegramUserId'] != update.message.from_user.id:
         bot.send_message(user_data['chatId'],'Sorry your Telegram ID (%d) is not recognized! Bye!'%update.message.from_user.id)
@@ -302,7 +302,7 @@ def addExchanges(bot,update,user_data):
 def botInfo(bot,update,user_data):
     remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/cryptotrader/contents/cryptotrader/version.txt').json()['content'])
     remoteVersion = re.search('(?<=version = )\d+\.\d+',str(remoteTxt)).group(0)
-    string = '<b>******** CryptoTrader (v%s) ********</b>\n<i>Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges</i>\n'%__thisVersion__
+    string = '<b>******** CryptoTrader (v%s) ********</b>\n<i>Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges</i>\n'%thisVersion
     if float(remoteVersion) > float(thisVersion):
         string += '\n<b>There is a new version of CryptoTrader available on git (v%s)!</b>\n'%remoteVersion
     string+='\nCryptoTrader has partnership with @Coin_Analyse. Join us for free chart analysis, signals and chat.\n\nReward my efforts on this bot by donating some cryptos!'
@@ -407,8 +407,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                 return MAINMENU
         elif command == 'chooseExch':
             user_data['chosenExchange'] = exch
-            user_data['lastFct'](bot,update,user_data)
-            
+            return user_data['lastFct'](bot,update,user_data)
         else:  # trade set commands
             if (exch not in user_data['trade'] or not any([ts['uid']==uidTS for ts in user_data['trade'][exch].tradeSets])):
                 query.edit_message_reply_markup()
