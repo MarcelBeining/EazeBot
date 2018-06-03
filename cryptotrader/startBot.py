@@ -171,8 +171,8 @@ def createTradeSet(bot,update,user_data):
                         user_data['newTradeSet']['initBal'] = -dif
                         bot.send_message(user_data['chatId'],'Warning: You want to sell %.5g %s more than you want to buy! I will use that amount of %s from your free balance on %s. Please make sure that amount stays free, otherwise the trade will not work.'%(-dif,coin,coin,exchange))
                     else:
-                        bot.send_message(user_data['chatId'],'Warning: You want to sell %.5g %s more than you want to buy and your free balance of %s on %s is not sufficient. Hence, remember that trade set cannot be executed completely.'%(-dif,coin,coin,exchange))
-                    
+                        bot.send_message(user_data['chatId'],'Warning: You want to sell %.5g %s more than you want to buy and your free balance of %s on %s is not sufficient! Please adjust trade set.'%(-dif,coin,coin,exchange))
+                        return TRADESET
                 logging.info('User id %s wants to create new trade set'%(update.message.from_user.id))
                 user_data['newTradeSet']['force']=1
                 try:
@@ -555,8 +555,9 @@ updater.dispatcher.add_handler(conv_handler)
 updater.dispatcher.add_handler(unknown_handler)
 
 updater.dispatcher.user_data = load_data()
-time.sleep(2) # wait because of possibility of temporary exchange lockout
-addExchanges(updater.bot,None,updater.dispatcher.user_data[config['telegramUserId']])
+if len(updater.dispatcher.user_data[config['telegramUserId']]) > 0:
+    time.sleep(2) # wait because of possibility of temporary exchange lockout
+    addExchanges(updater.bot,None,updater.dispatcher.user_data[config['telegramUserId']])
 # start a job updating the trade sets each minute
 job_update = updater.job_queue.run_repeating(updateTradeSets, interval=60*config['updateInterval'], first=60,context=updater)
 # start a job checking every day 10 sec after midnight if any 'candleAbove' buys need to be initiated

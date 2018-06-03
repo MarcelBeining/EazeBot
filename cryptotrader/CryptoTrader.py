@@ -190,7 +190,7 @@ class CryptoTrader:
             self.message('Estimated loss if buys reach stop-loss before selling: %.5g %s'%(ts['totalBuyCost']-sum(buyAmounts)*sl,ts['baseCurrency']))
         
         self.tradeSets.append(ts)
-        self.initBuyOrders(len(self.tradeSets)-1)
+#        self.initBuyOrders(len(self.tradeSets)-1)
         self.update()
         return len(self.tradeSets)
 
@@ -334,7 +334,7 @@ class CryptoTrader:
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['OutTrades']))):
                 if trade['oid'] is not None:
                     self.exchange.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol']) 
-                    orderInfo = self.fetchOrder(trade['oid'],trade['symbol'],'SELL')
+                    orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL')
                     if orderInfo['cost'] > 0:
                         self.message('Partly filled sell order found during canceling. Updating balance')
                         self.tradeSets[iTs]['balance'] += orderInfo['cost']
@@ -346,11 +346,11 @@ class CryptoTrader:
         
     def cancelBuyOrders(self,iTs):
         iTs = self.getITS(iTs)
-        if len(self.tradeSets) > iTs and len(self.tradeSets[iTs]['InTrades']) > 0:
+        if len(self.tradeSets) > iTs + 1 and len(self.tradeSets[iTs]['InTrades']) > 0:
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['InTrades']))):
                 if trade['oid'] is not None:
                     self.exchange.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol']) 
-                    orderInfo = self.fetchOrder(trade['oid'],trade['symbol'],'BUY')
+                    orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY')
                     if orderInfo['cost'] > 0:
                         self.message('Partly filled buy order found during canceling. Updating balance')
                         self.tradeSets[iTs]['balance'] -= orderInfo['cost']
