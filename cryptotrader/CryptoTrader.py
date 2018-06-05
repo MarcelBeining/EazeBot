@@ -77,13 +77,15 @@ class CryptoTrader:
     def __getstate__(self):
         return self.tradeSets
         
-        
     def checkNum(self,*value):
         return all([(isinstance(val,float) | isinstance(val,int)) if not isinstance(val,list) else self.checkNum(*val) for val in value])
     
     def getITS(self,iTs):
         if isinstance(iTs,int):
-            return iTs
+            if iTs < 0:
+                return len(self.tradeSets)+iTs
+            else:
+                return iTs
         elif isinstance(iTs,str):
             indices =  [i for i, x in enumerate(self.tradeSets) if x['uid']==iTs]
             if len(indices)==0:
@@ -117,7 +119,7 @@ class CryptoTrader:
             self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
           
             
-    def newTradeSet(self,symbol,buyLevels=[],buyAmounts=[],sellLevels=[],sellAmounts=[],sl=None,candleAbove=[],initBal=0,force=False,*moreArgs):
+    def newTradeSet(self,symbol,buyLevels=[],buyAmounts=[],sellLevels=[],sellAmounts=[],sl=None,candleAbove=[],initBal=0,force=False):
         if symbol not in self.exchange.symbols:
             raise NameError('Trading pair %s not found on %s'%(symbol,self.exchange.name))
         if not self.checkNum(buyAmounts) or not self.checkNum(buyLevels):
@@ -333,11 +335,11 @@ class CryptoTrader:
         if len(self.tradeSets) > iTs and len(self.tradeSets[iTs]['OutTrades']) > 0:
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['OutTrades']))):
                 if trade['oid'] is not None:
-                    self.exchange.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol']) 
+                    self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL') 
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL')
-                    if orderInfo['cost'] > 0:
+                    if orderInfo['filled'] > 0:
                         self.message('Partly filled sell order found during canceling. Updating balance')
-                        self.tradeSets[iTs]['balance'] += orderInfo['cost']
+                        self.tradeSets[iTs]['balance'] += orderInfo['price']*orderInfo['filled']
                         self.tradeSets[iTs]['coinsIn'] -= orderInfo['filled']                                
                     self.tradeSets[iTs]['coinsIn'] += trade['amount']
                 del self.tradeSets[iTs]['OutTrades'][iTrade]
@@ -346,14 +348,15 @@ class CryptoTrader:
         
     def cancelBuyOrders(self,iTs):
         iTs = self.getITS(iTs)
-        if len(self.tradeSets) > iTs + 1 and len(self.tradeSets[iTs]['InTrades']) > 0:
+        if len(self.tradeSets) > iTs and len(self.tradeSets[iTs]['InTrades']) > 0:
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['InTrades']))):
+                print(trade)
                 if trade['oid'] is not None:
-                    self.exchange.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol']) 
+                    self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY') 
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY')
-                    if orderInfo['cost'] > 0:
+                    if orderInfo['filled'] > 0:
                         self.message('Partly filled buy order found during canceling. Updating balance')
-                        self.tradeSets[iTs]['balance'] -= orderInfo['cost']
+                        self.tradeSets[iTs]['balance'] -= orderInfo['price']*orderInfo['filled']
                         self.tradeSets[iTs]['coinsIn'] += orderInfo['filled']   
                     self.tradeSets[iTs]['totalBuyCost'] -= trade['amount']*trade['price']
                 del self.tradeSets[iTs]['InTrades'][iTrade]
@@ -368,6 +371,12 @@ class CryptoTrader:
                 response = self.exchange.createLimitBuyOrder(self.tradeSets[iTs]['symbol'], trade['amount'],trade['price'])
                 self.tradeSets[iTs]['InTrades'][iTrade]['oid'] = response['id']
     
+    def cancelOrder(self,oid,symbol,typ):
+        try:
+            return self.exchange.cancelOrder (oid,symbol)
+        except ccxt.ExchangeError as e:
+            return self.exchange.cancelOrder (oid,symbol,{'type':typ}) 
+        
     def fetchOrder(self,oid,symbol,typ):
         try:
             return self.exchange.fetchOrder (oid,symbol)
@@ -413,6 +422,7 @@ class CryptoTrader:
                                 self.message('Buy order (level %d of trade set %d) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs))
                         else:
                             self.initBuyOrders(iTs)                                
+                            time.sleep(1)
                                 
                     if not dailyCheck:
                         # go through all selling positions and create those for which the bought coins suffice
