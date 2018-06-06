@@ -77,6 +77,10 @@ class CryptoTrader:
     def __getstate__(self):
         return self.tradeSets
         
+    @staticmethod
+    def trunc2prec(num,prec):
+        return ('%%.%df'%prec%num).rstrip('0').rstrip('.')
+    
     def checkNum(self,*value):
         return all([(isinstance(val,float) | isinstance(val,int)) if not isinstance(val,list) else self.checkNum(*val) for val in value])
     
@@ -193,28 +197,26 @@ class CryptoTrader:
             trade['amount'] = sellAmounts[n]
             ts['OutTrades'].append(trade)
             summed += sellAmounts[n]*sellLevels[n]
-        self.message('Estimated return if all trades are executed: %%.%df %%s'%(ts['basePrecision'])%(summed-ts['totalBuyCost'],ts['baseCurrency']))
+        self.message('Estimated return if all trades are executed: %s %s'%(self.trunc2prec(summed-ts['totalBuyCost'],ts['basePrecision']),ts['baseCurrency']))
         ts['SL'] = sl
         if sl is not None:
-            self.message('Estimated loss if buys reach stop-loss before selling: %%.%df %%s'%(ts['basePrecision'])%(ts['totalBuyCost']-sum(buyAmounts)*sl,ts['baseCurrency']))
-        
+            self.message('Estimated loss if buys reach stop-loss before selling: %s %s'%(self.trunc2prec(ts['totalBuyCost']-sum(buyAmounts)*sl,ts['basePrecision']),ts['baseCurrency']))        
         self.tradeSets.append(ts)
-#        self.initBuyOrders(len(self.tradeSets)-1)
         self.update()
         return len(self.tradeSets)
-
+        
     def getTradeSetInfo(self,iTs):
         iTs = self.getITS(iTs)
         string = '*Trade set #%d on %s [%s]:*\n'%(iTs,self.exchange.name,self.tradeSets[iTs]['symbol'])
         filledBuys = []
         filledSells = []
         for iTrade,trade in enumerate(self.tradeSets[iTs]['InTrades']):
-            tmpstr = '*Buy level %%d:* Price %%.%df , Amount %%.%df %%s   '%(self.tradeSets[iTs]['basePrecision'],self.tradeSets[iTs]['coinPrecision'])%(iTrade,trade['price'],trade['amount'],self.tradeSets[iTs]['coinCurrency'])
+            tmpstr = '*Buy level %d:* Price %s , Amount %s %s   '%(iTrade,self.trunc2prec(trade['price'],self.tradeSets[iTs]['basePrecision']),self.trunc2prec(trade['amount'],self.tradeSets[iTs]['coinPrecision']),self.tradeSets[iTs]['coinCurrency'])
             if trade['oid'] is None:
                 if trade['candleAbove'] is None:
                     tmpstr = tmpstr + '_Order not initiated_\n'
                 else:
-                    tmpstr = tmpstr + 'if DC > %%.%df'%self.tradeSets[iTs]['basePrecision']%trade['candleAbove']
+                    tmpstr = tmpstr + 'if DC > %s'%self.trunc2prec(trade['candleAbove'],self.tradeSets[iTs]['basePrecision'])
             elif trade['oid'] == 'filled':
                 tmpstr = tmpstr + '_Order filled_\n'
                 filledBuys.append([trade['amount'],trade['price']])
@@ -223,7 +225,7 @@ class CryptoTrader:
             string += tmpstr
         string+= '\n'
         for iTrade,trade in enumerate(self.tradeSets[iTs]['OutTrades']):
-            tmpstr = '*Sell level %%d:* Price %%.%df , Amount %%.%df %%s   '%(self.tradeSets[iTs]['basePrecision'],self.tradeSets[iTs]['coinPrecision'])%(iTrade,trade['price'],trade['amount'],self.tradeSets[iTs]['coinCurrency'])
+            tmpstr = '*Sell level %d:* Price %s , Amount %s %s   '%(iTrade,self.trunc2prec(trade['price'],self.tradeSets[iTs]['basePrecision']),self.trunc2prec(trade['amount'],self.tradeSets[iTs]['coinPrecision']),self.tradeSets[iTs]['coinCurrency'])
             if trade['oid'] is None:
                 tmpstr = tmpstr + '_Order not initiated_\n'
             elif trade['oid'] == 'filled':
@@ -233,14 +235,14 @@ class CryptoTrader:
                 tmpstr = tmpstr + '_Open order_\n'
             string += tmpstr
         if self.tradeSets[iTs]['SL'] is not None:
-            string += '\n*Stop-loss* set at %%.%df.\n'%self.tradeSets[iTs]['basePrecision']%self.tradeSets[iTs]['SL']
+            string += '\n*Stop-loss* set at %s\n'%self.trunc2prec(self.tradeSets[iTs]['SL'],self.tradeSets[iTs]['basePrecision'])
         else:
             string += '\n*No stop-loss set.*\n'
         sumBuys = sum([val[0] for val in filledBuys])
         sumSells = sum([val[0] for val in filledSells])
-        string += '\n*Filled buy orders*: %%.%df %%s for an average price of %%.%df\nFilled sell orders: %%.%df %%s for an average price of %%.%df\n'%(self.tradeSets[iTs]['coinPrecision'],self.tradeSets[iTs]['basePrecision'],self.tradeSets[iTs]['coinPrecision'],self.tradeSets[iTs]['basePrecision'])%(sumBuys,self.tradeSets[iTs]['coinCurrency'],sum([val[0]*val[1]/sumBuys if sumBuys > 0 else None for val in filledBuys]),sumSells,self.tradeSets[iTs]['coinCurrency'],sum([val[0]*val[1]/sumSells if sumSells > 0 else None for val in filledSells]) )
+        string += '\n*Filled buy orders*: %s %s for an average price of %s\nFilled sell orders: %s %s for an average price of %s\n'%(self.trunc2prec(sumBuys,self.tradeSets[iTs]['coinPrecision']),self.tradeSets[iTs]['coinCurrency'],self.trunc2prec(sum([val[0]*val[1]/sumBuys if sumBuys > 0 else None for val in filledBuys]),self.tradeSets[iTs]['coinPrecision']),self.trunc2prec(sumSells,self.tradeSets[iTs]['basePrecision']),self.tradeSets[iTs]['coinCurrency'],self.trunc2prec(sum([val[0]*val[1]/sumSells if sumSells > 0 else None for val in filledSells]),self.tradeSets[iTs]['basePrecision']) )
         ticker = self.exchange.fetch_ticker(self.tradeSets[iTs]['symbol'])
-        string += '\n*Current market price *: %%.%df, \t24h-high: %%.%df, \t24h-low: %%.%df\n'%(self.tradeSets[iTs]['basePrecision'],self.tradeSets[iTs]['basePrecision'],self.tradeSets[iTs]['basePrecision'])%(ticker['last'],ticker['high'],ticker['low'])
+        string += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n'%tuple([self.trunc2prec(val,self.tradeSets[iTs]['basePrecision']) for val in [ticker['last'],ticker['high'],ticker['low']]])
         return string
     
     def deleteTradeSet(self,iTs,sellAll=False):
@@ -304,7 +306,7 @@ class CryptoTrader:
             breakEvenPrice = -self.tradeSets[iTs]['balance']/(self.tradeSets[iTs]['coinsIn']+sum([trade['amount'] for trade in self.tradeSets[iTs]['OutTrades'] if trade['oid'] != 'filled']))
             ticker = self.exchange.fetch_ticker(self.tradeSets[iTs]['symbol'])
             if ticker['last'] < breakEvenPrice:
-                self.message('Break even SL of %%.%df cannot be set as the current market price is lower (%%.%df)!'%(self.tradeSets[iTs]['basePrecision'],self.tradeSets[iTs]['basePrecision'])%(breakEvenPrice,ticker['last']))
+                self.message('Break even SL of %s cannot be set as the current market price is lower (%s)!'%tuple([self.trunc2prec(val,self.tradeSets[iTs]['basePrecision']) for val in [breakEvenPrice,ticker['last']]]))
                 return 0
             else:
                 self.tradeSets[iTs]['SL'] = breakEvenPrice
@@ -330,7 +332,7 @@ class CryptoTrader:
                     
             if orderInfo['status']=='FILLED':
                 self.tradeSets[iTs]['balance'] += orderInfo['cost']
-                self.message('Sold immediately at a price of %%.%df %%s: Sold %%.%df %%s for %%.%df %%s.'%(ts['basePrecision'],ts['coinPrecision'],ts['basePrecision'])%(orderInfo['price'],ts['symbol'],orderInfo['amount'],ts['coinCurrency'],orderInfo['cost'],ts['baseCurrency']))
+                self.message('Sold immediately at a price of %s %s: Sold %s %s for %s %s.'%(self.trunc2prec(orderInfo['price'],ts['basePrecision']),ts['symbol'],self.trunc2prec(orderInfo['amount'],ts['coinPrecision']),ts['coinCurrency'],self.trunc2prec(orderInfo['cost'],ts['basePrecision']),ts['baseCurrency']))
             else:
                 self.message('Sell order was not traded immediately, updating status soon.')
                 self.tradeSets[iTs]['OutTrades'].append({'oid':response['id'],'price': orderInfo['price'],'amount': orderInfo['amount']})
@@ -416,13 +418,13 @@ class CryptoTrader:
                             if ticker['last'] > trade['candleAbove']:
                                 response = self.exchange.createLimitBuyOrder(ts['symbol'], trade['amount'],trade['price'])
                                 self.tradeSets[iTs]['InTrades'][iTrade]['oid'] = response['id']
-                                self.message('Daily candle of %%s above %%.%df triggering buy level #%%d!'%ts['basePrecision']%(ts['symbol'],trade['candleAbove'],iTrade))
+                                self.message('Daily candle of %s above %s triggering buy level #%d!'%(ts['symbol'],self.trunc2prec(trade['candleAbove'],ts['basePrecision']),iTrade))
                         elif trade['oid'] is not None:
                             orderInfo = self.fetchOrder(trade['oid'],ts['symbol'],'BUY')
                             if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                                 self.tradeSets[iTs]['InTrades'][iTrade]['oid'] = 'filled'
                                 self.tradeSets[iTs]['balance'] -= orderInfo['cost']
-                                self.message('Buy level of %%.%df %%s reached, bought %%.%df %%s for %%.%df %%s.'%(ts['basePrecision'],ts['coinPrecision'],ts['basePrecision'])%(orderInfo['price'],ts['symbol'],orderInfo['amount'],ts['coinCurrency'],orderInfo['cost'],ts['baseCurrency']))
+                                self.message('Buy level of %s %s reached, bought %s %s for %s %s.'%(self.trunc2prec(orderInfo['price'],ts['basePrecision']),ts['symbol'],self.trunc2prec(orderInfo['amount'],ts['coinPrecision']),ts['coinCurrency'],self.trunc2prec(orderInfo['cost'],ts['basePrecision']),ts['baseCurrency']))
                                 self.tradeSets[iTs]['coinsIn'] += orderInfo['filled']
                             elif orderInfo['status'] == 'canceled':
                                 self.tradeSets[iTs]['InTrades'][iTrade]['oid'] = None
@@ -449,14 +451,14 @@ class CryptoTrader:
                                 if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                                     self.tradeSets[iTs]['OutTrades'][iTrade]['oid'] = 'filled'
                                     self.tradeSets[iTs]['balance'] += orderInfo['cost']
-                                    self.message('Sell level of %%.%df %%s reached, sold %%.%df %%s for %%.%df %%s.'%(ts['basePrecision'],ts['coinPrecision'],ts['basePrecision'])%(orderInfo['price'],ts['symbol'],orderInfo['amount'],ts['coinCurrency'],orderInfo['cost'],ts['baseCurrency']))
+                                    self.message('Sell level of %s %s reached, sold %s %s for %s %s.'%(self.trunc2prec(orderInfo['price'],ts['basePrecision']),ts['symbol'],self.trunc2prec(orderInfo['amount'],ts['coinPrecision']),ts['coinCurrency'],self.trunc2prec(orderInfo['cost'],ts['basePrecision']),ts['baseCurrency']))
                                 elif orderInfo['status'] == 'canceled':
                                     self.tradeSets[iTs]['coinsIn'] += self.tradeSets[iTs]['OutTrades'][iTrade]['amount']
                                     self.tradeSets[iTs]['OutTrades'][iTrade]['oid'] = None
                                     self.message('Sell order (level %d of trade set %d) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs))
                         
                         if len(self.tradeSets[iTs]['OutTrades']) == filledOut and len(self.tradeSets[iTs]['InTrades']) == filledIn:
-                            self.message('Trading set %%s completed! Total gain: %%.%dg %%s'%(ts['basePrecision'])%(ts['symbol'],self.tradeSets[iTs]['balance'],ts['baseCurrency']))
+                            self.message('Trading set %s completed! Total gain: %s %s'%(ts['symbol'],self.trunc2prec(self.tradeSets[iTs]['balance'],ts['basePrecision']),ts['baseCurrency']))
                             del self.tradeSets[iTs]
                 self.updating = False
             except Exception as e:
