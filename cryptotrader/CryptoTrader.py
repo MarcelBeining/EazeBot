@@ -123,7 +123,7 @@ class CryptoTrader:
             self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
           
             
-    def newTradeSet(self,symbol,buyLevels=[],buyAmounts=[],sellLevels=[],sellAmounts=[],sl=None,candleAbove=[],initBal=0,force=False):
+    def newTradeSet(self,symbol,buyLevels=[],buyAmounts=[],sellLevels=[],sellAmounts=[],sl=None,candleAbove=[],initCoins=0,initPrice=None,force=False):
         if symbol not in self.exchange.symbols:
             raise NameError('Trading pair %s not found on %s'%(symbol,self.exchange.name))
         if not self.checkNum(buyAmounts) or not self.checkNum(buyLevels):
@@ -132,8 +132,8 @@ class CryptoTrader:
             raise TypeError('Sell levels and amounts must be of type float!')
         if sl and not self.checkNum(sl):
             raise TypeError('Stop-loss must be of type float!')
-        if not self.checkNum(initBal): 
-            raise TypeError('Initial balance must be of type float!')
+        if not self.checkNum(initCoins): 
+            raise TypeError('Initial coin amount must be of type float!')
         if len(buyLevels)!=len(buyAmounts):
             raise ValueError('The number of buy levels and buy amounts has to be the same')
         if len(sellLevels)!=len(sellAmounts):
@@ -184,10 +184,11 @@ class CryptoTrader:
             trade['candleAbove'] = candleAbove[n]
             ts['InTrades'].append(trade)
             summed += buyAmounts[n]*buyLevels[n]
-        ts['totalBuyCost'] = summed
         ts['balance'] = 0
-        ts['coinsIn'] = initBal
-        ts['initBal'] = initBal
+        ts['coinsIn'] = initCoins
+        ts['initCoins'] = initCoins
+        ts['initPrice'] = initPrice
+        ts['totalBuyCost'] = summed + ((initCoins*initPrice) if initPrice is not None else 0)
         summed = 0
         # create the sell orders
         for n,_ in enumerate(sellLevels):
@@ -200,7 +201,7 @@ class CryptoTrader:
         self.message('Estimated return if all trades are executed: %s %s'%(self.trunc2prec(summed-ts['totalBuyCost'],ts['basePrecision']),ts['baseCurrency']))
         ts['SL'] = sl
         if sl is not None:
-            self.message('Estimated loss if buys reach stop-loss before selling: %s %s'%(self.trunc2prec(ts['totalBuyCost']-sum(buyAmounts)*sl,ts['basePrecision']),ts['baseCurrency']))        
+            self.message('Estimated loss if buys reach stop-loss before selling: %s %s'%(self.trunc2prec(ts['totalBuyCost']-(initCoins+sum(buyAmounts))*sl,ts['basePrecision']),ts['baseCurrency']))        
         self.tradeSets.append(ts)
         self.update()
         return len(self.tradeSets)
@@ -244,6 +245,11 @@ class CryptoTrader:
         string += '\n*Filled buy orders*: %s %s for an average price of %s\nFilled sell orders: %s %s for an average price of %s\n'%(self.trunc2prec(sumBuys,ts['coinPrecision']),ts['coinCurrency'],self.trunc2prec(sum([val[0]*val[1]/sumBuys if sumBuys > 0 else None for val in filledBuys]),ts['coinPrecision']),self.trunc2prec(sumSells,ts['basePrecision']),ts['coinCurrency'],self.trunc2prec(sum([val[0]*val[1]/sumSells if sumSells > 0 else None for val in filledSells]),ts['basePrecision']) )
         ticker = self.exchange.fetch_ticker(ts['symbol'])
         string += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n'%tuple([self.trunc2prec(val,ts['basePrecision']) for val in [ticker['last'],ticker['high'],ticker['low']]])
+        if (ts['initCoins'] == 0 or ts['initPrice'] is not None) and (sumBuys>0 or ts['initCoins'] > 0):
+            gain = (ts['coinsIn']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled']))*ticker['last'] - sum([val[0]*val[1] for val in filledBuys])
+            if ts['initPrice'] is not None:
+                gain -=  (ts['initCoins']*ts['initPrice'])
+            string += '\n*Estimated gain/loss when selling all now: *: %s %s\n'%self.trunc2prec(gain,ts['basePrecision'])
         return string
     
     def deleteTradeSet(self,iTs,sellAll=False):
@@ -295,8 +301,8 @@ class CryptoTrader:
     def setSLBreakEven(self,iTs):   
         iTs = self.getITS(iTs)        
         ts = self.tradeSets[iTs]         
-        if ts['initBal'] > 0:
-            self.message('Break even SL cannot be set as you this trade set contains %s that you obtained beforehand. Thus I do not know its buy price(s).'%ts['coinCurrency'])
+        if ts['initCoins'] > 0 and ts['initPrice'] is None:
+            self.message('Break even SL cannot be set as you this trade set contains %s that you obtained beforehand and no buy price information was given.'%ts['coinCurrency'])
             return 0
         elif ts['balance'] > 0:
             self.message('Break even SL cannot be set as your sold coins of this trade already outweigh your buy expenses (congrats!)! You might choose to sell everything immediately if this is what you want.')
