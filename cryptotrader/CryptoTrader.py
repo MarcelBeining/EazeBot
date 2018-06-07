@@ -249,7 +249,7 @@ class CryptoTrader:
             gain = (ts['coinsIn']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled']))*ticker['last'] - sum([val[0]*val[1] for val in filledBuys])
             if ts['initPrice'] is not None:
                 gain -=  (ts['initCoins']*ts['initPrice'])
-            string += '\n*Estimated gain/loss when selling all now: *: %s %s\n'%self.trunc2prec(gain,ts['basePrecision'])
+            string += '\n*Estimated gain/loss when selling all now: *: %s %s\n'%(self.trunc2prec(gain,ts['basePrecision']),ts['baseCurrency'])
         return string
     
     def deleteTradeSet(self,iTs,sellAll=False):
