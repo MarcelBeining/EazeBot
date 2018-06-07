@@ -194,7 +194,6 @@ def createTradeSet(bot,update,user_data):
                     user_data['trade'][exchange].newTradeSet(**user_data['newTradeSet'])
                 except Exception as e:
                     bot.send_message(user_data['chatId'],'There was an error during initializing the trade :\n%s\nPlease check your trade settings'%str(e),reply_markup=markupTradeSetMenu)
-                    user_data['trade'][exchange].deleteTradeSet(-1)
                     return TRADESET
                 user_data['newTradeSet'] = None
                 user_data['chosenExchange'] = None

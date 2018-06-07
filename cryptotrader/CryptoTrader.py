@@ -149,10 +149,10 @@ class CryptoTrader:
         ts['coinCurrency'] = re.search(".*(?=/)", symbol).group(0)
 
         # truncate values to precision        
-        sellLevels = [self.exchange.priceToPrecision(ts['symbol'],val) for val in sellLevels]
-        buyLevels = [self.exchange.priceToPrecision(ts['symbol'],val) for val in buyLevels]
-        sellAmounts = [self.exchange.amountToPrecision(ts['symbol'],val) for val in sellAmounts]
-        buyAmounts = [self.exchange.amountToPrecision(ts['symbol'],val) for val in buyAmounts]
+        sellLevels = [float(self.exchange.priceToPrecision(ts['symbol'],val)) for val in sellLevels]
+        buyLevels = [float(self.exchange.priceToPrecision(ts['symbol'],val)) for val in buyLevels]
+        sellAmounts = [float(self.exchange.amountToPrecision(ts['symbol'],val)) for val in sellAmounts]
+        buyAmounts = [float(self.exchange.amountToPrecision(ts['symbol'],val)) for val in buyAmounts]
 
         # sort sell levels and amounts to have lowest level first
         idx = np.argsort(sellLevels)
