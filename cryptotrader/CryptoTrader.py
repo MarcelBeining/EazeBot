@@ -237,12 +237,17 @@ class CryptoTrader:
                 tmpstr = tmpstr + '_Open order_\n'
             string += tmpstr
         if ts['SL'] is not None:
-            string += '\n*Stop-loss* set at %s\n'%self.trunc2prec(ts['SL'],ts['basePrecision'])
+            string += '\n*Stop-loss* set at %s\n\n'%self.trunc2prec(ts['SL'],ts['basePrecision'])
         else:
-            string += '\n*No stop-loss set.*\n'
+            string += '\n*No stop-loss set.*\n\n'
         sumBuys = sum([val[0] for val in filledBuys])
         sumSells = sum([val[0] for val in filledSells])
-        string += '\n*Filled buy orders*: %s %s for an average price of %s\nFilled sell orders: %s %s for an average price of %s\n'%(self.trunc2prec(sumBuys,ts['coinPrecision']),ts['coinCurrency'],self.trunc2prec(sum([val[0]*val[1]/sumBuys if sumBuys > 0 else None for val in filledBuys]),ts['coinPrecision']),self.trunc2prec(sumSells,ts['basePrecision']),ts['coinCurrency'],self.trunc2prec(sum([val[0]*val[1]/sumSells if sumSells > 0 else None for val in filledSells]),ts['basePrecision']) )
+        if ts['initCoins']>0:
+            string += '*Initial coins:* %s %s for an average price of %s\n'%(self.trunc2prec(ts['initCoins'],ts['coinPrecision']),ts['coinCurrency'],self.trunc2prec(ts['initPrice'],ts['basePrecision']) if ts['initPrice'] is not None else 'unknown')
+        if sumBuys>0:
+            string += '*Filled buy orders:* %s %s for an average price of %s\n'%(self.trunc2prec(sumBuys,ts['coinPrecision']),ts['coinCurrency'],self.trunc2prec(sum([val[0]*val[1]/sumBuys if sumBuys > 0 else None for val in filledBuys]),ts['coinPrecision']))
+        if sumSells>0:
+            string += '*Filled sell orders:* %s %s for an average price of %s\n'%(self.trunc2prec(sumSells,ts['basePrecision']),ts['coinCurrency'],self.trunc2prec(sum([val[0]*val[1]/sumSells if sumSells > 0 else None for val in filledSells]),ts['basePrecision']))
         ticker = self.exchange.fetch_ticker(ts['symbol'])
         string += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n'%tuple([self.trunc2prec(val,ts['basePrecision']) for val in [ticker['last'],ticker['high'],ticker['low']]])
         if (ts['initCoins'] == 0 or ts['initPrice'] is not None) and (sumBuys>0 or ts['initCoins'] > 0):
