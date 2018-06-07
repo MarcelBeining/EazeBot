@@ -144,12 +144,11 @@ def printTradeStatus(bot,update,user_data):
         ct = user_data['trade'][user_data['chosenExchange']]
         tradeSet = user_data['newTradeSet']
         coin = getCName(tradeSet['symbol'],0)
-        currency = getCName(tradeSet['symbol'],1)
         string = '*Trade set for %s*\n'%tradeSet['symbol']
         for n,_ in enumerate(tradeSet['buyLevels']):
-            string += '*Buy level %d:* Price %s , Amount %s %s %s    \n'%(n,ct.trunc2prec(tradeSet['buyLevels'][n],ct.exchange.currencies[currency]['precision']),ct.trunc2prec(tradeSet['buyAmounts'][n],ct.exchange.currencies[coin]['precision']),coin,'' if tradeSet['candleAbove'][n] is None else 'if DC > %.5g'%tradeSet['candleAbove'][n])
+            string += '*Buy level %d:* Price %s , Amount %s %s %s    \n'%(n,ct.price2Prec(tradeSet['symbol'],tradeSet['buyLevels'][n]),ct.amount2Prec(tradeSet['symbol'],tradeSet['buyAmounts'][n]),coin,'' if tradeSet['candleAbove'][n] is None else 'if DC > %.5g'%tradeSet['candleAbove'][n])
         for n,_ in enumerate(tradeSet['sellLevels']):
-            string+= '*Sell level %d:* Price %s , Amount %s %s   \n'%(n,ct.trunc2prec(tradeSet['sellLevels'][n],ct.exchange.currencies[currency]['precision']),ct.trunc2prec(tradeSet['sellAmounts'][n],ct.exchange.currencies[coin]['precision']),coin)
+            string+= '*Sell level %d:* Price %s , Amount %s %s   \n'%(n,ct.price2Prec(tradeSet['symbol'],tradeSet['sellLevels'][n]),ct.price2Prec(tradeSet['symbol'],tradeSet['sellAmounts'][n]),coin)
         string+= '*Stop-loss:* '+ str(tradeSet['sl'])
         bot.send_message(user_data['chatId'],string,parse_mode='markdown')    
         return TRADESET
@@ -233,7 +232,6 @@ def addSL(bot,update,user_data,inputType=None,response=None):
 
 def addBuyPos(bot,update,user_data,inputType=None,response=None):
     coin = getCName(user_data['newTradeSet']['symbol'],0)
-    currency = getCName(user_data['newTradeSet']['symbol'],1)
     if inputType is None:
         user_data['lastFct'] = lambda b,u,us,res : addBuyPos(b,u,us,'buyLevels',res)
         bot.send_message(user_data['chatId'],"At which price do you want to buy %s"%user_data['newTradeSet']['symbol'])
@@ -243,7 +241,7 @@ def addBuyPos(bot,update,user_data,inputType=None,response=None):
             bot.send_message(user_data['chatId'],"Zero not allowed")
             return NUMBER
         # truncate values to precision        
-        response = user_data['trade'][user_data['chosenExchange']].exchange.truncate(response, user_data['trade'][user_data['chosenExchange']].exchange.currencies[ getCName(user_data['newTradeSet']['symbol'],1)]['precision'])
+        response = user_data['trade'][user_data['chosenExchange']].exchange.priceToPrecision(user_data['newTradeSet']['symbol'],response)
         user_data['newTradeSet']['buyLevels'].append(response)
         user_data['lastFct'] = lambda b,u,us,res : addBuyPos(b,u,us,'buyAmounts',res)
         askAmount(user_data,'buy',bot)
@@ -252,7 +250,7 @@ def addBuyPos(bot,update,user_data,inputType=None,response=None):
         if user_data['newTradeSet']['currency']==1:
             response =response/user_data['newTradeSet']['buyLevels'][-1]
         # truncate values to precision        
-        response = user_data['trade'][user_data['chosenExchange']].exchange.truncate(response, user_data['trade'][user_data['chosenExchange']].exchange.currencies[ getCName(user_data['newTradeSet']['symbol'],0)]['precision'])
+        response = user_data['trade'][user_data['chosenExchange']].exchange.amountToPrecision(user_data['newTradeSet']['symbol'],response)
         user_data['newTradeSet']['buyAmounts'].append(response)
         user_data['lastFct'] = lambda b,u,us,res : addBuyPos(b,u,us,'candleAbove',res)       
         bot.send_message(user_data['chatId'],'Do you want to make this a timed buy (buy only if daily candle closes above X)',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='Yes'),InlineKeyboardButton("No", callback_data='No')]]))
@@ -261,7 +259,7 @@ def addBuyPos(bot,update,user_data,inputType=None,response=None):
         user_data['newTradeSet']['candleAbove'].append(response)
         user_data['lastFct'] = None
         ct = user_data['trade'][user_data['chosenExchange']]
-        bot.send_message(user_data['chatId'],"Your buy position #%d is %s %s for %s %s"%(len(user_data['newTradeSet']['buyLevels'])-1,ct.trunc2prec(user_data['newTradeSet']['buyAmounts'][-1],ct.exchange.currencies[coin]['precision']),coin,ct.trunc2prec(user_data['newTradeSet']['buyLevels'][-1],ct.exchange.currencies[currency]['precision']),user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
+        bot.send_message(user_data['chatId'],"Your buy position #%d is %s %s for %s %s"%(len(user_data['newTradeSet']['buyLevels'])-1,ct.amount2Prec(user_data['newTradeSet']['symbol'],user_data['newTradeSet']['buyAmounts'][-1]),coin,ct.price2Prec(user_data['newTradeSet']['symbol'],user_data['newTradeSet']['buyLevels'][-1]),user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
         return TRADESET
     
 def askAmount(user_data,direction='buy',botOrQuery=None):
@@ -297,7 +295,6 @@ def askAmount(user_data,direction='buy',botOrQuery=None):
     
 def addInitBalance(bot,update,user_data,inputType=None,response=None):
     coin = getCName(user_data['newTradeSet']['symbol'],0)
-    currency = getCName(user_data['newTradeSet']['symbol'],1)
     if inputType is None:
         user_data['lastFct'] = lambda b,u,us,res : addInitBalance(b,u,us,'initCoins',res)
         bot.send_message(user_data['chatId'],"You already have %s that you want to add to the trade set? How much is it?"%coin)
@@ -311,12 +308,11 @@ def addInitBalance(bot,update,user_data,inputType=None,response=None):
             user_data['newTradeSet']['initPrice'] = response
         user_data['lastFct'] = None
         ct = user_data['trade'][user_data['chosenExchange']]
-        bot.send_message(user_data['chatId'],"You added an initial amount of %s %s that you bought for %s %s"%(ct.trunc2prec(user_data['newTradeSet']['initCoins'],ct.exchange.currencies[coin]['precision']),coin,'unknown' if response<0 else ct.trunc2prec(response,ct.exchange.currencies[currency]['precision']),user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
+        bot.send_message(user_data['chatId'],"You added an initial amount of %s %s that you bought for %s %s"%(ct.amount2Prec(user_data['newTradeSet']['symbol'],user_data['newTradeSet']['initCoins']),coin,'unknown' if response<0 else ct.price2Prec(user_data['newTradeSet']['symbol'],response),user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
         return TRADESET
 
 def addSellPos(bot,update,user_data,inputType=None,response=None):
     coin = getCName(user_data['newTradeSet']['symbol'],0)
-    currency = getCName(user_data['newTradeSet']['symbol'],1)
     if inputType is None:
         user_data['lastFct'] = lambda b,u,us,res : addSellPos(b,u,us,'sellLevels',res)
         bot.send_message(user_data['chatId'],"At which price do you want to sell %s"%user_data['newTradeSet']['symbol'])
@@ -336,7 +332,7 @@ def addSellPos(bot,update,user_data,inputType=None,response=None):
             user_data['newTradeSet']['sellAmounts'].append(float(Decimal(response)/Decimal(user_data['newTradeSet']['sellLevels'][-1])))
         user_data['lastFct'] = None
         ct = user_data['trade'][user_data['chosenExchange']] 
-        bot.send_message(user_data['chatId'],"Your sell position #%d is %s %s for %s %s"%(len(user_data['newTradeSet']['sellLevels'])-1,ct.trunc2prec(user_data['newTradeSet']['sellAmounts'][-1],ct.exchange.currencies[coin]['precision']),coin,ct.trunc2prec(user_data['newTradeSet']['sellLevels'][-1],ct.exchange.currencies[currency]['precision']),user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
+        bot.send_message(user_data['chatId'],"Your sell position #%d is %s %s for %s %s"%(len(user_data['newTradeSet']['sellLevels'])-1,ct.amount2Prec(user_data['newTradeSet']['symbol'],user_data['newTradeSet']['sellAmounts'][-1]),coin,ct.price2Prec(user_data['newTradeSet']['symbol'],user_data['newTradeSet']['sellLevels'][-1]),user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
         return TRADESET
 
 def addExchanges(bot,update,user_data):
@@ -473,7 +469,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                                 return MAINMENU
                             if balance['free'][args[0]] > ct.exchange.fees['funding']['withdraw'][args[0]]:
                                 query.answer('')
-                                bot.send_message(user_data['chatId'],'Your free balance is %s %s and withdrawing fee on %s is %s %s. How much do you want to donate (excluding fees)'%(ct.trunc2prec(balance['free'][args[0]],ct.exchange.currencies[args[0]]['precision']),args[0],exch,ct.trunc2prec(ct.exchange.fees['funding']['withdraw'][args[0]],ct.exchange.currencies[args[0]]['precision']),args[0])) 
+                                bot.send_message(user_data['chatId'],'Your free balance is %.8g %s and withdrawing fee on %s is %.8g %s. How much do you want to donate (excluding fees)'%(balance['free'][args[0]],args[0],exch,ct.exchange.fees['funding']['withdraw'][args[0]],args[0])) 
                                 user_data['lastFct'] = lambda b,u,us,res : InlineButtonCallback(b,u,us,query,res)
                                 return NUMBER
                             else:
