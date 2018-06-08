@@ -181,7 +181,7 @@ def createTradeSet(bot,update,user_data):
                     coin = getCName(user_data['newTradeSet']['symbol'],0)
                     freeCoins = user_data['trade'][exchange].exchange.fetchBalance()[coin]['free']
                     if freeCoins >= -dif:
-                        user_data['newTradeSet']['initCoins'] = -dif
+                        user_data['newTradeSet']['initCoins'] += -dif
                         bot.send_message(user_data['chatId'],'Warning: You want to sell %.5g %s more than you want to buy! I will use that amount of %s from your free balance on %s. Please make sure that amount stays free, otherwise the trade will not work.'%(-dif,coin,coin,exchange))
                     else:
                         bot.send_message(user_data['chatId'],'Warning: You want to sell %.5g %s more than you want to buy and your free balance of %s on %s is not sufficient! Please adjust trade set.'%(-dif,coin,coin,exchange))

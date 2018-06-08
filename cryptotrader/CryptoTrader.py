@@ -45,10 +45,10 @@ class CryptoTrader:
         if uid:
             self.exchange.uid = uid
         self.exchange.loadMarkets()
-        self.amount2Prec = lambda a,b: str(self.exchange.amountToPrecision(a,b)).rstrip('0').rstrip('.')
-        self.price2Prec = lambda a,b: str(self.exchange.priceToPrecision(a,b)).rstrip('0').rstrip('.')
-        self.cost2Prec = lambda a,b: str(self.exchange.costToPrecision(a,b)).rstrip('0').rstrip('.')
-        self.fee2Prec = lambda a,b: str(self.exchange.feeToPrecision(a,b)).rstrip('0').rstrip('.')
+        self.amount2Prec = lambda a,b: self.stripZeros(str(self.exchange.amountToPrecision(a,b)))
+        self.price2Prec = lambda a,b: self.stripZeros(str(self.exchange.priceToPrecision(a,b)))
+        self.cost2Prec = lambda a,b: self.stripZeros(str(self.exchange.costToPrecision(a,b)))
+        self.fee2Prec = lambda a,b: self.stripZeros(str(self.exchange.feeToPrecision(a,b)))
 
         # use either the given messager function or define a simple print messager function which takes a level argument as second optional input
         if messagerFct:
@@ -82,6 +82,13 @@ class CryptoTrader:
     def __getstate__(self):
         return self.tradeSets
     
+    @staticmethod
+    def stripZeros(string):
+        if '.' in string:
+            return string.rstrip('0').rstrip('.')
+        else:
+            return string
+        
     def checkNum(self,*value):
         return all([(isinstance(val,float) | isinstance(val,int)) if not isinstance(val,list) else self.checkNum(*val) for val in value])
     
@@ -122,6 +129,9 @@ class CryptoTrader:
         except getattr(ccxt,'AuthenticationError') as e:#
             self.authenticated = False
             self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
+        except getattr(ccxt,'ExchangeError') as e:
+            self.authenticated = False
+            self.message('Failed to fetch balance at exchange %s. The following error occurred:\n%s'%(self.exchange.name,str(e)),'error')
           
             
     def newTradeSet(self,symbol,buyLevels=[],buyAmounts=[],sellLevels=[],sellAmounts=[],sl=None,candleAbove=[],initCoins=0,initPrice=None,force=False):
@@ -198,7 +208,7 @@ class CryptoTrader:
             trade['amount'] = sellAmounts[n]
             ts['OutTrades'].append(trade)
             summed += sellAmounts[n]*sellLevels[n]
-        self.message('Estimated return if all trades are executed: %s %s'%(self.amount2Prec(ts['symbol'],summed-ts['totalBuyCost']),ts['baseCurrency']))
+        self.message('Estimated return if all trades are executed: %s %s'%(self.cost2Prec(ts['symbol'],summed-ts['totalBuyCost']),ts['baseCurrency']))
         ts['SL'] = sl
         if sl is not None:
             self.message('Estimated loss if buys reach stop-loss before selling: %s %s'%(self.cost2Prec(ts['symbol'],ts['totalBuyCost']-(initCoins+sum(buyAmounts))*sl),ts['baseCurrency']))        
