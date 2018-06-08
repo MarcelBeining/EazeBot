@@ -261,10 +261,12 @@ class CryptoTrader:
         ticker = self.exchange.fetch_ticker(ts['symbol'])
         string += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n'%tuple([self.price2Prec(ts['symbol'],val) for val in [ticker['last'],ticker['high'],ticker['low']]])
         if (ts['initCoins'] == 0 or ts['initPrice'] is not None) and (sumBuys>0 or ts['initCoins'] > 0):
-            gain = (ts['coinsIn']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled']))*ticker['last'] - sum([val[0]*val[1] for val in filledBuys])
+            costSells = (ts['coinsIn']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled']))*ticker['last'] 
+            costBuys = sum([val[0]*val[1] for val in filledBuys])
             if ts['initPrice'] is not None:
-                gain -=  (ts['initCoins']*ts['initPrice'])
-            string += '\n*Estimated gain/loss when selling all now: *: %s %s\n'%(self.cost2Prec(ts['symbol'],gain),ts['baseCurrency'])
+                costBuys +=  (ts['initCoins']*ts['initPrice'])
+            gain = costSells - costBuys
+            string += '\n*Estimated gain/loss when selling all now: *: %s %s (%+.2g %%)\n'%(self.cost2Prec(ts['symbol'],gain),ts['baseCurrency'],gain/(costBuys)*100)
         return string
     
     def deleteTradeSet(self,iTs,sellAll=False):
