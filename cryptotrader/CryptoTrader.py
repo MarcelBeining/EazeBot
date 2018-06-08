@@ -449,11 +449,11 @@ class CryptoTrader:
                             if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                                 ts['InTrades'][iTrade]['oid'] = 'filled'
                                 ts['balance'] -= orderInfo['cost']
-                                self.message('Buy level of %s %s reached, bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
+                                self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
                                 ts['coinsIn'] += orderInfo['filled']
                             elif orderInfo['status'] == 'canceled':
                                 ts['InTrades'][iTrade]['oid'] = None
-                                self.message('Buy order (level %d of trade set %d) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs))
+                                self.message('Buy order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
                         else:
                             self.initBuyOrders(iTs)                                
                             time.sleep(1)
@@ -476,14 +476,14 @@ class CryptoTrader:
                                 if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                                     ts['OutTrades'][iTrade]['oid'] = 'filled'
                                     ts['balance'] += orderInfo['cost']
-                                    self.message('Sell level of %s %s reached, sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
+                                    self.message('Sell level of %s %s reached on %s! Sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
                                 elif orderInfo['status'] == 'canceled':
                                     ts['coinsIn'] += ts['OutTrades'][iTrade]['amount']
                                     ts['OutTrades'][iTrade]['oid'] = None
-                                    self.message('Sell order (level %d of trade set %d) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs))
+                                    self.message('Sell order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
                         
                         if len(ts['OutTrades']) == filledOut and len(ts['InTrades']) == filledIn:
-                            self.message('Trading set %s completed! Total gain: %s %s'%(ts['symbol'],self.cost2Prec(ts['symbol'],ts['balance']),ts['baseCurrency']))
+                            self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,self.cost2Prec(ts['symbol'],ts['balance']),ts['baseCurrency']))
                             del self.tradeSets[iTs]
                 self.updating = False
             except Exception as e:
