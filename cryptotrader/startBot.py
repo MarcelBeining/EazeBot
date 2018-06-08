@@ -168,6 +168,28 @@ def printTradeStatus(bot,update,user_data):
             bot.send_message(user_data['chatId'],'No Trade sets found')
         return MAINMENU 
 
+def checkBalance(bot,update,user_data):
+    if user_data['chosenExchange']:
+        exchange = user_data['chosenExchange']
+        user_data['chosenExchange'] = None
+        ct = user_data['trade'][exchange]
+        balance = ct.exchange.fetchBalance()
+        ticker = ct.exchange.fetchTickers()
+        coins = list(balance['total'].keys())
+        string = '*Balance on %s (>0.001 BTC):*\n'%(exchange)
+        for c in coins:
+            BTCpair = '%s/BTC'%c
+            if BTCpair in ticker and ticker[BTCpair]['last']*balance['total'][c] > 0.001:
+                string += '*%s:* %s _(free: %s)_\n'%(c, ct.amount2Prec(BTCpair,balance['total'][c]), ct.amount2Prec(BTCpair,balance['free'][c]))
+        bot.send_message(user_data['chatId'],string,parse_mode='markdown')
+    else:
+        user_data['lastFct'] = checkBalance
+        # list all available exanches for choosing
+        exchs = [ct.exchange.name for _,ct in user_data['trade'].items()]
+        buttons = [[InlineKeyboardButton(exch,callback_data='chooseExch/%s/xxx'%(exch.lower()))] for exch in sorted(exchs)] + [[InlineKeyboardButton('Cancel',callback_data='chooseExch/xxx/xxx/cancel')]]
+        bot.send_message(user_data['chatId'],'For which exchange do you want to see your balance?',reply_markup=InlineKeyboardMarkup(buttons))
+            
+    
 def createTradeSet(bot,update,user_data):
     # check if user is registered and has any authenticated exchange
     if 'trade' in user_data and len(user_data['trade'])>0:
@@ -480,6 +502,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                     return MAINMENU
             elif command == 'chooseExch':
                 query.answer('%s chosen'%exch)
+                query.message.delete()
                 user_data['chosenExchange'] = exch
                 return user_data['lastFct'](bot,update,user_data)
             else:  # trade set commands
@@ -586,7 +609,7 @@ with open('version.txt') as fh:
     thisVersion = re.search('(?<=version = )\d+\.\d+',str(fh.read())).group(0)
 
 #%% init menues
-mainMenu = [['Status of Trade Sets', 'New Trade Set'],['Add/update exchanges (API.json)','Bot Info']]
+mainMenu = [['Status of Trade Sets', 'New Trade Set','Check Balance'],['Add/update exchanges (API.json)','Bot Info']]
 markupMainMenu = ReplyKeyboardMarkup(mainMenu)#, one_time_keyboard=True)
 
 tradeSetMenu = [['Add buy position', 'Add sell position','Add initial coins'],
@@ -602,6 +625,7 @@ conv_handler = ConversationHandler(
                         RegexHandler('^New Trade Set$',createTradeSet,pass_user_data=True),
                         RegexHandler('^Add/update exchanges',addExchanges,pass_user_data=True),
                         RegexHandler('^Bot Info$',botInfo,pass_user_data=True),
+                        RegexHandler('^Check Balance$',checkBalance,pass_user_data=True),
                         CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
             SYMBOL:   [RegexHandler('\w+/\w+',receivedSymbol,pass_user_data=True),
                         MessageHandler(Filters.text,wrongSymbolFormat)],
