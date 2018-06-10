@@ -99,7 +99,14 @@ def receivedSymbol(bot,update,user_data):
         coin = getCName(sym,0)
         currency = getCName(sym,1)
         bal = user_data['trade'][user_data['chosenExchange']].exchange.fetchBalance()
-        freeBal = [bal[coin]['free'],bal[currency]['free']]
+        if coin in bal:
+            freeBal = [bal[coin]['free']]
+        else:
+            freeBal = [0]
+        if currency in bal:
+            freeBal.append(bal[currency]['free'])
+        else:
+            freeBal.append(0)
         user_data['newTradeSet'] = {'symbol': sym,'freeBalance':freeBal,'currency':0,'buyLevels':[],'buyAmounts':[],'sellLevels':[],'sellAmounts':[],'sl':None,'initCoins':0,'initPrice':None,'candleAbove':[]}
         bot.send_message(user_data['chatId'],'Thank you, now let us begin setting the trade set',reply_markup=markupTradeSetMenu)
         return TRADESET

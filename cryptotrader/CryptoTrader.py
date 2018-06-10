@@ -346,12 +346,16 @@ class CryptoTrader:
         ts = self.tradeSets[iTs]
         if ts['coinsAvail'] > 0:
             if self.exchange.has['createMarketOrder']:
-                response = self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail'])
+                try:
+                    response = self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail'])
+                except:
+                    params = { 'trading_agreement': 'agree' }  # for kraken api...
+                    response = self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail'],params)
             else:
                 if price is None:
                     price = self.exchange.fetch_ticker(ts['symbol'])['last']
                 response = self.exchange.createLimitSellOrder (ts['symbol'], ts['coinsAvail'],price)
-            time.sleep(1) # give exchange 1 sec for trading the order
+            time.sleep(3) # give exchange 3 sec for trading the order
             try:
                 orderInfo = self.exchange.fetchOrder (response['id'],ts['symbol'])
             except ccxt.ExchangeError as e:
