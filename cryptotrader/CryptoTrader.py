@@ -268,7 +268,7 @@ class CryptoTrader:
         if (ts['initCoins'] == 0 or ts['initPrice'] is not None) and (sumBuys>0 or ts['initCoins'] > 0):
             costSells = ts['costOut'] + (ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled']))*ticker['last'] 
             gain = costSells - ts['costIn']
-            string += '\n*Estimated gain/loss when selling all now: *: %s %s (%+.2f %%)\n'%(self.cost2Prec(ts['symbol'],gain),ts['baseCurrency'],gain/(ts['costIn'])*100)
+            string += '\n*Estimated gain/loss when selling all now: * %s %s (%+.2f %%)\n'%(self.cost2Prec(ts['symbol'],gain),ts['baseCurrency'],gain/(ts['costIn'])*100)
         return string
     
     def deleteTradeSet(self,iTs,sellAll=False):
@@ -374,7 +374,7 @@ class CryptoTrader:
         iTs = self.getITS(iTs)
         if len(self.tradeSets) > iTs and len(self.tradeSets[iTs]['OutTrades']) > 0:
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['OutTrades']))):
-                if trade['oid'] is not None:
+                if trade['oid'] is not None and trade['oid'] != 'filled':
                     self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL') 
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL')
                     if orderInfo['filled'] > 0:
@@ -390,8 +390,7 @@ class CryptoTrader:
         iTs = self.getITS(iTs)
         if len(self.tradeSets) > iTs and len(self.tradeSets[iTs]['InTrades']) > 0:
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['InTrades']))):
-                print(trade)
-                if trade['oid'] is not None:
+                if trade['oid'] is not None and trade['oid'] != 'filled':
                     self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY') 
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY')
                     if orderInfo['filled'] > 0:

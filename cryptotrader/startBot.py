@@ -29,7 +29,6 @@ import json
 import dill
 import requests
 import base64
-from decimal import (Decimal,getcontext)
 from collections import defaultdict
 from CryptoTrader import CryptoTrader
 import os
@@ -52,8 +51,6 @@ rootLogger.addHandler(fileHandler)
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 rootLogger.addHandler(consoleHandler)
-
-getcontext().prec = 8  # set Decimal precision (for calculations where decimals are important to be exact)
 
 ## define  helper functions
 def broadcastMsg(bot,userId,msg,level='info'):
@@ -186,7 +183,12 @@ def checkBalance(bot,update,user_data):
         string = '*Balance on %s (>0.001 BTC):*\n'%(exchange)
         for c in coins:
             BTCpair = '%s/BTC'%c
-            if BTCpair in ticker and ticker[BTCpair]['last']*balance['total'][c] > 0.001:
+            BTCpair2 = 'BTC/%s'%c
+            if (c == 'BTC' and balance['total'][c] > 0.001):
+                string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec('ETH/BTC',balance['total'][c]), ct.cost2Prec('ETH/BTC',balance['free'][c]))
+            elif (c in ['EUR','USD','USDT','TUSD'] and balance['total'][c]/ticker[BTCpair2]['last'] > 0.001):
+                string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec(BTCpair2,balance['total'][c]), ct.cost2Prec(BTCpair2,balance['free'][c]))
+            elif (BTCpair in ticker and ticker[BTCpair]['last']*balance['total'][c] > 0.001):
                 string += '*%s:* %s _(free: %s)_\n'%(c, ct.amount2Prec(BTCpair,balance['total'][c]), ct.amount2Prec(BTCpair,balance['free'][c]))
         bot.send_message(user_data['chatId'],string,parse_mode='markdown')
     else:
