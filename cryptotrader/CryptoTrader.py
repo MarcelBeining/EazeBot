@@ -221,7 +221,7 @@ class CryptoTrader:
         self.update()
         return len(self.tradeSets)
         
-    def getTradeSetInfo(self,iTs):
+    def getTradeSetInfo(self,iTs,showProfitIn=None):
         iTs = self.getITS(iTs)
         ts = self.tradeSets[iTs]
         string = '*Trade set #%d on %s [%s]:*\n'%(iTs,self.exchange.name,ts['symbol'])
@@ -263,12 +263,27 @@ class CryptoTrader:
             string += '*Filled buy orders:* %s %s for an average price of %s\n'%(self.amount2Prec(ts['symbol'],sumBuys),ts['coinCurrency'],self.amount2Prec(ts['symbol'],sum([val[0]*val[1]/sumBuys if sumBuys > 0 else None for val in filledBuys])))
         if sumSells>0:
             string += '*Filled sell orders:* %s %s for an average price of %s\n'%(self.amount2Prec(ts['symbol'],sumSells),ts['coinCurrency'],self.cost2Prec(ts['symbol'],sum([val[0]*val[1]/sumSells if sumSells > 0 else None for val in filledSells])))
-        ticker = self.exchange.fetch_ticker(ts['symbol'])
+        tickers = self.exchange.fetchTickers()
+        ticker = tickers[ts['symbol']]
         string += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n'%tuple([self.price2Prec(ts['symbol'],val) for val in [ticker['last'],ticker['high'],ticker['low']]])
         if (ts['initCoins'] == 0 or ts['initPrice'] is not None) and (sumBuys>0 or ts['initCoins'] > 0):
             costSells = ts['costOut'] + (ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled' and trade['oid'] is not None]))*ticker['last'] 
             gain = costSells - ts['costIn']
-            string += '\n*Estimated gain/loss when selling all now: * %s %s (%+.2f %%)\n'%(self.cost2Prec(ts['symbol'],gain),ts['baseCurrency'],gain/(ts['costIn'])*100)
+            gainOrig = gain
+            thisCur = ts['baseCurrency']
+            if showProfitIn is not None:
+                if isinstance(showProfitIn,str):
+                    showProfitIn = [showProfitIn]
+                conversionPairs = [('%s/%s'%(ts['baseCurrency'],cur) in tickers) + 2*('%s/%s'%(cur,ts['baseCurrency']) in tickers) for cur in showProfitIn]
+                ind = next((i for i, x in enumerate(conversionPairs) if x), None)
+                if ind is not None:
+                    thisCur = showProfitIn[ind]
+                    if conversionPairs[ind] == 1:
+                        gain *= tickers['%s/%s'%(ts['baseCurrency'],thisCur)]['last']
+                    else:
+                        gain /= tickers['%s/%s'%(thisCur/ts['baseCurrency'])]['last']
+                    
+            string += '\n*Estimated gain/loss when selling all now: * %s %s (%+.2f %%)\n'%(self.cost2Prec(ts['symbol'],gain),thisCur,gainOrig/(ts['costIn'])*100)
         return string
     
     def deleteTradeSet(self,iTs,sellAll=False):

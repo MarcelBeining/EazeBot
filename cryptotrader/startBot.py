@@ -40,7 +40,7 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, Rege
 #%% init base variables
 cwd = os.getcwd()
 logFileName = 'telegramCryptoTrader'
-MAINMENU,SETTINGS,SYMBOL,TRADESET,NUMBER,TIMING = range(6)
+MAINMENU,SETTINGS,SYMBOL,TRADESET,NUMBER,TIMING,INFO = range(7)
 
 logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
 rootLogger = logging.getLogger()
@@ -131,7 +131,7 @@ def startCmd(bot, update,user_data):
         user_data.update({'lastFct':None,'chosenExchange':None,'newTradeSet':None})
     else:
         washere = ''
-        user_data.update({'chatId':update.message.chat_id,'exchanges':{},'trade':{},'lastFct':None,'chosenExchange':None,'newTradeSet':None})
+        user_data.update({'chatId':update.message.chat_id,'exchanges':{},'trade':{},'settings':{'fiat':[],'showProfitIn':None},'lastFct':None,'chosenExchange':None,'newTradeSet':None})
     bot.send_message(user_data['chatId'],
         "Welcome %s%s to the CryptoTrader bot! You are in the main menu."%(washere,update.message.from_user.first_name),
         reply_markup=markupMainMenu)
@@ -157,7 +157,6 @@ def printTradeStatus(bot,update,user_data):
         bot.send_message(user_data['chatId'],string,parse_mode='markdown')    
         return TRADESET
     else:
-        bot.send_message(user_data['chatId'],'Trade Status')
         count = 0
         for iex,ex in enumerate(user_data['trade']):
             ct = user_data['trade'][ex]
@@ -167,7 +166,7 @@ def printTradeStatus(bot,update,user_data):
             else:
                 for iTS,ts in enumerate(ct.tradeSets):
                     count += 1
-                    bot.send_message(user_data['chatId'],ct.getTradeSetInfo(iTS),reply_markup=makeTSInlineKeyboard(ex,ts['uid']),parse_mode='markdown')
+                    bot.send_message(user_data['chatId'],ct.getTradeSetInfo(iTS,user_data['settings']['showProfitIn']),reply_markup=makeTSInlineKeyboard(ex,ts['uid']),parse_mode='markdown')
         if count == 0:
             bot.send_message(user_data['chatId'],'No Trade sets found')
         return MAINMENU 
@@ -444,7 +443,21 @@ def timingCallback(bot, update,user_data,query=None,response=None):
     else:
         query.answer()
         return user_data['lastFct'](bot,update,user_data,None)
-                        
+   
+def showSettings  (bot, update,user_data,botOrQuery=None):
+    # show gain/loss in fiat
+    # give preferred fiat
+    # stop bot with security question
+    string = '*Settings:*\n_Fiat currencies(descending priority):_ %s\n_Show gain/loss in:_ %s'%(', '.join(user_data['settings']['fiat']), 'Fiat (if available)' if user_data['settings']['showProfitIn'] is not None else 'Base currency') #user_data['settings']['showProfitIn']
+    settingButtons = [[InlineKeyboardButton('Define your fiat',callback_data='settings/defFiat')],[InlineKeyboardButton("Toggle showing gain/loss in baseCurrency or fiat", callback_data='settings/toggleProfit')],[InlineKeyboardButton("*Stop bot*", callback_data='settings/stopBot')]]    
+    if botOrQuery == None or isinstance(botOrQuery,type(bot)):
+        bot.send_message(user_data['chatId'], string, parse_mode = 'markdown', reply_markup=InlineKeyboardMarkup(settingButtons))
+    else:
+        botOrQuery.answer('Settings updated')
+        botOrQuery.edit_message_text(string, parse_mode = 'markdown', reply_markup=InlineKeyboardMarkup(settingButtons))
+        
+    
+    
 def InlineButtonCallback(bot, update,user_data,query=None,response=None):
     if query is None:
         query = update.callback_query
@@ -460,6 +473,35 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
         if command == 'toggleCurrency':
             user_data['newTradeSet']['currency'] = (user_data['newTradeSet']['currency']+1)%2
             return askAmount(user_data,args[0],query)
+        elif command == 'settings':
+            subcommand = args.pop(0)
+            if subcommand == 'stopBot':
+                if len(args) == 0:
+                    query.answer('')
+                    bot.send_message(user_data['chatId'],'Are you sure you want to stop the bot? *Caution! You have to restart the Python script; until then the bot will not be responding to Telegram input!*',parse_mode = 'markdown', reply_markup = InlineKeyboardMarkup( [[InlineKeyboardButton('Yes',callback_data='settings/stopBot/Yes')],[InlineKeyboardButton("No", callback_data='settings/cancel')]]) )
+                elif args[0] == 'Yes':
+                    query.answer('stopping')
+                    bot.send_message(user_data['chatId'],'Bot is aborting now. Goodbye!')
+                    updater.stop()
+            else:
+                if subcommand == 'defFiat':
+                    if response is None:
+                        user_data['lastFct'] = lambda b,u,us,res : InlineButtonCallback(b,u,us,query,res)
+                        return INFO
+                    else:
+                        user_data['settings']['fiat'] =  response.split(',')
+                        
+                elif subcommand == 'toggleProfit':
+                        if user_data['settings']['showProfitIn'] is None:
+                            if len(user_data['settings']['fiat'])>0:
+                                user_data['settings']['showProfitIn'] = user_data['settings']['fiat']
+                            else:
+                                query.answer('Please first specify fiat currency(s) in the settings.')
+                                return 0
+                        else:
+                            user_data['settings']['showProfitIn'] = None
+                showSettings(bot, update,user_data,query)
+                return MAINMENU
         else:
             exch = args.pop(0)
             uidTS = args.pop(0)
@@ -617,7 +659,7 @@ with open('version.txt') as fh:
     thisVersion = re.search('(?<=version = )\d+\.\d+',str(fh.read())).group(0)
 
 #%% init menues
-mainMenu = [['Status of Trade Sets', 'New Trade Set','Check Balance'],['Add/update exchanges (API.json)','Bot Info']]
+mainMenu = [['Status of Trade Sets', 'New Trade Set','Check Balance'],['Add/update exchanges (API.json)','Settings','Bot Info']]
 markupMainMenu = ReplyKeyboardMarkup(mainMenu)#, one_time_keyboard=True)
 
 tradeSetMenu = [['Add buy position', 'Add sell position','Add initial coins'],
@@ -634,6 +676,7 @@ conv_handler = ConversationHandler(
                         RegexHandler('^Add/update exchanges',addExchanges,pass_user_data=True),
                         RegexHandler('^Bot Info$',botInfo,pass_user_data=True),
                         RegexHandler('^Check Balance$',checkBalance,pass_user_data=True),
+                        RegexHandler('^Settings$',showSettings,pass_user_data=True),
                         CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
             SYMBOL:   [RegexHandler('\w+/\w+',receivedSymbol,pass_user_data=True),
                         MessageHandler(Filters.text,wrongSymbolFormat)],
@@ -649,7 +692,8 @@ conv_handler = ConversationHandler(
             NUMBER:   [RegexHandler('^[\+,\-]?\d+\.?\d*$',receivedFloat,pass_user_data=True),
                        MessageHandler(Filters.text,unknownCmd),
                        CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
-            TIMING:   [CallbackQueryHandler(timingCallback,pass_user_data=True)]
+            TIMING:   [CallbackQueryHandler(timingCallback,pass_user_data=True)],
+            INFO:     [RegexHandler('\w+',receivedInfo,pass_user_data=True)]
         },
         fallbacks=[RegexHandler('^Done$', doneCmd)], allow_reentry = True)#, per_message = True)
 unknown_handler = MessageHandler(Filters.command, unknownCmd)
