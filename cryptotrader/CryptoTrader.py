@@ -266,7 +266,7 @@ class CryptoTrader:
         ticker = self.exchange.fetch_ticker(ts['symbol'])
         string += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n'%tuple([self.price2Prec(ts['symbol'],val) for val in [ticker['last'],ticker['high'],ticker['low']]])
         if (ts['initCoins'] == 0 or ts['initPrice'] is not None) and (sumBuys>0 or ts['initCoins'] > 0):
-            costSells = ts['costOut'] + (ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled']))*ticker['last'] 
+            costSells = ts['costOut'] + (ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled' and trade['oid'] is not None]))*ticker['last'] 
             gain = costSells - ts['costIn']
             string += '\n*Estimated gain/loss when selling all now: * %s %s (%+.2f %%)\n'%(self.cost2Prec(ts['symbol'],gain),ts['baseCurrency'],gain/(ts['costIn'])*100)
         return string
@@ -330,7 +330,7 @@ class CryptoTrader:
             self.message('Break even SL cannot be set as there are no unsold %s coins right now'%ts['coinCurrency'])
             return 0
         else:
-            breakEvenPrice = (ts['costIn']-ts['costOut'])/(ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled']))
+            breakEvenPrice = (ts['costIn']-ts['costOut'])/(ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled' and trade['oid'] is not None]))
             ticker = self.exchange.fetch_ticker(ts['symbol'])
             if ticker['last'] < breakEvenPrice:
                 self.message('Break even SL of %s cannot be set as the current market price is lower (%s)!'%tuple([self.price2Prec(ts['symbol'],val) for val in [breakEvenPrice,ticker['last']]]))
@@ -455,6 +455,7 @@ class CryptoTrader:
                                 ts['costIn'] += orderInfo['cost']
                                 self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
                                 ts['coinsAvail'] += orderInfo['filled']
+                                filledIn += 1
                             elif orderInfo['status'] == 'canceled':
                                 ts['InTrades'][iTrade]['oid'] = None
                                 self.message('Buy order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
@@ -480,6 +481,7 @@ class CryptoTrader:
                                 if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                                     ts['OutTrades'][iTrade]['oid'] = 'filled'
                                     ts['costOut'] += orderInfo['cost']
+                                    filledOut += 1
                                     self.message('Sell level of %s %s reached on %s! Sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
                                 elif orderInfo['status'] == 'canceled':
                                     ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
