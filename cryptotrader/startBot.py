@@ -149,6 +149,9 @@ def printTradeStatus(bot,update,user_data):
         tradeSet = user_data['newTradeSet']
         coin = getCName(tradeSet['symbol'],0)
         string = '*Trade set for %s*\n'%tradeSet['symbol']
+        if tradeSet['initCoins']:
+            string += 'Initial coins: %s %s bought for %s %s'%(ct.amount2Prec(user_data['newTradeSet']['symbol'],tradeSet['initCoins']),coin,'unknown' if tradeSet['initPrice']<0 else ct.price2Prec(tradeSet['symbol'],tradeSet['initPrice']),tradeSet['symbol'])
+            
         for n,_ in enumerate(tradeSet['buyLevels']):
             string += '*Buy level %d:* Price %s , Amount %s %s %s    \n'%(n,ct.price2Prec(tradeSet['symbol'],tradeSet['buyLevels'][n]),ct.amount2Prec(tradeSet['symbol'],tradeSet['buyAmounts'][n]),coin,'' if tradeSet['candleAbove'][n] is None else 'if DC > %.5g'%tradeSet['candleAbove'][n])
         for n,_ in enumerate(tradeSet['sellLevels']):

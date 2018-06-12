@@ -198,6 +198,8 @@ class CryptoTrader:
         ts['costOut'] = 0
         ts['coinsAvail'] = initCoins
         ts['initCoins'] = initCoins
+        if initPrice < 0:
+            initPrice = None
         ts['initPrice'] = initPrice
         totalBuyCost = summed
         if initPrice is not None:
