@@ -30,7 +30,7 @@ import dill
 import requests
 import base64
 from collections import defaultdict
-from CryptoTrader import CryptoTrader
+from EazeBot import EazeBot
 import os
 import inspect
 from telegram import (ReplyKeyboardMarkup,InlineKeyboardMarkup,InlineKeyboardButton,bot)
@@ -39,7 +39,7 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, Rege
 
 #%% init base variables
 cwd = os.getcwd()
-logFileName = 'telegramCryptoTrader'
+logFileName = 'telegramEazeBot'
 MAINMENU,SETTINGS,SYMBOL,TRADESET,NUMBER,TIMING,INFO = range(7)
 
 logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
@@ -134,7 +134,7 @@ def startCmd(bot, update,user_data):
         washere = ''
         user_data.update({'chatId':update.message.chat_id,'exchanges':{},'trade':{},'settings':{'fiat':[],'showProfitIn':None},'lastFct':None,'chosenExchange':None,'newTradeSet':None})
     bot.send_message(user_data['chatId'],
-        "Welcome %s%s to the CryptoTrader bot! You are in the main menu."%(washere,update.message.from_user.first_name),
+        "Welcome %s%s to the EazeBot! You are in the main menu."%(washere,update.message.from_user.first_name),
         reply_markup=markupMainMenu)
     return MAINMENU
 
@@ -385,9 +385,9 @@ def addExchanges(bot,update,user_data):
                 exchParams['uid'] = APIs['apiUid%s'%a]
             if a in hasPassword:
                 exchParams['password'] = APIs['apiPassword%s'%a]
-            # if no CryptoTrader object has been created yet, create one, but also check for correct authentication, otherwise remove again
+            # if no EazeBot object has been created yet, create one, but also check for correct authentication, otherwise remove again
             if exch not in user_data['trade']:
-                user_data['trade'][exch] = CryptoTrader(exch,**exchParams,messagerFct = lambda a,b='info': broadcastMsg(bot,user_data['chatId'],a,b))
+                user_data['trade'][exch] = EazeBot(exch,**exchParams,messagerFct = lambda a,b='info': broadcastMsg(bot,user_data['chatId'],a,b))
             else:
                 user_data['trade'][exch].updateKeys(**exchParams)
             if not user_data['trade'][exch].authenticated:
@@ -401,11 +401,11 @@ def addExchanges(bot,update,user_data):
             return MAINMENU
 
 def botInfo(bot,update,user_data):
-    remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/cryptotrader/contents/cryptotrader/version.txt').json()['content'])
+    remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/version.txt').json()['content'])
     remoteVersion = re.search('(?<=version = )\d+\.\d+',str(remoteTxt)).group(0)
-    string = '<b>******** CryptoTrader (v%s) ********</b>\n<i>Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges</i>\n'%thisVersion
+    string = '<b>******** EazeBot (v%s) ********</b>\n<i>Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges</i>\n'%thisVersion
     if float(remoteVersion) > float(thisVersion):
-        string += '\n<b>There is a new version of CryptoTrader available on git (v%s)!</b>\n'%remoteVersion
+        string += '\n<b>There is a new version of EazeBot available on git (v%s)!</b>\n'%remoteVersion
     string+='\nReward my efforts on this bot by donating some cryptos!'
     bot.send_message(user_data['chatId'],string,parse_mode='html',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Donate',callback_data='1/xxx/xxx')]]))
     return MAINMENU
