@@ -120,12 +120,13 @@ def receivedFloat(bot,update,user_data):
         
 ## define menu function
 def startCmd(bot, update,user_data):
-    logging.info('User %s %s (username: %s, id: %s) (re)started the bot'%(update.message.from_user.first_name,update.message.from_user.last_name,update.message.from_user.username,update.message.from_user.id))
     # initiate user_data if it does not exist yet
     if config['telegramUserId'] != update.message.from_user.id:
         bot.send_message(user_data['chatId'],'Sorry your Telegram ID (%d) is not recognized! Bye!'%update.message.from_user.id)
+        logging.warning('Unknown user %s %s (username: %s, id: %s) tried to start the bot!'%(update.message.from_user.first_name,update.message.from_user.last_name,update.message.from_user.username,update.message.from_user.id))
         return
-        
+    else:
+        logging.info('User %s %s (username: %s, id: %s) (re)started the bot'%(update.message.from_user.first_name,update.message.from_user.last_name,update.message.from_user.username,update.message.from_user.id))
     if user_data:
         washere = 'back '
         user_data.update({'lastFct':None,'chosenExchange':None,'newTradeSet':None})
@@ -419,8 +420,9 @@ def updateTradeSets(bot,job):
     updater = job.context
     logging.info('Updating trade sets...')
     for user in updater.dispatcher.user_data:
-        for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
-            updater.dispatcher.user_data[user]['trade'][ex].update()
+        if user == config['telegramUserId']:
+            for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
+                updater.dispatcher.user_data[user]['trade'][ex].update()
     logging.info('Finished updating trade sets...')
     
 def checkCandle(bot,job):
