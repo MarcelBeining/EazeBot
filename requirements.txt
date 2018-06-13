@@ -1,3 +1,16 @@
+base64
 ccxt
-python-telegram-bot
+collections
+datetime
 dill
+inspect
+json
+logging
+numpy
+os
+python-telegram-bot
+random
+re
+requests
+string
+time

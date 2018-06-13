@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""The setup and build script for the python-telegram-bot library."""
+"""The setup and build script for the EazeBot library."""
 
 import codecs
 from os import path
@@ -13,20 +13,20 @@ def requirements():
             requirements_list.append(install.strip())
     return requirements_list
 
-packages = ['cryptotrader']
+packages = ['EazeBot']
 
 with codecs.open('README.md', 'r', 'utf-8') as fd:
-    fn = path.join('cryptotrader', 'version.py')
+    fn = path.join('EazeBot', 'version.py')
     with open(fn) as fh:
         code = compile(fh.read(), fn, 'exec')
         exec(code)
 
-    setup(name = 'cryptotrader',
+    setup(name = 'eazebot',
           version=__version__,
 		  author = 'Marcel Beining',
           author_email = 'marcel.beining@gmail.com',
-		  url = 'https://github.com/mbeining/cryptotrader',
-		  download_url = 'https://github.com/mbeining/cryptotrader/archive/CT_1.0.tar.gz',
+		  url = 'https://github.com/mbeining/eazebot',
+		  download_url = 'https://github.com/mbeining/cryptotrader/archive/EazeBot_v1.0.tar.gz',
           license='LGPLv3',
           keywords='python telegram bot api crypto trading',
           description="Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges",

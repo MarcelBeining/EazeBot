@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
+# EazeBot
 # Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges.
 # Copyright (C) 2018
 # Marcel Beining <marcel.beining@gmail.com>
