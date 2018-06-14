@@ -26,7 +26,7 @@ with codecs.open('readme.md', 'r', 'utf-8') as fd:
 		  author = 'Marcel Beining',
           author_email = 'marcel.beining@gmail.com',
 		  url = 'https://github.com/marcelbeining/eazebot',
-		  download_url = 'https://github.com/marcelbeining/cryptotrader/archive/EazeBot_1.0.tar.gz',
+		  download_url = 'https://github.com/marcelbeining/cryptotrader/archive/EazeBot_%s.tar.gz'%__version__,
           license='LGPLv3',
           keywords='python telegram bot api crypto trading',
           description="Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges",
