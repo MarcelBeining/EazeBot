@@ -721,7 +721,7 @@ def startBot():
                 TIMING:   [CallbackQueryHandler(timingCallback,pass_user_data=True)],
                 INFO:     [RegexHandler('\w+',receivedInfo,pass_user_data=True)]
             },
-            fallbacks=[CommandHandler('exit', doneCmd)], allow_reentry = True,pass_job_queue=True,pass_user_data=True)#, per_message = True)
+            fallbacks=[CommandHandler('exit', doneCmd,pass_job_queue=True,pass_user_data=True)], allow_reentry = True)#, per_message = True)
     unknown_handler = MessageHandler(Filters.command, unknownCmd)
     
     
