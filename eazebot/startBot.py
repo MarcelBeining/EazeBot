@@ -31,7 +31,7 @@ import dill
 import requests
 import base64
 from collections import defaultdict
-from tradeHandler import tradeHandler
+from EazeBot.tradeHandler import tradeHandler
 import os
 import inspect
 from telegram import (ReplyKeyboardMarkup,InlineKeyboardMarkup,InlineKeyboardButton,bot)
