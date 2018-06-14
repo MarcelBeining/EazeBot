@@ -2,3 +2,6 @@ __pycache__/
 data.pickle
 data.bkp
 *.log*
+eazebot.egg-info/
+dist/
+build/

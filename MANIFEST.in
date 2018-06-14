@@ -1,0 +1,7 @@
+include readme.md
+include LICENSE
+include LICENSE.LESSER
+include eazebot/*.json
+include requirements.txt
+include eazebot/version.txt
+prune eazebot/__pycache__
