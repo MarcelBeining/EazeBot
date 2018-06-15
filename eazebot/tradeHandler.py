@@ -297,7 +297,14 @@ class tradeHandler:
             self.cancelBuyOrders(iTs)
             self.cancelSellOrders(iTs)
         self.tradeSets.pop(iTs)
-        
+    
+    def addBuyPos(self,iTs,buyPrice,buyAmount,candleAbove=None):
+        if self.checkNum(buyPrice,buyAmount,candleAbove) or (candleAbove is None and self.checkNum(buyPrice,buyAmount)):
+            iTs = self.getITS(iTs)
+            self.tradeSets[iTs]['InTrades'].append({'oid': None, 'price': buyPrice, 'amount': buyAmount, 'candleAbove': candleAbove})
+        else:
+            raise ValueError('Some input was no number')
+    
     def deleteBuyLevel(self,iTs,iTrade):   
         iTs = self.getITS(iTs)
         if self.checkNum(iTrade):
