@@ -33,12 +33,16 @@ import requests
 import base64
 from shutil import copy2
 from collections import defaultdict
-from EazeBot.tradeHandler import tradeHandler
 import os
 import inspect
 from telegram import (ReplyKeyboardMarkup,InlineKeyboardMarkup,InlineKeyboardButton,bot)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
                           ConversationHandler,CallbackQueryHandler)
+
+if __name__ == '__main__':
+    from tradeHandler import tradeHandler
+else:
+    from EazeBot.tradeHandler import tradeHandler
 
 logFileName = 'telegramEazeBot'
 MAINMENU,SETTINGS,SYMBOL,TRADESET,NUMBER,TIMING,INFO = range(7)
