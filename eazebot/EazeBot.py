@@ -49,6 +49,7 @@ MAINMENU,SETTINGS,SYMBOL,TRADESET,NUMBER,TIMING,INFO = range(7)
 
 logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
 rootLogger = logging.getLogger()
+rootLogger.handlers = []  # delete old handlers in case bot is restarted but not python
 rootLogger.setLevel('INFO')
 fileHandler = logging.handlers.RotatingFileHandler("{0}/{1}.log".format(os.getcwd(), logFileName),maxBytes=1000000, backupCount=5)
 fileHandler.setFormatter(logFormatter)
@@ -292,8 +293,11 @@ def addSL(bot,update,user_data,inputType=None,response=None):
         user_data['lastFct'] = None
         if response == 0:
             response = None
-        user_data['newTradeSet']['sl'] = response
-        bot.send_message(user_data['chatId'],"Your stop-loss level is %.5g %s"%(user_data['newTradeSet']['sl'],user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
+            user_data['newTradeSet']['sl'] = response
+            bot.send_message(user_data['chatId'],"No SL set",reply_markup=markupTradeSetMenu)
+        else:
+            user_data['newTradeSet']['sl'] = response
+            bot.send_message(user_data['chatId'],"Your stop-loss level is %.5g %s"%(user_data['newTradeSet']['sl'],user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
         return TRADESET
 
 def askAmount(user_data,direction='buy',botOrQuery=None):

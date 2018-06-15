@@ -330,7 +330,7 @@ class tradeHandler:
     
     def setSL(self,iTs,value):   
         iTs = self.getITS(iTs)
-        if self.checkNum(value):
+        if self.checkNum(value) or value is None:
             self.tradeSets[iTs]['SL'] = value
         else:
             raise ValueError('Input was no number')
