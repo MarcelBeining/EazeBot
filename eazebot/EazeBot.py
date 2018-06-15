@@ -286,6 +286,8 @@ def addSL(bot,update,user_data,inputType=None,response=None):
         return NUMBER
     elif inputType == 'sl':
         user_data['lastFct'] = None
+        if response == 0:
+            response = None
         user_data['newTradeSet']['sl'] = response
         bot.send_message(user_data['chatId'],"Your stop-loss level is %.5g %s"%(user_data['newTradeSet']['sl'],user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
         return TRADESET
@@ -616,11 +618,14 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                                 query.edit_message_text(ct.getTradeSetInfo(uidTS),reply_markup=makeTSInlineKeyboard(exch,uidTS),parse_mode='markdown')
                             elif 'SLC' in args:
                                 if response is None:
-                                    query.answer('Please enter the new SL price')
+                                    query.answer('Please enter the new SL (0 = no SL)')
                                     user_data['lastFct'] = lambda b,u,us,res : InlineButtonCallback(b,u,us,query,res)
                                     return NUMBER
                                 else:
-                                    ct.setSL(uidTS,float(response))
+                                    response = float(response)
+                                    if response == 0:
+                                        response = None
+                                    ct.setSL(uidTS,response)
                                     query.edit_message_text(ct.getTradeSetInfo(uidTS),reply_markup=makeTSInlineKeyboard(exch,uidTS),parse_mode='markdown')
                                     return MAINMENU                                
                             else: 
