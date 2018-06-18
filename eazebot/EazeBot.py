@@ -91,7 +91,7 @@ def copyJSON(folderName=os.getcwd(),force=0):
         
 def broadcastMsg(bot,userId,msg,level='info'):
     # put msg into log with userId
-    getattr(rootLogger,level)('User %d: %s'%(userId,msg))
+    getattr(rootLogger,level.lower())('User %d: %s'%(userId,msg))
     # return msg to user
     while True:
         try:
@@ -473,11 +473,12 @@ def checkCandle(bot,job):
     updater = job.context
     logging.info('Checking candles for all trade sets...')
     for user in updater.dispatcher.user_data:
-        for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
-            # avoid to hit it during updating
-            while updater.dispatcher.user_data[user]['trade'][ex].updating:
-                time.sleep(0.5)
-            updater.dispatcher.user_data[user]['trade'][ex].update(dailyCheck=1)
+        if user == __config__['telegramUserId']:
+            for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
+                # avoid to hit it during updating
+                while updater.dispatcher.user_data[user]['trade'][ex].updating:
+                    time.sleep(0.5)
+                updater.dispatcher.user_data[user]['trade'][ex].update(dailyCheck=1)
     logging.info('Finished checking candles for all trade sets...')
 
 def timingCallback(bot, update,user_data,query=None,response=None):
@@ -756,7 +757,6 @@ def startBot():
             fallbacks=[CommandHandler('exit', doneCmd,pass_user_data=True)], allow_reentry = True)#, per_message = True)
     unknown_handler = MessageHandler(Filters.command, unknownCmd)
     
-    
     #%% start telegram API, add handlers to dispatcher and start bot
     updater = Updater(token = __config__['telegramAPI'], request_kwargs={'read_timeout': 8})#, 'connect_timeout': 7})
     job_queue = updater.job_queue
@@ -767,6 +767,7 @@ def startBot():
     if len(updater.dispatcher.user_data[__config__['telegramUserId']]) > 0:
         time.sleep(2) # wait because of possibility of temporary exchange lockout
         addExchanges(updater.bot,None,updater.dispatcher.user_data[__config__['telegramUserId']])
+    
     # start a job updating the trade sets each minute
     updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=60,context=updater)
     # start a job checking every day 10 sec after midnight if any 'candleAbove' buys need to be initiated

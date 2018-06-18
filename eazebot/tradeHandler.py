@@ -26,6 +26,7 @@ import numpy as np
 import time
 import random
 import string
+import sys, os
 
 class tradeHandler:
     
@@ -175,7 +176,6 @@ class tradeHandler:
             candleAbove = np.repeat(None,len(buyAmounts))
         else:
             candleAbove = np.array(candleAbove)
-                
 
         if not force and sum(buyAmounts) != sum(sellAmounts):
             raise ValueError('Warning: It seems the buy and sell amount of %s is not the same. Is this correct?'%ts['coinCurrency'])
@@ -451,8 +451,12 @@ class tradeHandler:
         # daily check is for checking if a candle closed above a certain value
         if not self.updating:
             self.updating = True
-            try:
-                for iTs,ts in enumerate(self.tradeSets):
+            
+            for iTs,ts in enumerate(self.tradeSets):
+                try:
+                    if not ts['active']:
+                        self.message('Trade set %d on exchange %s skipped during update'%(iTs,self.exchange.name))
+                        continue
                     # check if stop loss is reached
                     if not dailyCheck and ts['SL'] is not None:
                         ticker = self.exchange.fetch_ticker(ts['symbol'])
@@ -516,8 +520,10 @@ class tradeHandler:
                         if len(ts['OutTrades']) == filledOut and len(ts['InTrades']) == filledIn:
                             self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn']),ts['baseCurrency']))
                             del self.tradeSets[iTs]
-                self.updating = False
-            except Exception as e:
-                self.updating = False
-                raise(e)
+                except Exception as e:
+#                    self.updating = False
+                    exc_type, exc_obj, exc_tb = sys.exc_info()
+                    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                    self.message('%s in %s at line %s'%(exc_type, fname, exc_tb.tb_lineno,str(e)),'Error')
+            self.updating = False
             
