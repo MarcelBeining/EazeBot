@@ -34,7 +34,7 @@ import base64
 from shutil import copy2
 from collections import defaultdict
 import os
-import inspect
+#import inspect
 from telegram import (ReplyKeyboardMarkup,InlineKeyboardMarkup,InlineKeyboardButton,bot)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
                           ConversationHandler,CallbackQueryHandler)
@@ -45,7 +45,7 @@ else:
     from EazeBot.tradeHandler import tradeHandler
 
 logFileName = 'telegramEazeBot'
-MAINMENU,SETTINGS,SYMBOL,TRADESET,NUMBER,TIMING,INFO = range(7)
+MAINMENU,SETTINGS,SYMBOL,NUMBER,TIMING,INFO = range(6)
 
 logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
 rootLogger = logging.getLogger()
@@ -129,7 +129,7 @@ def getCName(symbol,which=0):
 def getFreeBalance(user_data,exch,sym):
     coin = getCName(sym,0)
     currency = getCName(sym,1)
-    bal = user_data['trade'][exch].exchange.fetchBalance()
+    bal = user_data['trade'][exch].balance
     if coin in bal:
         freeBal = [bal[coin]['free']]
     else:
@@ -142,11 +142,14 @@ def getFreeBalance(user_data,exch,sym):
         
 def receivedSymbol(bot,update,user_data):
     sym = update.message.text.upper()
-    if sym in user_data['trade'][user_data['chosenExchange']].exchange.symbols:
-        freeBal = getFreeBalance(user_data,user_data['chosenExchange'],sym)
-        user_data['newTradeSet'] = {'symbol': sym,'freeBalance':freeBal,'currency':0,'buyLevels':[],'buyAmounts':[],'sellLevels':[],'sellAmounts':[],'sl':None,'initCoins':0,'initPrice':None,'candleAbove':[]}
-        bot.send_message(user_data['chatId'],'Thank you, now let us begin setting the trade set',reply_markup=markupTradeSetMenu)
-        return TRADESET
+    ct = user_data['trade'][user_data['chosenExchange']]
+    if sym in ct.exchange.symbols:
+        ts, iTS = ct.initTradeSet(sym)
+        ct.updateBalance()
+#        user_data['currentTradeSet'] = ts['uid'] # {'symbol': sym,'freeBalance':freeBal,'currency':0,'buyLevels':[],'buyAmounts':[],'sellLevels':[],'sellAmounts':[],'sl':None,'initCoins':0,'initPrice':None,'candleAbove':[]}
+        bot.send_message(user_data['chatId'],'Thank you, now let us begin setting the trade set')#,reply_markup=markupTradeSetMenu)
+        printTradeStatus(bot,update,user_data,uidTS=ts['uid'])
+        return MAINMENU
     else:
         bot.send_message(user_data['chatId'],'Symbol %s was not found on exchange %s\n'%(sym,user_data['trade'][user_data['chosenExchange']].exchange.name))
         return SYMBOL
@@ -169,10 +172,10 @@ def startCmd(bot, update,user_data):
         logging.info('User %s %s (username: %s, id: %s) (re)started the bot'%(update.message.from_user.first_name,update.message.from_user.last_name,update.message.from_user.username,update.message.from_user.id))
     if user_data:
         washere = 'back '
-        user_data.update({'lastFct':[],'chosenExchange':None,'newTradeSet':None,'tempTradeSet':[None,None,None]})
+        user_data.update({'lastFct':[],'chosenExchange':None,'whichCurrency':0,'tempTradeSet':[None,None,None]})
     else:
         washere = ''
-        user_data.update({'chatId':update.message.chat_id,'exchanges':{},'trade':{},'settings':{'fiat':[],'showProfitIn':None},'lastFct':None,'chosenExchange':None,'newTradeSet':None})
+        user_data.update({'chatId':update.message.chat_id,'exchanges':{},'trade':{},'settings':{'fiat':[],'showProfitIn':None},'lastFct':None,'chosenExchange':None,'currentTradeSet':None})
     bot.send_message(user_data['chatId'],
         "Welcome %s%s to the EazeBot! You are in the main menu."%(washere,update.message.from_user.first_name),
         reply_markup=markupMainMenu)
@@ -183,37 +186,47 @@ def makeTSInlineKeyboard(exch,iTS):
         InlineKeyboardButton("Edit Set", callback_data='2/%s/%s'%(exch,iTS)),
         InlineKeyboardButton("Delete/SellAll", callback_data='3/%s/%s'%(exch,iTS))]]
     return InlineKeyboardMarkup(button_list)
+
+def buttonsEditTS(ct,uidTS,mode='full'):
+    exch = ct.exchange.name.lower()
+    buttons = [[InlineKeyboardButton("Add buy level",callback_data='2/%s/%s/buyAdd'%(exch,uidTS)),InlineKeyboardButton("Add sell level",callback_data='2/%s/%s/sellAdd'%(exch,uidTS))]]
+    iTs = ct.getITS(uidTS)
+    for i,_ in enumerate(ct.tradeSets[iTs]['InTrades']):
+        buttons.append([InlineKeyboardButton("Delete Buy level #%d"%i,callback_data='2/%s/%s/BLD%d'%(exch,uidTS,i))])
+    for i,_ in enumerate(ct.tradeSets[iTs]['OutTrades']):
+            buttons.append([InlineKeyboardButton("Delete Sell level #%d"%i,callback_data='2/%s/%s/SLD%d'%(exch,uidTS,i))])
+    if mode == 'full':
+        buttons.append([InlineKeyboardButton("Set SL Break Even",callback_data='2/%s/%s/SLBE'%(exch,uidTS)),InlineKeyboardButton("Change SL",callback_data='2/%s/%s/SLC'%(exch,uidTS))])
+    elif mode == 'init':
+        buttons.append([InlineKeyboardButton("Add initial coins",callback_data='2/%s/%s/AIC'%(exch,uidTS)),InlineKeyboardButton("Add/change SL",callback_data='2/%s/%s/SLC'%(exch,uidTS))])
+    buttons.append([InlineKeyboardButton("%s trade set"%('Deactivate' if ct.tradeSets[iTs]['active'] else 'Activate'),callback_data='2/%s/%s/%s'%(exch,uidTS,'TSstop' if ct.tradeSets[iTs]['active'] else 'TSgo')),InlineKeyboardButton("Delete trade set",callback_data='3/%s/%s/ok/no'%(exch,uidTS))])
+    return buttons
     
-def printTradeStatus(bot,update,user_data):
-    if user_data['newTradeSet']:
-        ct = user_data['trade'][user_data['chosenExchange']]
-        tradeSet = user_data['newTradeSet']
-        coin = getCName(tradeSet['symbol'],0)
-        string = '*Trade set for %s*\n'%tradeSet['symbol']
-        if tradeSet['initCoins']:
-            string += 'Initial coins: %s %s bought for %s %s'%(ct.amount2Prec(user_data['newTradeSet']['symbol'],tradeSet['initCoins']),coin,'unknown' if tradeSet['initPrice']<0 else ct.price2Prec(tradeSet['symbol'],tradeSet['initPrice']),tradeSet['symbol'])
+def printTradeStatus(bot,update,user_data,uidTS=None):
+    count = 0
+    for iex,ex in enumerate(user_data['trade']):
+        ct = user_data['trade'][ex]
+        if uidTS is not None:
+            try:
+               ct.getITS(uidTS)
+            except ValueError:
+                continue
+        while ct.updating:
+            bot.send_message(user_data['chatId'],'Trade sets on %s currently updating.. Waiting for 2 sec..\n\n'%ex)
+            time.sleep(2)
             
-        for n,_ in enumerate(tradeSet['buyLevels']):
-            string += '*Buy level %d:* Price %s , Amount %s %s %s    \n'%(n,ct.price2Prec(tradeSet['symbol'],tradeSet['buyLevels'][n]),ct.amount2Prec(tradeSet['symbol'],tradeSet['buyAmounts'][n]),coin,'' if tradeSet['candleAbove'][n] is None else 'if DC > %.5g'%tradeSet['candleAbove'][n])
-        for n,_ in enumerate(tradeSet['sellLevels']):
-            string+= '*Sell level %d:* Price %s , Amount %s %s   \n'%(n,ct.price2Prec(tradeSet['symbol'],tradeSet['sellLevels'][n]),ct.price2Prec(tradeSet['symbol'],tradeSet['sellAmounts'][n]),coin)
-        string+= '*Stop-loss:* '+ str(tradeSet['sl'])
-        bot.send_message(user_data['chatId'],string,parse_mode='markdown')    
-        return TRADESET
-    else:
-        count = 0
-        for iex,ex in enumerate(user_data['trade']):
-            ct = user_data['trade'][ex]
-            if ct.updating:
-                bot.send_message(user_data['chatId'],'Trade sets on %s currently updating...Please retry in a few seconds.\n\n'%ex)
-                count += 1
+        for iTS,ts in enumerate(ct.tradeSets):
+            if uidTS is not None and ts['uid'] != uidTS:
+                continue
+            if ts['virgin']:
+                markup = InlineKeyboardMarkup(buttonsEditTS(ct,ts['uid'],mode='init'))
             else:
-                for iTS,ts in enumerate(ct.tradeSets):
-                    count += 1
-                    bot.send_message(user_data['chatId'],ct.getTradeSetInfo(iTS,user_data['settings']['showProfitIn']),reply_markup=makeTSInlineKeyboard(ex,ts['uid']),parse_mode='markdown')
-        if count == 0:
-            bot.send_message(user_data['chatId'],'No Trade sets found')
-        return MAINMENU 
+                markup = makeTSInlineKeyboard(ex,ts['uid'])
+            count += 1
+            bot.send_message(user_data['chatId'],ct.getTradeSetInfo(iTS,user_data['settings']['showProfitIn']),reply_markup=markup,parse_mode='markdown')
+    if count == 0:
+        bot.send_message(user_data['chatId'],'No Trade sets found')
+    return MAINMENU 
 
 def checkBalance(bot,update,user_data):
     if user_data['chosenExchange']:
@@ -247,34 +260,34 @@ def createTradeSet(bot,update,user_data):
     if 'trade' in user_data and len(user_data['trade'])>0:
         # check if exchange was already chosen
         if user_data['chosenExchange']:
-            exchange = user_data['chosenExchange']
-            if user_data['newTradeSet']:
-                dif = user_data['newTradeSet']['initCoins'] + sum(user_data['newTradeSet']['buyAmounts']) - sum(user_data['newTradeSet']['sellAmounts'])
-                if dif < 0:
-                    coin = getCName(user_data['newTradeSet']['symbol'],0)
-                    freeCoins = user_data['trade'][exchange].exchange.fetchBalance()[coin]['free']
-                    if freeCoins >= -dif:
-                        user_data['newTradeSet']['initCoins'] += -dif
-                        bot.send_message(user_data['chatId'],'Warning: You want to sell %.5g %s more than you want to buy! I will use that amount of %s from your free balance on %s. Please make sure that amount stays free, otherwise the trade will not work.'%(-dif,coin,coin,exchange))
-                    else:
-                        bot.send_message(user_data['chatId'],'Warning: You want to sell %.5g %s more than you want to buy and your free balance of %s on %s is not sufficient! Please adjust trade set.'%(-dif,coin,coin,exchange))
-                        return TRADESET
-                logging.info('User id %s wants to create new trade set'%(update.message.from_user.id))
-                user_data['newTradeSet']['force']=1
-                try:    
-                    # filter out non arguments and initialize tradeSet
-                    user_data['newTradeSet'] = { key: user_data['newTradeSet'][key] for key in list(set(inspect.signature(user_data['trade'][exchange].newTradeSet).parameters.keys()) & set(user_data['newTradeSet'])) }
-                    user_data['trade'][exchange].newTradeSet(**user_data['newTradeSet'])
-                except Exception as e:
-                    bot.send_message(user_data['chatId'],'There was an error during initializing the trade :\n%s\nPlease check your trade settings'%str(e),reply_markup=markupTradeSetMenu)
-                    return TRADESET
-                user_data['newTradeSet'] = None
-                user_data['chosenExchange'] = None
-                bot.send_message(user_data['chatId'],"%s trade set initiated and updated every %d min."%(user_data['trade'][exchange].tradeSets[-1]['symbol'],__config__['updateInterval']),reply_markup=markupMainMenu)
-                return MAINMENU
-            else:
-                bot.send_message(user_data['chatId'],'Please specify your trade set now. First: Which currency pair do you want to trade? (e.g. ETH/BTC)')
-                return SYMBOL
+#            exchange = user_data['chosenExchange']
+#            if user_data['currentTradeSet']:
+#                dif = user_data['currentTradeSet']['initCoins'] + sum(user_data['currentTradeSet']['buyAmounts']) - sum(user_data['currentTradeSet']['sellAmounts'])
+#                if dif < 0:
+#                    coin = getCName(user_data['currentTradeSet']['symbol'],0)
+#                    freeCoins = user_data['trade'][exchange].exchange.fetchBalance()[coin]['free']
+#                    if freeCoins >= -dif:
+#                        user_data['currentTradeSet']['initCoins'] += -dif
+#                        bot.send_message(user_data['chatId'],'Warning: You want to sell %.5g %s more than you want to buy! I will use that amount of %s from your free balance on %s. Please make sure that amount stays free, otherwise the trade will not work.'%(-dif,coin,coin,exchange))
+#                    else:
+#                        bot.send_message(user_data['chatId'],'Warning: You want to sell %.5g %s more than you want to buy and your free balance of %s on %s is not sufficient! Please adjust trade set.'%(-dif,coin,coin,exchange))
+#                        return TRADESET
+#                logging.info('User id %s wants to create new trade set'%(update.message.from_user.id))
+#                user_data['currentTradeSet']['force']=1
+#                try:    
+#                    # filter out non arguments and initialize tradeSet
+#                    user_data['currentTradeSet'] = { key: user_data['currentTradeSet'][key] for key in list(set(inspect.signature(user_data['trade'][exchange].newTradeSet).parameters.keys()) & set(user_data['currentTradeSet'])) }
+#                    user_data['trade'][exchange].newTradeSet(**user_data['currentTradeSet'])
+#                except Exception as e:
+#                    bot.send_message(user_data['chatId'],'There was an error during initializing the trade :\n%s\nPlease check your trade settings'%str(e),reply_markup=markupTradeSetMenu)
+#                    return TRADESET
+#                user_data['currentTradeSet'] = None
+#                user_data['chosenExchange'] = None
+#                bot.send_message(user_data['chatId'],"%s trade set initiated and updated every %d min."%(user_data['trade'][exchange].tradeSets[-1]['symbol'],__config__['updateInterval']),reply_markup=markupMainMenu)
+#                return MAINMENU
+#            else:
+            bot.send_message(user_data['chatId'],'Please specify your trade set now. First: Which currency pair do you want to trade? (e.g. ETH/BTC)')
+            return SYMBOL
         else:
             user_data['lastFct'].append(createTradeSet)
             # list all available exanches for choosing
@@ -285,50 +298,30 @@ def createTradeSet(bot,update,user_data):
         bot.send_message(user_data['chatId'],'No authenticated exchanges found for your account! Please click "Add exchanges"')
         return MAINMENU
 
-def cancelTradeSet(bot,update,user_data):
-    user_data['newTradeSet'] = None
-    user_data['chosenExchange'] = None
-    bot.send_message(user_data['chatId'],"New trade set canceled",reply_markup=markupMainMenu)
-    return MAINMENU
-    
-def addSL(bot,update,user_data,inputType=None,response=None):
-    if inputType is None:
-        user_data['lastFct'].append(lambda b,u,us,res : addSL(b,u,us,'sl',res))
-        bot.send_message(user_data['chatId'],"At which price of %s do you want to trigger a market stop-loss?"%user_data['newTradeSet']['symbol'])
-        return NUMBER
-    elif inputType == 'sl':
-        if response == 0:
-            response = None
-            user_data['newTradeSet']['sl'] = response
-            bot.send_message(user_data['chatId'],"No SL set",reply_markup=markupTradeSetMenu)
-        else:
-            user_data['newTradeSet']['sl'] = response
-            bot.send_message(user_data['chatId'],"Your stop-loss level is %.5g %s"%(user_data['newTradeSet']['sl'],user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
-        return TRADESET
 
-def askAmount(user_data,direction='buy',botOrQuery=None,exch,symbol):
+def askAmount(user_data,direction,botOrQuery,balance,symbol):
     if direction=='sell':
         # free balance is free coins plus coins that will be bought minus coins already selling
         
-        len2 = len(user_data['newTradeSet']['sellLevels'])+1
-        bal = user_data['newTradeSet']['freeBalance'][0]+sum(user_data['newTradeSet']['buyAmounts'])-sum(user_data['newTradeSet']['sellAmounts'][0:len2])
-        if user_data['newTradeSet']['currency']==0:
-            cname = getCName(user_data['newTradeSet']['symbol'],0)
+        len2 = len(user_data['currentTradeSet']['sellLevels'])+1
+        bal = user_data['currentTradeSet']['freeBalance'][0]+sum(user_data['currentTradeSet']['buyAmounts'])-sum(user_data['currentTradeSet']['sellAmounts'][0:len2])
+        if user_data['whichCurrency']==0:
+            cname = getCName(symbol,0)
             action = 'sell'
         else:
             bal = bal*user_data['tempTradeSet'][0]
-            cname = getCName(user_data['newTradeSet']['symbol'],1)
+            cname = getCName(symbol,1)
             action = 'receive'
     elif direction == 'buy':
         # free balance is free currency minus price for coins already buying
-        len1 = len(user_data['newTradeSet']['buyLevels'])+1
-        bal = user_data['newTradeSet']['freeBalance'][1]-sum([a*b for a,b in zip(user_data['newTradeSet']['buyLevels'][0:len1],user_data['newTradeSet']['buyAmounts'][0:len1])])
-        if user_data['newTradeSet']['currency']==0:
+        len1 = len(user_data['currentTradeSet']['buyLevels'])+1
+        bal = user_data['currentTradeSet']['freeBalance'][1]-sum([a*b for a,b in zip(user_data['currentTradeSet']['buyLevels'][0:len1],user_data['currentTradeSet']['buyAmounts'][0:len1])])
+        if user_data['whichCurrency']==0:
             bal = bal/user_data['tempTradeSet'][0]
-            cname = getCName(user_data['newTradeSet']['symbol'],0)
+            cname = getCName(symbol,0)
             action = 'buy'
         else:
-            cname = getCName(user_data['newTradeSet']['symbol'],1)
+            cname = getCName(symbol,1)
             action = 'use'
     else:
         raise ValueError('Unknown direction specification')
@@ -338,41 +331,39 @@ def askAmount(user_data,direction='buy',botOrQuery=None,exch,symbol):
         botOrQuery.edit_message_text("What amount of %s do you want to %s (max ~%.5g minus trading fee)?"%(cname,action,bal),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency/%s'%direction)]]))
         botOrQuery.answer('Currency switched')
     
-def addInitBalance(bot,update,user_data,inputType=None,response=None):
-    coin = getCName(user_data['newTradeSet']['symbol'],0)
+def addInitBalance(bot,user_data,uidTS,inputType=None,response=None,fct = None):
+    exch = user_data['chosenExchange']
+    ct = user_data['trade'][exch]
+    iTS = ct.getITS(uidTS)
     if inputType is None:
-        user_data['lastFct'].append(lambda b,u,us,res : addInitBalance(b,u,us,'initCoins',res))
-        bot.send_message(user_data['chatId'],"You already have %s that you want to add to the trade set? How much is it?"%coin)
+        user_data['lastFct'].append(lambda b,us,res : addInitBalance(b,us,uidTS,'initCoins',res,fct))
+        bot.send_message(user_data['chatId'],"You already have %s that you want to add to the trade set? How much is it?"%ct.tradeSets[iTS]['coinCurrency'])
         return NUMBER
     elif inputType == 'initCoins':
-        user_data['newTradeSet']['initCoins'] = response
-        user_data['lastFct'].append(lambda b,u,us,res : addInitBalance(b,u,us,'initPrice',res))
-        bot.send_message(user_data['chatId'],"What was the average price (%s) you bought it for? Type 0 if received for free and a negative number if you do not know?"%user_data['newTradeSet']['symbol'])
+        user_data['tempTradeSet'][1] = response
+        user_data['lastFct'].append(lambda b,us,res : addInitBalance(b,us,uidTS,'initPrice',res,fct))
+        bot.send_message(user_data['chatId'],"What was the average price (%s) you bought it for? Type 0 if received for free and a negative number if you do not know?"%ct.tradeSets[iTS]['symbol'])
     elif inputType == 'initPrice':
         if response >= 0:
-            user_data['newTradeSet']['initPrice'] = response
-        ct = user_data['trade'][user_data['chosenExchange']]
-        bot.send_message(user_data['chatId'],"You added an initial amount of %s %s that you bought for %s %s"%(ct.amount2Prec(user_data['newTradeSet']['symbol'],user_data['newTradeSet']['initCoins']),coin,'unknown' if response<0 else ct.price2Prec(user_data['newTradeSet']['symbol'],response),user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
-        return TRADESET
+            user_data['tempTradeSet'][0] = response
+        addPos(bot,user_data,uidTS,'init',fct)
 
-def addPos(bot,user_data,direction):
-    coin = getCName(user_data['newTradeSet']['symbol'],0)
+def addPos(bot,user_data,uidTS,direction,fct=None):
+    exch = user_data['chosenExchange']
+    ct = user_data['trade'][exch]
     if direction == 'buy':
-        user_data['newTradeSet']['buyLevels'].append(user_data['tempTradeSet'][0])
-        user_data['newTradeSet']['buyAmounts'].append(user_data['tempTradeSet'][1])
-        user_data['newTradeSet']['candleAbove'].append(user_data['tempTradeSet'][2])
+        ct.addBuyLevel(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1],user_data['tempTradeSet'][2])
+    elif direction == 'sell':
+        ct.addSellLevel(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1])
     else:
-        user_data['newTradeSet']['sellLevels'].append(user_data['tempTradeSet'][0])
-        user_data['newTradeSet']['sellAmounts'].append(user_data['tempTradeSet'][1])
+        ct.addInitCoins(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1])
     user_data['tempTradeSet'] = [None,None,None]
-    ct = user_data['trade'][user_data['chosenExchange']]
-    bot.send_message(user_data['chatId'],"Your %s position #%d is %s %s for %s %s"%(direction,len(user_data['newTradeSet']['%sLevels'%direction])-1,ct.amount2Prec(user_data['newTradeSet']['symbol'],user_data['newTradeSet']['%sAmounts'%direction][-1]),coin,ct.price2Prec(user_data['newTradeSet']['symbol'],user_data['newTradeSet']['%sLevels'%direction][-1]),user_data['newTradeSet']['symbol']),reply_markup=markupTradeSetMenu)
-    return TRADESET
-
+    if fct:
+        fct()
         
 def askPos(bot,update,user_data,direction,applyFct=None,inputType=None,response=None,exch=None,symbol=None):
     if symbol is None:
-        symbol = user_data['newTradeSet']['symbol']
+        symbol = user_data['currentTradeSet']['symbol']
     if exch is None:
         exch = user_data['chosenExchange']
         
@@ -388,10 +379,10 @@ def askPos(bot,update,user_data,direction,applyFct=None,inputType=None,response=
         response = float(user_data['trade'][exch].exchange.priceToPrecision(symbol,response))
         user_data['tempTradeSet'][0] = response
         user_data['lastFct'].append(lambda b,u,us,res : askPos(b,u,us,direction,applyFct,'amount',res,exch,symbol))
-        askAmount(user_data,direction,bot,exch,symbol)
+        askAmount(user_data,direction,bot,None,symbol)
         return NUMBER
     elif inputType == 'amount':
-        if user_data['newTradeSet']['currency']==1:
+        if user_data['whichCurrency']==1:
             response =response/user_data['tempTradeSet'][0]
         response = float(user_data['trade'][exch].exchange.amountToPrecision(symbol,response))
         user_data['tempTradeSet'][1] = response
@@ -521,7 +512,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
         return MAINMENU
     else:
         if command == 'toggleCurrency':
-            user_data['newTradeSet']['currency'] = (user_data['newTradeSet']['currency']+1)%2
+            user_data['whichCurrency'] = (user_data['whichCurrency']+1)%2
             return askAmount(user_data,args[0],query)
         elif command == 'settings':
             subcommand = args.pop(0)
@@ -607,6 +598,8 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                 return user_data['lastFct'].pop()(bot,update,user_data)
             else:  # trade set commands
                 if (exch not in user_data['trade'] or not any([ts['uid']==uidTS for ts in user_data['trade'][exch].tradeSets])):
+                    logging.info(uidTS)
+                    logging.info(exch)
                     query.edit_message_reply_markup()
                     query.edit_message_text('This trade set is not found anymore. Probably it was deleted')
                 else:
@@ -636,6 +629,12 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                                     query.answer('Added new buy level')
                             elif 'sellAdd' in args:
                                 print('...')
+                            elif 'AIC' in args:
+                                addInitBalance(bot,user_data,uidTS,inputType=None,response=None,fct = lambda :printTradeStatus(bot,update,user_data,uidTS=uidTS))
+                            elif 'TSgo' in args:
+                                print('...')
+                            elif 'TSstop' in args:
+                                print('...')
                             elif 'SLBE' in args:
                                 ans = ct.setSLBreakEven(uidTS)
                                 if ans:
@@ -656,12 +655,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                                     query.edit_message_text(ct.getTradeSetInfo(uidTS),reply_markup=makeTSInlineKeyboard(exch,uidTS),parse_mode='markdown')
                                     return MAINMENU                                
                             else: 
-                                buttons = [[InlineKeyboardButton("Set SL Break Even",callback_data='2/%s/%s/SLBE'%(exch,uidTS)),InlineKeyboardButton("Change SL",callback_data='2/%s/%s/SLC'%(exch,uidTS))]]#,[InlineKeyboardButton("Add buy level",callback_data='2/%s/%s/buyAdd'%(exch,uidTS)),InlineKeyboardButton("Add sell level",callback_data='2/%s/%s/sellAdd'%(exch,uidTS))]]
-                                iTs = ct.getITS(uidTS)
-                                for i,_ in enumerate(ct.tradeSets[iTs]['InTrades']):
-                                    buttons.append([InlineKeyboardButton("Delete Buy level #%d"%i,callback_data='2/%s/%s/BLD%d'%(exch,uidTS,i))])
-                                for i,_ in enumerate(ct.tradeSets[iTs]['OutTrades']):
-                                    buttons.append([InlineKeyboardButton("Delete Sell level #%d"%i,callback_data='2/%s/%s/SLD%d'%(exch,uidTS,i))])
+                                buttons = buttonsEditTS(ct,uidTS,'full')
                                 query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
                                 query.answer('Choose an option')
                         elif command == '3':  # init trade set deletion
@@ -716,6 +710,7 @@ def load_data(filename='data.pickle'):
 def startBot():
     global __config__
     global job_queue
+    global updater
     #%% load bot configuration
     with open("botConfig.json", "r") as fin:
         __config__ = json.load(fin)
@@ -739,15 +734,15 @@ def startBot():
                             CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
                 SYMBOL:   [RegexHandler('\w+/\w+',receivedSymbol,pass_user_data=True),
                             MessageHandler(Filters.text,wrongSymbolFormat)],
-                TRADESET: [RegexHandler('^Add buy position$',lambda b,u,**args: askPos(b,u,direction='buy',**args),pass_user_data=True),
-                            RegexHandler('^Add sell position$',lambda b,u,**args: askPos(b,u,direction='sell',**args),pass_user_data=True),
-                            RegexHandler('^Add initial coins$',addInitBalance,pass_user_data=True),
-                            RegexHandler('^Add stop-loss$',addSL,pass_user_data=True),
-                            RegexHandler('^Show trade set$',printTradeStatus,pass_user_data=True),
-                            RegexHandler('^Done$',createTradeSet,pass_user_data=True),
-                            RegexHandler('^Cancel$',cancelTradeSet,pass_user_data=True),
-                            MessageHandler(Filters.text,unknownCmd),
-                            CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
+#                TRADESET: [RegexHandler('^Add buy position$',lambda b,u,**args: askPos(b,u,direction='buy',**args),pass_user_data=True),
+#                            RegexHandler('^Add sell position$',lambda b,u,**args: askPos(b,u,direction='sell',**args),pass_user_data=True),
+#                            RegexHandler('^Add initial coins$',addInitBalance,pass_user_data=True),
+#                            RegexHandler('^Add stop-loss$',addSL,pass_user_data=True),
+#                            RegexHandler('^Show trade set$',printTradeStatus,pass_user_data=True),
+#                            RegexHandler('^Done$',createTradeSet,pass_user_data=True),
+#                            RegexHandler('^Cancel$',cancelTradeSet,pass_user_data=True),
+#                            MessageHandler(Filters.text,unknownCmd),
+#                            CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
                 NUMBER:   [RegexHandler('^[\+,\-]?\d+\.?\d*$',receivedFloat,pass_user_data=True),
                            MessageHandler(Filters.text,unknownCmd),
                            CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],

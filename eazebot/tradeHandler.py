@@ -64,7 +64,7 @@ class tradeHandler:
         self.authenticated = False
         try:
             # check if keys work
-            self.exchange.fetch_balance ()
+            self.balance = self.exchange.fetch_balance ()
             self.authenticated = True
         except getattr(ccxt,'AuthenticationError') as e:#
             self.message('Failed to authenticate at exchange %s. Please check your keys'%exchName,'error')
@@ -108,8 +108,10 @@ class tradeHandler:
                 return indices[0]
         else:
             raise TypeError('Wrong trade set identifier Type')
-           
-            
+          
+    def updateBalance(self):
+        self.balance = self.exchange.fetch_balance ()
+        
     def updateKeys(self,key,secret,password=None,uid=None):
         if key:
             self.exchange.apiKey = key
@@ -151,12 +153,14 @@ class tradeHandler:
         ts['initPrice'] = None
         ts['SL'] = None
         ts['active'] = False
+        ts['virgin'] = True
         self.tradeSets.append(ts)
         return ts, len(self.tradeSets)-1
         
     def activateTradeSet(self,iTs):
         iTs = self.getITS(iTs)
         wasactive = self.tradeSets[iTs]['active']
+        self.tradeSets[iTs]['virgin'] = False
         self.tradeSets[iTs]['active'] = True
         return wasactive
     
@@ -241,7 +245,7 @@ class tradeHandler:
     def getTradeSetInfo(self,iTs,showProfitIn=None):
         iTs = self.getITS(iTs)
         ts = self.tradeSets[iTs]
-        string = '*Trade set #%d on %s [%s]:*\n'%(iTs,self.exchange.name,ts['symbol'])
+        string = '*%srade set #%d on %s [%s]:*\n'%('T' if ts['active'] else 'INACTIVE t',iTs,self.exchange.name,ts['symbol'])
         filledBuys = []
         filledSells = []
         for iTrade,trade in enumerate(ts['InTrades']):
@@ -312,6 +316,20 @@ class tradeHandler:
             self.cancelSellOrders(iTs)
         self.tradeSets.pop(iTs)
     
+    def addInitCoins(self,iTs,initCoins=0,initPrice=None):
+        if self.checkNum(initCoins,initPrice) or (initPrice is None and self.checkNum(initCoins)):
+            iTs = self.getITS(iTs)
+            ts = self.tradeSets[iTs]
+            ts['coinsAvail'] = initCoins
+            ts['initCoins'] = initCoins
+            if initPrice is not None and initPrice < 0:
+                initPrice = None
+            ts['initPrice'] = initPrice
+            if initPrice is not None:
+                ts['costIn'] += (initCoins*initPrice)
+        else:
+            raise ValueError('Some input was no number')
+        
     def addBuyLevel(self,iTs,buyPrice,buyAmount,candleAbove=None):
         if self.checkNum(buyPrice,buyAmount,candleAbove) or (candleAbove is None and self.checkNum(buyPrice,buyAmount)):
             iTs = self.getITS(iTs)
@@ -526,7 +544,7 @@ class tradeHandler:
             for iTs,ts in enumerate(self.tradeSets):
                 try:
                     if not ts['active']:
-                        self.message('Trade set %d on exchange %s skipped during update'%(iTs,self.exchange.name))
+#                        self.message('Trade set %d on exchange %s skipped during update'%(iTs,self.exchange.name))
                         continue
                     # check if stop loss is reached
                     if not dailyCheck and ts['SL'] is not None:
