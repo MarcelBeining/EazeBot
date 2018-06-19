@@ -93,15 +93,19 @@ def broadcastMsg(bot,userId,msg,level='info'):
     # put msg into log with userId
     getattr(rootLogger,level.lower())('User %d: %s'%(userId,msg))
     # return msg to user
-    while True:
+    count = 0
+    while count < 5:
         try:
             bot.send_message(chat_id=userId, text=level + ': ' + msg)
             break
         except TypeError as e:
             pass            
         except:
+            count += 1
             logging.warning('Some connection (?) error occured')
+            time.sleep(1)
             continue
+    logging.error('Could not send message to bot')
 
 def unknownCmd(bot, update):
     while True:
@@ -211,10 +215,17 @@ def printTradeStatus(bot,update,user_data,uidTS=None):
                ct.getITS(uidTS)
             except ValueError:
                 continue
+        count = 0
         while ct.updating:
+            if count > 5:
+                break
+            count += 1
             bot.send_message(user_data['chatId'],'Trade sets on %s currently updating.. Waiting for 2 sec..\n\n'%ex)
             time.sleep(2)
-            
+        if count > 5:
+            bot.send_message(user_data['chatId'],'Something is wrong with tradeHandler on %s (still updating). Please check!\n\n'%ex)
+            continue
+        
         for iTS,ts in enumerate(ct.tradeSets):
             if uidTS is not None and ts['uid'] != uidTS:
                 continue
@@ -770,6 +781,7 @@ def startBot():
     # start a job saving the user data each 5 minutes
     updater.job_queue.run_repeating(save_data, interval=5*60, first=60,context=updater)
     updater.bot.send_message(__config__['telegramUserId'],'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
+    
     updater.start_polling()
     updater.idle()
     save_data(updater)  # last data save when finishing
