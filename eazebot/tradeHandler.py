@@ -33,7 +33,7 @@ class tradeHandler:
     
     def __init__(self,exchName,key,secret,password=None,uid=None,messagerFct=None):
         checkThese = ['cancelOrder','createLimitOrder','fetchBalance','fetchTicker']
-        self.tradeSets = []
+        self.tradeSets = {}
         self.exchange = getattr (ccxt, exchName) ({'options': { 'adjustForTimeDifference': True }})
         if key:
             self.exchange.apiKey = key
@@ -80,7 +80,13 @@ class tradeHandler:
         return (self.__class__, (self.exchange.__class__.__name__,self.exchange.apiKey,self.exchange.secret,self.exchange.password,self.exchange.uid,self.message),self.__getstate__(),None,None)
     
     def __setstate__(self,state):
-        self.tradeSets = state
+        if isinstance(state,list):  # temp fix for old class
+            tmpstate = {}
+            for trade in state:
+                tmpstate[trade['uid']] = trade
+            self.tradeSets = tmpstate
+        else:
+            self.tradeSets = state
         
     def __getstate__(self):
         return self.tradeSets
@@ -95,20 +101,6 @@ class tradeHandler:
     def checkNum(self,*value):
         return all([(isinstance(val,float) | isinstance(val,int)) if not isinstance(val,list) else self.checkNum(*val) for val in value])
     
-    def getITS(self,iTs):
-        if isinstance(iTs,int):
-            if iTs < 0:
-                return len(self.tradeSets)+iTs
-            else:
-                return iTs
-        elif isinstance(iTs,str):
-            indices =  [i for i, x in enumerate(self.tradeSets) if x['uid']==iTs]
-            if len(indices)==0:
-                raise ValueError('Trade set id not found')
-            else:
-                return indices[0]
-        else:
-            raise TypeError('Wrong trade set identifier Type')
      
     def safeRun(self,func,printError=True):
         count = 0
@@ -133,6 +125,12 @@ class tradeHandler:
         
     def updateBalance(self):
         self.balance = self.safeRun(self.exchange.fetch_balance)
+        
+    def getFreeBalance(self,coin):
+        if coin in self.balance:
+            return self.balance[coin]['free']
+        else:
+            return 0
         
     def updateKeys(self,key,secret,password=None,uid=None):
         if key:
@@ -164,7 +162,10 @@ class tradeHandler:
         ts = {}
         ts['symbol'] = symbol
         ts['InTrades'] = []
-        ts['uid'] = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
+        iTs = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
+        # redo if uid already reserved
+        while iTs in self.tradeSets:
+            iTs = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         ts['OutTrades'] = []
         ts['baseCurrency'] = re.search("(?<=/).*", symbol).group(0)
         ts['coinCurrency'] = re.search(".*(?=/)", symbol).group(0)
@@ -176,18 +177,16 @@ class tradeHandler:
         ts['SL'] = None
         ts['active'] = False
         ts['virgin'] = True
-        self.tradeSets.append(ts)
-        return ts, len(self.tradeSets)-1
+        self.tradeSets[iTs] = ts
+        return ts, iTs
         
     def activateTradeSet(self,iTs):
-        iTs = self.getITS(iTs)
         wasactive = self.tradeSets[iTs]['active']
         self.tradeSets[iTs]['virgin'] = False
         self.tradeSets[iTs]['active'] = True
         return wasactive
     
     def deactivateTradeSet(self,iTs):
-        iTs = self.getITS(iTs)
         wasactive = self.tradeSets[iTs]['active']
         self.tradeSets[iTs]['active'] = False
         return wasactive
@@ -262,12 +261,11 @@ class tradeHandler:
             self.message('Estimated loss if buys reach stop-loss before selling: %s %s %s'%(self.cost2Prec(ts['symbol'],loss),'*(negative = gain!)*'if loss<0 else '',ts['baseCurrency']))        
         ts['active'] = True  # activate trade set
         self.update()
-        return len(self.tradeSets)
+        return iTs
         
     def getTradeSetInfo(self,iTs,showProfitIn=None):
-        iTs = self.getITS(iTs)
         ts = self.tradeSets[iTs]
-        string = '*%srade set #%d on %s [%s]:*\n'%('T' if ts['active'] else 'INACTIVE t',iTs,self.exchange.name,ts['symbol'])
+        string = '*%srade set #%d on %s [%s]:*\n'%('T' if ts['active'] else 'INACTIVE t',list(self.tradeSets.keys()).index(iTs),self.exchange.name,ts['symbol'])
         filledBuys = []
         filledSells = []
         for iTrade,trade in enumerate(ts['InTrades']):
@@ -330,7 +328,6 @@ class tradeHandler:
         return string
     
     def deleteTradeSet(self,iTs,sellAll=False):
-        iTs = self.getITS(iTs)
         if sellAll:
             self.sellAllNow(iTs)
         else:
@@ -340,8 +337,10 @@ class tradeHandler:
     
     def addInitCoins(self,iTs,initCoins=0,initPrice=None):
         if self.checkNum(initCoins,initPrice) or (initPrice is None and self.checkNum(initCoins)):
-            iTs = self.getITS(iTs)
             ts = self.tradeSets[iTs]
+            if ts['coinsAvail'] > 0 and ts['initPrice'] is not None:
+                # remove old cost again
+                ts['costIn'] -= (ts['coinsAvail']*ts['initPrice'])
             ts['coinsAvail'] = initCoins
             ts['initCoins'] = initCoins
             if initPrice is not None and initPrice < 0:
@@ -351,21 +350,37 @@ class tradeHandler:
                 ts['costIn'] += (initCoins*initPrice)
         else:
             raise ValueError('Some input was no number')
-        
+            
+    def numBuyLevels(self,iTs):
+        return len(self.tradeSets[iTs]['InTrades'])
+
+    def sumBuyAmounts(self,iTs):
+        return sum([val['amount'] for val in self.tradeSets[iTs]['InTrades']])
+
+    def sumBuyCosts(self,iTs):
+        return sum([val['amount']*val['price'] for val in self.tradeSets[iTs]['InTrades']])
+    
+    def numSellLevels(self,iTs):
+        return len(self.tradeSets[iTs]['OutTrades'])
+    
+    def sumSellAmounts(self,iTs):
+        return sum([val['amount'] for val in self.tradeSets[iTs]['OutTrades']])
+
+    def sumSellCosts(self,iTs):
+        return sum([val['amount']*val['price'] for val in self.tradeSets[iTs]['OutTrades']])
+    
     def addBuyLevel(self,iTs,buyPrice,buyAmount,candleAbove=None):
         if self.checkNum(buyPrice,buyAmount,candleAbove) or (candleAbove is None and self.checkNum(buyPrice,buyAmount)):
-            iTs = self.getITS(iTs)
             wasactive = self.deactivateTradeSet(iTs)  
             self.tradeSets[iTs]['InTrades'].append({'oid': None, 'price': buyPrice, 'amount': buyAmount, 'candleAbove': candleAbove})
             if wasactive:
                 self.activateTradeSet(iTs)                
                 self.initBuyOrders()
-            return  len(self.tradeSets[iTs]['InTrades'])-1
+            return  self.numBuyLevels(iTs)-1
         else:
             raise ValueError('Some input was no number')
     
     def deleteBuyLevel(self,iTs,iTrade):   
-        iTs = self.getITS(iTs)
         if self.checkNum(iTrade):
             ts = self.tradeSets[iTs]
             wasactive = self.deactivateTradeSet(iTs)
@@ -378,7 +393,6 @@ class tradeHandler:
             raise ValueError('Some input was no number')
             
     def setBuyLevel(self,iTs,iTrade,price,amount):   
-        iTs = self.getITS(iTs)
         if self.checkNum(iTrade,price,amount):
             ts = self.tradeSets[iTs]
             if ts['InTrades'][iTrade]['oid'] == 'filled':
@@ -401,17 +415,15 @@ class tradeHandler:
     
     def addSellLevel(self,iTs,sellPrice,sellAmount):
         if self.checkNum(sellPrice,sellAmount):
-            iTs = self.getITS(iTs)
             wasactive = self.deactivateTradeSet(iTs)  
             self.tradeSets[iTs]['OutTrades'].append({'oid': None, 'price': sellPrice, 'amount': sellAmount})
             if wasactive:
                 self.activateTradeSet(iTs)                
-            return  len(self.tradeSets[iTs]['OutTrades'])-1
+            return  self.numSellLevels(iTs)-1
         else:
             raise ValueError('Some input was no number')
 
     def deleteSellLevel(self,iTs,iTrade):   
-        iTs = self.getITS(iTs)
         if self.checkNum(iTrade):
             ts = self.tradeSets[iTs]
             wasactive = self.deactivateTradeSet(iTs)
@@ -424,7 +436,6 @@ class tradeHandler:
             raise ValueError('Some input was no number')
     
     def setSellLevel(self,iTs,iTrade,price,amount):   
-        iTs = self.getITS(iTs)
         if self.checkNum(iTrade,price,amount):
             ts = self.tradeSets[iTs]
             if ts['OutTrades'][iTrade]['oid'] == 'filled':
@@ -446,14 +457,12 @@ class tradeHandler:
             
             
     def setSL(self,iTs,value):   
-        iTs = self.getITS(iTs)
         if self.checkNum(value) or value is None:
             self.tradeSets[iTs]['SL'] = value
         else:
             raise ValueError('Input was no number')
         
     def setSLBreakEven(self,iTs):   
-        iTs = self.getITS(iTs)        
         ts = self.tradeSets[iTs]         
         if ts['initCoins'] > 0 and ts['initPrice'] is None:
             self.message('Break even SL cannot be set as you this trade set contains %s that you obtained beforehand and no buy price information was given.'%ts['coinCurrency'])
@@ -475,7 +484,6 @@ class tradeHandler:
                 return 1
 
     def sellAllNow(self,iTs,price=None):
-        iTs = self.getITS(iTs)
         self.cancelBuyOrders(iTs)
         self.cancelSellOrders(iTs)
         ts = self.tradeSets[iTs]
@@ -506,8 +514,7 @@ class tradeHandler:
             self.message('No coins to sell from this trade set.')
                 
     def cancelSellOrders(self,iTs):
-        iTs = self.getITS(iTs)
-        if len(self.tradeSets) > iTs and len(self.tradeSets[iTs]['OutTrades']) > 0:
+        if iTs in self.tradeSets and self.numSellLevels(iTs) > 0:
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['OutTrades']))):
                 if trade['oid'] is not None and trade['oid'] != 'filled':
                     self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL') 
@@ -522,8 +529,7 @@ class tradeHandler:
         return True
         
     def cancelBuyOrders(self,iTs):
-        iTs = self.getITS(iTs)
-        if len(self.tradeSets) > iTs and len(self.tradeSets[iTs]['InTrades']) > 0:
+        if iTs in self.tradeSets and self.numBuyLevels(iTs) > 0:
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['InTrades']))):
                 if trade['oid'] is not None and trade['oid'] != 'filled':
                     self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY') 
@@ -537,7 +543,6 @@ class tradeHandler:
         return True
     
     def initBuyOrders(self,iTs):
-        iTs = self.getITS(iTs)
         if self.tradeSets[iTs]['active']:
             # initialize buy orders
             for iTrade,trade in enumerate(self.tradeSets[iTs]['InTrades']):
@@ -563,7 +568,8 @@ class tradeHandler:
         if not self.updating:
             self.updating = True
             
-            for iTs,ts in enumerate(self.tradeSets):
+            for iTs in self.tradeSets:
+                ts = self.tradeSets[iTs]
                 if not ts['active']:
 #                        self.message('Trade set %d on exchange %s skipped during update'%(iTs,self.exchange.name))
                     continue
@@ -627,8 +633,8 @@ class tradeHandler:
                                 ts['OutTrades'][iTrade]['oid'] = None
                                 self.message('Sell order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
                     
-                    if len(ts['OutTrades']) == filledOut and len(ts['InTrades']) == filledIn:
+                    if self.numSellLevels(iTs) == filledOut and self.numBuyLevels(iTs) == filledIn:
                         self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn']),ts['baseCurrency']))
-                        del self.tradeSets[iTs]
+                        self.tradeSets.pop(iTs)
             self.updating = False
             
