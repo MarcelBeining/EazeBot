@@ -41,7 +41,7 @@ There are two json files that you have to configure: _APis.json_ and _botConfig.
 
 If you used `pip install`, the jsons are in the package folder, and you can copy them to your desired folder by using Python:
 ````python
-from EazeBot import copyJSON
+from eazebot.EazeBot import copyJSON
 copyJSON(_yourTargetfolder_) # blank input copies them to your current Python working directory
 ````
 If you cloned/downloaded the git files, they are located in the _eazebot_ subfolder.
@@ -74,7 +74,7 @@ If you cloned/downloaded the git files, they are located in the _eazebot_ subfol
    + How to run depends on the way you installed EazeBot. 
    a) If you used pip install, start Python, cd to the folder where you copied the JSONs too (see _Installing_ step) and run these commands:
    ````python
-   from EazeBot import startBot
+   from eazebot.EazeBot import startBot
    startBot()
    ````
    b) If you simply cloned/downloaded the package, go to the eazebot subfolder and run EazeBot.py (double-clicking if your py files are linked to Python, or by typing `python EazeBot.py` into your command line)

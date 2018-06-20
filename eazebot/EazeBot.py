@@ -155,7 +155,7 @@ def startCmd(bot, update,user_data):
         user_data.update({'lastFct':[],'whichCurrency':0,'tempTradeSet':[None,None,None]})
     else:
         washere = ''
-        user_data.update({'chatId':update.message.chat_id,'exchanges':{},'trade':{},'settings':{'fiat':[],'showProfitIn':None},'lastFct':None,'chosenExchange':None})
+        user_data.update({'chatId':update.message.chat_id,'exchanges':{},'trade':{},'settings':{'fiat':[],'showProfitIn':None},'lastFct':[],'whichCurrency':0,'tempTradeSet':[None,None,None]})
     bot.send_message(user_data['chatId'],
         "Welcome %s%s to the EazeBot! You are in the main menu."%(washere,update.message.from_user.first_name),
         reply_markup=markupMainMenu)
