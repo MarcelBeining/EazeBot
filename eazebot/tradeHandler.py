@@ -524,8 +524,7 @@ class tradeHandler:
                         self.tradeSets[iTs]['costOut'] += orderInfo['price']*orderInfo['filled']
                         self.tradeSets[iTs]['coinsAvail'] -= orderInfo['filled']                                
                     self.tradeSets[iTs]['coinsAvail'] += trade['amount']
-                del self.tradeSets[iTs]['OutTrades'][iTrade]
-            self.message('All sell orders canceled for tradeSet %d (%s)'%(iTs,self.tradeSets[iTs]['symbol']))
+            self.message('All sell orders canceled for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
         return True
         
     def cancelBuyOrders(self,iTs):
@@ -538,8 +537,7 @@ class tradeHandler:
                         self.message('Partly filled buy order found during canceling. Updating balance')
                         self.tradeSets[iTs]['costIn'] += orderInfo['price']*orderInfo['filled']
                         self.tradeSets[iTs]['coinsAvail'] += orderInfo['filled']   
-                del self.tradeSets[iTs]['InTrades'][iTrade]
-            self.message('All buy orders canceled for tradeSet %d (%s)'%(iTs,self.tradeSets[iTs]['symbol']))
+            self.message('All buy orders canceled for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
         return True
     
     def initBuyOrders(self,iTs):
