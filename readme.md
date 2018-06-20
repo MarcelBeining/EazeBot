@@ -22,15 +22,15 @@ You require Python 3 to be installed on your system.
 
 The simpliest way of installing EazeBot is using the pip install command:
 ````python
-pip install EazeBot
+pip install eazebot  # or 'python -m pip install eazebot' if the pip command is not found
 ````
 or if you want to specify an installation folder (not recommended):
 ````python
-pip install EazeBot -t <directory>
+pip install eazebot -t <directory>   # or 'python -m pip install eazebot -t <directory>' if the pip command is not found
 ````
 
 Alternatively, you can clone or download the newest release version from [Github](https://github.com/MarcelBeining/EazeBot) 
-and install required packages from the command promt py switching to the EazeBot directory and typing `python setup.py install` (or for Windows users `setup.py install`).
+and install required packages from the command prompt by switching to the EazeBot directory and typing `python setup.py install` (or for Windows users `setup.py install`).
 
 
 ## Getting Started
@@ -72,12 +72,12 @@ If you cloned/downloaded the git files, they are located in the _eazebot_ subfol
    to use the built-in donation feature, it needs the right to withdraw.
 4. **Run the bot and start a conversation via Telegram.**
    + How to run depends on the way you installed EazeBot. 
-   a) If you used pip install, start Python, cd to the folder where you copied the JSONs too (see _Installing_ step) and run these commands:
+   + If you used pip install, start Python, cd to the folder where you copied the JSONs too (see _Installing_ step) and run these commands:
    ````python
    from eazebot.EazeBot import startBot
    startBot()
    ````
-   b) If you simply cloned/downloaded the package, go to the eazebot subfolder and run EazeBot.py (double-clicking if your py files are linked to Python, or by typing `python EazeBot.py` into your command line)
+   + If you simply cloned/downloaded the package, go to the eazebot subfolder and run EazeBot.py (double-clicking if your py files are linked to Python, or by typing `python EazeBot.py` into your command line)
    + The bot will welcome you and show you a menu of things you can do. Everything should be rather self-explanatory as the bot will have a dialog with you on everything you click.
 
 
