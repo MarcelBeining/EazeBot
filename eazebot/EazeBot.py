@@ -42,7 +42,7 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, Rege
 if __name__ == '__main__':
     from tradeHandler import tradeHandler
 else:
-    from EazeBot.tradeHandler import tradeHandler
+    from eazebot.tradeHandler import tradeHandler
 
 logFileName = 'telegramEazeBot'
 MAINMENU,SETTINGS,SYMBOL,NUMBER,TIMING,INFO = range(6)

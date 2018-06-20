@@ -1,2 +1,2 @@
-from EazeBot.tradeHandler import tradeHandler
+from eazebot.tradeHandler import tradeHandler
 __all__ = ["tradeHandler"]
