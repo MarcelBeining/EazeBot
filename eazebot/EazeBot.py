@@ -145,7 +145,7 @@ def receivedFloat(bot,update,user_data):
 def startCmd(bot, update,user_data):
     # initiate user_data if it does not exist yet
     if __config__['telegramUserId'] != update.message.from_user.id:
-        bot.send_message(user_data['chatId'],'Sorry your Telegram ID (%d) is not recognized! Bye!'%update.message.from_user.id)
+        bot.send_message(update.message.from_user.id,'Sorry your Telegram ID (%d) is not recognized! Bye!'%update.message.from_user.id)
         logging.warning('Unknown user %s %s (username: %s, id: %s) tried to start the bot!'%(update.message.from_user.first_name,update.message.from_user.last_name,update.message.from_user.username,update.message.from_user.id))
         return
     else:
@@ -769,7 +769,10 @@ def startBot():
     updater.job_queue.run_daily(checkCandle, datetime.time(0,0,10), context=updater)
     # start a job saving the user data each 5 minutes
     updater.job_queue.run_repeating(save_data, interval=5*60, first=60,context=updater)
-    updater.bot.send_message(__config__['telegramUserId'],'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
+    try:
+        updater.bot.send_message(__config__['telegramUserId'],'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
+    except:
+        pass
     
     updater.start_polling()
     updater.idle()
