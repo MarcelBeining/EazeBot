@@ -180,14 +180,27 @@ class tradeHandler:
         self.tradeSets[iTs] = ts
         return ts, iTs
         
-    def activateTradeSet(self,iTs):
-        wasactive = self.tradeSets[iTs]['active']
+    def activateTradeSet(self,iTs,verbose=True):
+        ts = self.tradeSets[iTs]
+        wasactive = ts['active']
         self.tradeSets[iTs]['virgin'] = False
         self.tradeSets[iTs]['active'] = True
+        
+        if verbose and not wasactive:
+            totalBuyCost = ts['costIn'] + self.sumBuyCosts(iTs)
+            self.message('Estimated return if all trades are executed: %s %s'%(self.cost2Prec(ts['symbol'],self.sumSellCosts(iTs)-totalBuyCost),ts['baseCurrency']))
+            if ts['SL'] is not None:
+                loss = totalBuyCost-(ts['initCoins']+self.sumBuyAmounts(iTs))*ts['SL']
+                self.message('Estimated loss if buys reach stop-loss before selling: %s %s %s'%(self.cost2Prec(ts['symbol'],loss),'*(negative = gain!)*'if loss<0 else '',ts['baseCurrency']))        
+        self.initBuyOrders(iTs)
+        self.update()
         return wasactive
     
-    def deactivateTradeSet(self,iTs):
+    def deactivateTradeSet(self,iTs,cancelOrders=False):
         wasactive = self.tradeSets[iTs]['active']
+        if cancelOrders:
+            self.cancelBuyOrders(iTs)
+            self.cancelSellOrders(iTs)
         self.tradeSets[iTs]['active'] = False
         return wasactive
         
@@ -234,32 +247,17 @@ class tradeHandler:
         if self.balance[ts['baseCurrency']]['free'] < sum(buyLevels*buyAmounts):
             raise ValueError('Free balance of %s not sufficient to initiate trade set'%ts['baseCurrency'])
         
-        summed = 0
         # create the buy orders
         for n,_ in enumerate(buyLevels):
             self.addBuyLevel(iTs,buyLevels[n],buyAmounts[n],candleAbove[n])
-            summed += buyAmounts[n]*buyLevels[n]
         
-        ts['coinsAvail'] = initCoins
-        ts['initCoins'] = initCoins
-        if initPrice is not None and initPrice < 0:
-            initPrice = None
-        ts['initPrice'] = initPrice
-        totalBuyCost = summed
-        if initPrice is not None:
-            ts['costIn'] += (initCoins*initPrice)
-            totalBuyCost += ts['costIn']
-        summed = 0
+        self.addInitCoins(iTs,initCoins,initPrice)
+        self.setSL(iTs,sl)
         # create the sell orders
         for n,_ in enumerate(sellLevels):
             self.addSellLevel(iTs,sellLevels[n],sellAmounts[n])
-            summed += sellAmounts[n]*sellLevels[n]
-        self.message('Estimated return if all trades are executed: %s %s'%(self.cost2Prec(ts['symbol'],summed-totalBuyCost),ts['baseCurrency']))
-        ts['SL'] = sl
-        if sl is not None:
-            loss = totalBuyCost-(initCoins+sum(buyAmounts))*sl
-            self.message('Estimated loss if buys reach stop-loss before selling: %s %s %s'%(self.cost2Prec(ts['symbol'],loss),'*(negative = gain!)*'if loss<0 else '',ts['baseCurrency']))        
-        ts['active'] = True  # activate trade set
+
+        self.activateTradeSet(iTs)
         self.update()
         return iTs
         
@@ -331,8 +329,7 @@ class tradeHandler:
         if sellAll:
             self.sellAllNow(iTs)
         else:
-            self.cancelBuyOrders(iTs)
-            self.cancelSellOrders(iTs)
+            self.deactivateTradeSet(iTs,1)
         self.tradeSets.pop(iTs)
     
     def addInitCoins(self,iTs,initCoins=0,initPrice=None):
@@ -374,8 +371,7 @@ class tradeHandler:
             wasactive = self.deactivateTradeSet(iTs)  
             self.tradeSets[iTs]['InTrades'].append({'oid': None, 'price': buyPrice, 'amount': buyAmount, 'candleAbove': candleAbove})
             if wasactive:
-                self.activateTradeSet(iTs)                
-                self.initBuyOrders()
+                self.activateTradeSet(iTs,0)                
             return  self.numBuyLevels(iTs)-1
         else:
             raise ValueError('Some input was no number')
@@ -388,7 +384,7 @@ class tradeHandler:
                 self.cancelOrder(ts['InTrades'][iTrade]['oid'],ts['symbol'],'BUY')
             ts['InTrades'].pop(iTrade)
             if wasactive:
-                self.activateTradeSet(iTs) 
+                self.activateTradeSet(iTs,0) 
         else:
             raise ValueError('Some input was no number')
             
@@ -407,8 +403,7 @@ class tradeHandler:
                 ts['InTrades'][iTrade]['price'] = price
                 
                 if wasactive:
-                    self.activateTradeSet(iTs)                
-                    self.initBuyOrders()
+                    self.activateTradeSet(iTs,0)                
                 return 1
         else:
             raise ValueError('Some input was no number')
@@ -418,7 +413,7 @@ class tradeHandler:
             wasactive = self.deactivateTradeSet(iTs)  
             self.tradeSets[iTs]['OutTrades'].append({'oid': None, 'price': sellPrice, 'amount': sellAmount})
             if wasactive:
-                self.activateTradeSet(iTs)                
+                self.activateTradeSet(iTs,0)                
             return  self.numSellLevels(iTs)-1
         else:
             raise ValueError('Some input was no number')
@@ -431,7 +426,7 @@ class tradeHandler:
                 self.cancelOrder(ts['OutTrades'][iTrade]['oid'],ts['symbol'],'SELL')
             ts['OutTrades'].pop(iTrade)
             if wasactive:
-                self.activateTradeSet(iTs) 
+                self.activateTradeSet(iTs,0) 
         else:
             raise ValueError('Some input was no number')
     
@@ -450,7 +445,7 @@ class tradeHandler:
                 ts['OutTrades'][iTrade]['price'] = price
                 
                 if wasactive:
-                    self.activateTradeSet(iTs)                
+                    self.activateTradeSet(iTs,0)                
                 return 1
         else:
             raise ValueError('Some input was no number')
@@ -484,9 +479,10 @@ class tradeHandler:
                 return 1
 
     def sellAllNow(self,iTs,price=None):
-        self.cancelBuyOrders(iTs)
-        self.cancelSellOrders(iTs)
+        self.deactivateTradeSet(iTs,1)
         ts = self.tradeSets[iTs]
+        ts['InTrades'] = []
+        ts['OutTrades'] = []
         if ts['coinsAvail'] > 0:
             if self.exchange.has['createMarketOrder']:
                 try:
@@ -507,9 +503,11 @@ class tradeHandler:
             if orderInfo['status']=='FILLED':
                 ts['costOut'] += orderInfo['cost']
                 self.message('Sold immediately at a price of %s %s: Sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
+                self.deleteTradeSet(iTs)
             else:
                 self.message('Sell order was not traded immediately, updating status soon.')
                 ts['OutTrades'].append({'oid':response['id'],'price': orderInfo['price'],'amount': orderInfo['amount']})
+                self.activateTradeSet(iTs,0)
         else:
             self.message('No coins to sell from this trade set.')
                 
