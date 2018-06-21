@@ -27,7 +27,7 @@ import time
 import random
 import string
 import sys, os
-from ccxt.base.errors import RequestTimeout
+from ccxt.base.errors import (RequestTimeout,InvalidNonce)
 
 class tradeHandler:
     
@@ -107,12 +107,14 @@ class tradeHandler:
         while count < 5:
             try:
                 return func()
-            except RequestTimeout as e:
+            except (InvalidNonce,RequestTimeout) as e:
                 count += 1
+                time.sleep(0.5)
                 continue
             except Exception as e:
                 if 'unknown error' in str(e).lower() or 'connection' in str(e).lower():
                     count += 1
+                    time.sleep(0.5)
                     continue
                 self.updating = False
                 exc_type, exc_obj, exc_tb = sys.exc_info()

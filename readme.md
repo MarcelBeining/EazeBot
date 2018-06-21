@@ -22,15 +22,16 @@ You require Python 3 to be installed on your system.
 
 The simpliest way of installing EazeBot is using the pip install command:
 ````python
-pip install eazebot  # or 'python -m pip install eazebot' if the pip command is not found
+python -m pip install eazebot
 ````
 or if you want to specify an installation folder (not recommended):
 ````python
-pip install eazebot -t <directory>   # or 'python -m pip install eazebot -t <directory>' if the pip command is not found
+python -m pip install eazebot -t <directory>
 ````
 
 Alternatively, you can clone or download the newest release version from [Github](https://github.com/MarcelBeining/EazeBot) 
-and install required packages from the command prompt by switching to the EazeBot directory and typing `python setup.py install` (or for Windows users `setup.py install`).
+and install required packages from the command prompt by switching to the EazeBot directory in a terminal and typing `python setup.py install` 
+(or for Windows users doubleclick on _setup.bat_ in the EazeBot directory).
 
 
 ## Getting Started
@@ -88,6 +89,10 @@ We will add a Wiki in the future. You may also open an issue if you encounter bu
 ## Versioning
 
 For the versions available, see the [tags on this repository](https://github.com/MarcelBeining/eazebot/tags/). 
+
+From time to time you should update EazeBot by
++ Executing `python -m pip install eazebot --upgrade` if you used pip for installing
++ Or downloading the package again and overwriting the old files **(not the json files of course!)**
 
 ## Authors
 
