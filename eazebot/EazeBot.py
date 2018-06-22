@@ -63,7 +63,7 @@ with open(os.path.join(os.path.dirname(__file__),'version.txt')) as fh:
     thisVersion = re.search('(?<=version = )\d+\.\d+',str(fh.read())).group(0)
 
 #%% init menues
-mainMenu = [['Status of Trade Sets', 'New Trade Set','Check Balance'],['Add/update exchanges (API.json)','Settings','Bot Info']]
+mainMenu = [['Status of Trade Sets', 'New Trade Set','Check Balance'],['Add/update exchanges (APIs.json)','Settings','Bot Info']]
 markupMainMenu = ReplyKeyboardMarkup(mainMenu)#, one_time_keyboard=True)
 
 tradeSetMenu = [['Add buy position', 'Add sell position','Add initial coins'],
@@ -87,6 +87,7 @@ def copyJSON(folderName=os.getcwd(),force=0):
         logging.warning('APIs.json already exists in\n%s\nUse copyJSON(targetfolder,force=1) or copyJSON(force=1) to overwrite both (!) JSONs'%folderName)
     else:  
         copy2(os.path.join(os.path.dirname(__file__),'APIs.json'),folderName)
+    copy2(os.path.join(os.path.dirname(__file__),'startBotScript.py'),folderName)
     logging.info('botConfig.json and APIs.json successfully copied to\n%s\nPlease open and configure these files before running the bot'%folderName)
         
 def broadcastMsg(bot,userId,msg,level='info'):

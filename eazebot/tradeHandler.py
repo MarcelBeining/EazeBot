@@ -27,7 +27,7 @@ import time
 import random
 import string
 import sys, os
-from ccxt.base.errors import (RequestTimeout,InvalidNonce)
+from ccxt.base.errors import (NetworkError)
 
 class tradeHandler:
     
@@ -65,7 +65,7 @@ class tradeHandler:
         self.authenticated = False
         try:
             # check if keys work
-            self.balance = self.safeRun(self.exchange.fetch_balance)
+            self.balance = self.safeRun(self.exchange.fetch_balance,0)
             self.authenticated = True
         except getattr(ccxt,'AuthenticationError') as e:#
             self.message('Failed to authenticate at exchange %s. Please check your keys'%exchName,'error')
@@ -107,7 +107,7 @@ class tradeHandler:
         while count < 5:
             try:
                 return func()
-            except (InvalidNonce,RequestTimeout) as e:
+            except NetworkError as e:
                 count += 1
                 time.sleep(0.5)
                 continue
@@ -150,7 +150,7 @@ class tradeHandler:
         self.safeRun(self.exchange.loadMarkets) 
         try:
             # check if keys work
-            self.updateBalance()
+            self.safeRun(self.updateBalance,0)
             self.authenticated = True
         except getattr(ccxt,'AuthenticationError') as e:#
             self.authenticated = False
@@ -485,10 +485,11 @@ class tradeHandler:
         ts = self.tradeSets[iTs]
         ts['InTrades'] = []
         ts['OutTrades'] = []
+        ts['SL'] = None # necessary to not retrigger SL
         if ts['coinsAvail'] > 0:
             if self.exchange.has['createMarketOrder']:
                 try:
-                    response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail']))
+                    response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail']),0)
                 except:
                     params = { 'trading_agreement': 'agree' }  # for kraken api...
                     response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail'],params))
@@ -498,7 +499,7 @@ class tradeHandler:
                 response = self.safeRun(lambda: self.exchange.createLimitSellOrder (ts['symbol'], ts['coinsAvail'],price))
             time.sleep(3) # give exchange 3 sec for trading the order
             try:
-                orderInfo = self.safeRun(lambda: self.exchange.fetchOrder (response['id'],ts['symbol']))
+                orderInfo = self.safeRun(lambda: self.exchange.fetchOrder (response['id'],ts['symbol']),0)
             except ccxt.ExchangeError as e:
                 orderInfo = self.safeRun(lambda: self.exchange.fetchOrder (response['id'],ts['symbol'],{'type':'SELL'}))
                     
@@ -565,7 +566,7 @@ class tradeHandler:
         # daily check is for checking if a candle closed above a certain value
         if not self.updating:
             self.updating = True
-            
+            tradeSetsToDelete = []
             for iTs in self.tradeSets:
                 ts = self.tradeSets[iTs]
                 if not ts['active']:
@@ -574,7 +575,7 @@ class tradeHandler:
                 # check if stop loss is reached
                 if not dailyCheck and ts['SL'] is not None:
                     ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
-                    if ticker['last'] < ts['SL']:
+                    if ticker['last'] <= ts['SL']:
                         self.message('Stop loss for pair %s has been triggered!'%ts['symbol'],'warning')
                         # cancel all sell orders, create market sell order and save resulting amount of base currency
                         self.sellAllNow(iTs,price=ticker['last'])
@@ -633,6 +634,8 @@ class tradeHandler:
                     
                     if self.numSellLevels(iTs) == filledOut and self.numBuyLevels(iTs) == filledIn:
                         self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn']),ts['baseCurrency']))
-                        self.tradeSets.pop(iTs)
+                        tradeSetsToDelete.append(iTs)
+            for iTs in tradeSetsToDelete:
+                self.tradeSets.pop(iTs) 
             self.updating = False
             
