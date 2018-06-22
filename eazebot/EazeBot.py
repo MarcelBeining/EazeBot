@@ -39,7 +39,7 @@ from telegram import (ReplyKeyboardMarkup,InlineKeyboardMarkup,InlineKeyboardBut
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
                           ConversationHandler,CallbackQueryHandler)
 
-if __name__ == '__main__':
+if __name__ == '__main__' or os.path.isfile('tradeHandler.py'):
     from tradeHandler import tradeHandler
 else:
     from eazebot.tradeHandler import tradeHandler
@@ -88,6 +88,7 @@ def copyJSON(folderName=os.getcwd(),force=0):
     else:  
         copy2(os.path.join(os.path.dirname(__file__),'APIs.json'),folderName)
     copy2(os.path.join(os.path.dirname(__file__),'startBotScript.py'),folderName)
+    copy2(os.path.join(os.path.dirname(__file__),'updateBot.bat'),folderName)
     logging.info('botConfig.json and APIs.json successfully copied to\n%s\nPlease open and configure these files before running the bot'%folderName)
         
 def broadcastMsg(bot,userId,msg,level='info'):
@@ -285,7 +286,7 @@ def createTradeSet(bot,update,user_data,exchange=None,symbol=None):
                 else:
                     text = 'Please specify your trade set now. First: Which currency pair do you want to trade? (e.g. ETH/BTC)'
                 user_data['lastFct'].append(lambda res: createTradeSet(bot,update,user_data,exchange,res))
-                bot.send_message(user_data['chatId'],text)
+                bot.send_message(user_data['chatId'],text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Cancel',callback_data='blabla/cancel')]]))
                 return SYMBOL
         else:
             user_data['lastFct'].append(lambda res: createTradeSet(bot,update,user_data,res))
@@ -485,7 +486,7 @@ def showSettings  (bot, update,user_data,botOrQuery=None):
     # give preferred fiat
     # stop bot with security question
     string = '*Settings:*\n_Fiat currencies(descending priority):_ %s\n_Show gain/loss in:_ %s'%(', '.join(user_data['settings']['fiat']), 'Fiat (if available)' if user_data['settings']['showProfitIn'] is not None else 'Base currency') #user_data['settings']['showProfitIn']
-    settingButtons = [[InlineKeyboardButton('Define your fiat',callback_data='settings/defFiat')],[InlineKeyboardButton("Toggle showing gain/loss in baseCurrency or fiat", callback_data='settings/toggleProfit')],[InlineKeyboardButton("*Stop bot*", callback_data='settings/stopBot')]]    
+    settingButtons = [[InlineKeyboardButton('Define your fiat',callback_data='settings/defFiat')],[InlineKeyboardButton("Toggle showing gain/loss in baseCurrency or fiat", callback_data='settings/toggleProfit')],[InlineKeyboardButton("*Stop bot*", callback_data='settings/stopBot'),InlineKeyboardButton("Back", callback_data='settings/cancel')]]    
     if botOrQuery == None or isinstance(botOrQuery,type(bot)):
         bot.send_message(user_data['chatId'], string, parse_mode = 'markdown', reply_markup=InlineKeyboardMarkup(settingButtons))
     else:
@@ -743,11 +744,13 @@ def startBot():
                             RegexHandler('^Settings$',showSettings,pass_user_data=True),
                             CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
                 SYMBOL:   [RegexHandler('\w+/\w+',receivedSymbol,pass_user_data=True),
-                            MessageHandler(Filters.text,wrongSymbolFormat)],
+                            MessageHandler(Filters.text,wrongSymbolFormat),
+                            CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
                 NUMBER:   [RegexHandler('^[\+,\-]?\d+\.?\d*$',receivedFloat,pass_user_data=True),
                            MessageHandler(Filters.text,unknownCmd),
                            CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
-                TIMING:   [CallbackQueryHandler(timingCallback,pass_user_data=True)],
+                TIMING:   [CallbackQueryHandler(timingCallback,pass_user_data=True),
+                           CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
                 INFO:     [RegexHandler('\w+',receivedInfo,pass_user_data=True)]
             },
             fallbacks=[CommandHandler('exit', doneCmd,pass_user_data=True)], allow_reentry = True)#, per_message = True)

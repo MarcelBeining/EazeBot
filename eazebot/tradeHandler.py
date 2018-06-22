@@ -60,7 +60,9 @@ class tradeHandler:
             self.message = lambda a,b='Info': print(b + ': ' + a)
             
         if not all([self.exchange.has[x] for x in checkThese]):
-            raise Exception('Exchange %s does not support all required features (cancelOrder,LimitOrder,getBalance,getTicker)'%exchName)
+            text = 'Exchange %s does not support all required features (%s)'%(exchName,', '.join(checkThese))
+            self.message(text,'error')
+            raise Exception(text)
         self.updating = False
         self.authenticated = False
         try:
