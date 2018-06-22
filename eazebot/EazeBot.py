@@ -326,21 +326,21 @@ def askAmount(user_data,exch,uidTS,direction,botOrQuery):
     else:
         raise ValueError('Unknown direction specification')
     if isinstance(botOrQuery,bot.Bot):
-        botOrQuery.send_message(user_data['chatId'],"What amount of %s do you want to %s (max ~%.5g minus trading fee)?"%(cname,action,bal),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency/%s/%s/%s'%(exch,uidTS,direction))]]))
+        botOrQuery.send_message(user_data['chatId'],"What amount of %s do you want to %s (max ~%.5g minus trading fee)?"%(cname,action,bal),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency/%s/%s/%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount/cancel')]]))
     else:
-        botOrQuery.edit_message_text("What amount of %s do you want to %s (max ~%.5g minus trading fee)?"%(cname,action,bal),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency/%s/%s/%s'%(exch,uidTS,direction))]]))
+        botOrQuery.edit_message_text("What amount of %s do you want to %s (max ~%.5g minus trading fee)?"%(cname,action,bal),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency/%s/%s/%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount/cancel')]]))
         botOrQuery.answer('Currency switched')
     
 def addInitBalance(bot,user_data,exch,uidTS,inputType=None,response=None,fct = None):
     ct = user_data['trade'][exch]
     if inputType is None:
         user_data['lastFct'].append(lambda res : addInitBalance(bot,user_data,exch,uidTS,'initCoins',res,fct))
-        bot.send_message(user_data['chatId'],"You already have %s that you want to add to the trade set? How much is it?"%ct.tradeSets[uidTS]['coinCurrency'])
+        bot.send_message(user_data['chatId'],"You already have %s that you want to add to the trade set? How much is it?"%ct.tradeSets[uidTS]['coinCurrency'], reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data='addInitBal/cancel')]]))
         return NUMBER
     elif inputType == 'initCoins':
         user_data['tempTradeSet'][0] = response
         user_data['lastFct'].append(lambda res : addInitBalance(bot,user_data,exch,uidTS,'initPrice',res,fct))
-        bot.send_message(user_data['chatId'],"What was the average price (%s) you bought it for? Type 0 if received for free and a negative number if you do not know?"%ct.tradeSets[uidTS]['symbol'])
+        bot.send_message(user_data['chatId'],"What was the average price (%s) you bought it for? Type 0 if received for free and a negative number if you do not know?"%ct.tradeSets[uidTS]['symbol'], reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data='addInitBal/cancel')]]))
         return NUMBER
     elif inputType == 'initPrice':
         if response >= 0:
@@ -366,7 +366,7 @@ def askPos(bot,user_data,exch,uidTS,direction,applyFct=None,inputType=None,respo
     if inputType is None:
         user_data['tempTradeSet'] = [None,None,None]
         user_data['lastFct'].append(lambda res : askPos(bot,user_data,exch,uidTS,direction,applyFct,'price',res))
-        bot.send_message(user_data['chatId'],"At which price do you want to %s %s"%(direction,symbol))
+        bot.send_message(user_data['chatId'],"At which price do you want to %s %s"%(direction,symbol), reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data='askPos/cancel')]]))
         return NUMBER
     elif inputType == 'price':        
         if response == 0:
@@ -384,7 +384,7 @@ def askPos(bot,user_data,exch,uidTS,direction,applyFct=None,inputType=None,respo
         user_data['tempTradeSet'][1] = response
         if direction == 'buy':
             user_data['lastFct'].append(lambda res : askPos(bot,user_data,exch,uidTS,direction,applyFct,'candleAbove',res))
-            bot.send_message(user_data['chatId'],'Do you want to make this a timed buy (buy only if daily candle closes above X)',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='Yes'),InlineKeyboardButton("No", callback_data='No')]]))
+            bot.send_message(user_data['chatId'],'Do you want to make this a timed buy (buy only if daily candle closes above X)',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='Yes'),InlineKeyboardButton("No", callback_data='No')], [InlineKeyboardButton("Cancel", callback_data='askPos/cancel')]]))
             return TIMING    
         else:
             inputType = 'apply'
@@ -508,6 +508,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
     
     if 'cancel' in args:
         query.message.delete()
+        user_data['tempTradeSet'] = [None,None,None]
     else:
         if command == 'settings':
             subcommand = args.pop(0)
@@ -592,93 +593,102 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                     query.edit_message_text('This trade set is not found anymore. Probably it was deleted')
                 else:
                     ct = user_data['trade'][exch]
-                    if ct.updating:
-                        query.answer('Trade sets on %s currently updating...Please wait'%exch)
-                    else:
-                        if command == '2':  # edit trade set
-                            if 'back' in args:
-                                query.edit_message_reply_markup(reply_markup=makeTSInlineKeyboard(exch,uidTS))
-                                query.answer('')
-                           
-                            elif any(['BLD' in val for val in args]):    
-                                ct.deleteBuyLevel(uidTS,int([re.search('(?<=^BLD)\d+',val).group(0) for val in args if isinstance(val,str) and 'BLD' in val][0]))
-                                updateTStext(bot,update,user_data,uidTS,query)
-                                query.answer('Deleted buy level')
-                            
-                            elif any(['SLD' in val for val in args]):    
-                                ct.deleteSellLevel(uidTS,int([re.search('(?<=^SLD)\d+',val).group(0) for val in args if isinstance(val,str) and 'SLD' in val][0]))
-                                updateTStext(bot,update,user_data,uidTS,query)
-                                query.answer('Deleted sell level')
-                            
-                            elif 'buyAdd' in args:   
-                                if response is None:
-                                    query.edit_message_reply_markup()
-                                    query.answer('Adding new buy level')
-                                    return askPos(bot,user_data,exch,uidTS,direction='buy',applyFct=lambda : InlineButtonCallback(bot,update,user_data,query,'continue'))
-                                else:
-                                    ct.addBuyLevel(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1],user_data['tempTradeSet'][2])
-                                    user_data['tempTradeSet'] = [None,None,None]
-                                    updateTStext(bot,update,user_data,uidTS,query)
-                            
-                            elif 'sellAdd' in args:
-                                if response is None:
-                                    query.edit_message_reply_markup()
-                                    query.answer('Adding new sell level')
-                                    return askPos(bot,user_data,exch,uidTS,direction='sell',applyFct=lambda : InlineButtonCallback(bot,update,user_data,query,'continue'))
-                                else:
-                                    ct.addSellLevel(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1])
-                                    user_data['tempTradeSet'] = [None,None,None]
-                                    updateTStext(bot,update,user_data,uidTS,query)
-                            
-                            elif 'AIC' in args:
+                    count = 0
+                    while ct.updating:
+                        if count > 5:
+                            break
+                        count += 1
+                        bot.send_message(user_data['chatId'],'Trade sets on %s currently updating.. Waiting for 2 sec..\n\n'%exch)
+                        time.sleep(2)
+                    if count > 5:
+                        bot.send_message(user_data['chatId'],'Something is wrong with tradeHandler on %s (still updating). Please check!\n\n'%exch)
+                        user_data['tempTradeSet'] = [None,None,None]
+                        return MAINMENU
+                
+                    if command == '2':  # edit trade set
+                        if 'back' in args:
+                            query.edit_message_reply_markup(reply_markup=makeTSInlineKeyboard(exch,uidTS))
+                            query.answer('')
+                       
+                        elif any(['BLD' in val for val in args]):    
+                            ct.deleteBuyLevel(uidTS,int([re.search('(?<=^BLD)\d+',val).group(0) for val in args if isinstance(val,str) and 'BLD' in val][0]))
+                            updateTStext(bot,update,user_data,uidTS,query)
+                            query.answer('Deleted buy level')
+                        
+                        elif any(['SLD' in val for val in args]):    
+                            ct.deleteSellLevel(uidTS,int([re.search('(?<=^SLD)\d+',val).group(0) for val in args if isinstance(val,str) and 'SLD' in val][0]))
+                            updateTStext(bot,update,user_data,uidTS,query)
+                            query.answer('Deleted sell level')
+                        
+                        elif 'buyAdd' in args:   
+                            if response is None:
                                 query.edit_message_reply_markup()
-                                query.answer('Adding initial coins')
-                                return addInitBalance(bot,user_data,exch,uidTS,inputType=None,response=None,fct = lambda :printTradeStatus(bot,update,user_data,uidTS))
-                            
-                            elif 'TSgo' in args:
-                                ct.activateTradeSet(uidTS)
-                                updateTStext(bot,update,user_data,uidTS,query)
-                                query.answer('Trade set activated')
-                                
-                            elif 'TSstop' in args:
-                                ct.deactivateTradeSet(uidTS,1)
-                                updateTStext(bot,update,user_data,uidTS,query)
-                                query.answer('Trade set deactivated!')
-                                
-                            elif 'SLBE' in args:
-                                ans = ct.setSLBreakEven(uidTS)
-                                if ans:
-                                    query.answer('SL set break even')
-                                else:
-                                    query.answer('SL break even failed to set')
-                                updateTStext(bot,update,user_data,uidTS,query)
-                                
-                            elif 'SLC' in args:
-                                if response is None:
-                                    query.answer('Please enter the new SL (0 = no SL)')
-                                    user_data['lastFct'].append(lambda res : InlineButtonCallback(bot,update,user_data,query,res))
-                                    return NUMBER
-                                else:
-                                    response = float(response)
-                                    if response == 0:
-                                        response = None
-                                    ct.setSL(uidTS,response)
-                                    updateTStext(bot,update,user_data,uidTS,query)
-                            else: 
-                                buttons = buttonsEditTS(ct,uidTS,'full')
-                                query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
-                                query.answer('Choose an option')
-                        elif command == '3':  # init trade set deletion
-                            if 'ok' in args:
-                                query.message.delete()
-                                ct.deleteTradeSet(uidTS,sellAll='yes' in args)
-                                query.answer('Trade Set deleted')
-                            elif 'yes' in args or 'no' in args:
-                                query.answer('Ok, and are you really sure to delete this trade set?')
-                                query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3/%s/%s/ok/%s'%(exch,uidTS,'/'.join(args))),InlineKeyboardButton("Cancel",callback_data='3/%s/%s/cancel'%(exch,uidTS))]]))
+                                query.answer('Adding new buy level')
+                                return askPos(bot,user_data,exch,uidTS,direction='buy',applyFct=lambda : InlineButtonCallback(bot,update,user_data,query,'continue'))
                             else:
-                                query.answer('Do you want to sell your remaining coins?')
-                                query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3/%s/%s/yes'%(exch,uidTS)),InlineKeyboardButton("No", callback_data='3/%s/%s/no'%(exch,uidTS))]]))
+                                ct.addBuyLevel(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1],user_data['tempTradeSet'][2])
+                                user_data['tempTradeSet'] = [None,None,None]
+                                updateTStext(bot,update,user_data,uidTS,query)
+                        
+                        elif 'sellAdd' in args:
+                            if response is None:
+                                query.edit_message_reply_markup()
+                                query.answer('Adding new sell level')
+                                return askPos(bot,user_data,exch,uidTS,direction='sell',applyFct=lambda : InlineButtonCallback(bot,update,user_data,query,'continue'))
+                            else:
+                                ct.addSellLevel(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1])
+                                user_data['tempTradeSet'] = [None,None,None]
+                                updateTStext(bot,update,user_data,uidTS,query)
+                        
+                        elif 'AIC' in args:
+                            query.edit_message_reply_markup()
+                            query.answer('Adding initial coins')
+                            return addInitBalance(bot,user_data,exch,uidTS,inputType=None,response=None,fct = lambda :printTradeStatus(bot,update,user_data,uidTS))
+                        
+                        elif 'TSgo' in args:
+                            ct.activateTradeSet(uidTS)
+                            updateTStext(bot,update,user_data,uidTS,query)
+                            query.answer('Trade set activated')
+                            
+                        elif 'TSstop' in args:
+                            ct.deactivateTradeSet(uidTS,1)
+                            updateTStext(bot,update,user_data,uidTS,query)
+                            query.answer('Trade set deactivated!')
+                            
+                        elif 'SLBE' in args:
+                            ans = ct.setSLBreakEven(uidTS)
+                            if ans:
+                                query.answer('SL set break even')
+                            else:
+                                query.answer('SL break even failed to set')
+                            updateTStext(bot,update,user_data,uidTS,query)
+                            
+                        elif 'SLC' in args:
+                            if response is None:
+                                query.answer('Please enter the new SL (0 = no SL)')
+                                user_data['lastFct'].append(lambda res : InlineButtonCallback(bot,update,user_data,query,res))
+                                return NUMBER
+                            else:
+                                response = float(response)
+                                if response == 0:
+                                    response = None
+                                ct.setSL(uidTS,response)
+                                updateTStext(bot,update,user_data,uidTS,query)
+                        else: 
+                            buttons = buttonsEditTS(ct,uidTS,'full')
+                            query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+                            query.answer('Choose an option')
+                    elif command == '3':  # init trade set deletion
+                        if 'ok' in args:
+                            query.message.delete()
+                            ct.deleteTradeSet(uidTS,sellAll='yes' in args)
+                            query.answer('Trade Set deleted')
+                        elif 'yes' in args or 'no' in args:
+                            query.answer('Ok, and are you really sure to delete this trade set?')
+                            query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3/%s/%s/ok/%s'%(exch,uidTS,'/'.join(args))),InlineKeyboardButton("Cancel",callback_data='3/%s/%s/cancel'%(exch,uidTS))]]))
+                        else:
+                            query.answer('Do you want to sell your remaining coins?')
+                            query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3/%s/%s/yes'%(exch,uidTS)),InlineKeyboardButton("No", callback_data='3/%s/%s/no'%(exch,uidTS))]]))
     return MAINMENU
             
 

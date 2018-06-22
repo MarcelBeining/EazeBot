@@ -125,7 +125,8 @@ class tradeHandler:
                     self.message('%s in %s at line %s: %s'%(exc_type, fname, exc_tb.tb_lineno,str(e)),'Error')
                 raise(e)
         self.updating = False
-        raise Exception('Request timeout occurred 5 times in a row')             
+        print('Network exception occurred 5 times in a row')             
+        raise(e)
         
     def updateBalance(self):
         self.balance = self.safeRun(self.exchange.fetch_balance)
@@ -428,6 +429,7 @@ class tradeHandler:
             wasactive = self.deactivateTradeSet(iTs)
             if ts['OutTrades'][iTrade]['oid'] is not None and ts['OutTrades'][iTrade]['oid'] != 'filled' :
                 self.cancelOrder(ts['OutTrades'][iTrade]['oid'],ts['symbol'],'SELL')
+                ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
             ts['OutTrades'].pop(iTrade)
             if wasactive:
                 self.activateTradeSet(iTs,0) 
