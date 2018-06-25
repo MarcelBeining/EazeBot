@@ -18,36 +18,32 @@ Most importantly: **All popular exchanges are supported!**
 
 ## Installing
 
-You require Python 3 to be installed on your system.
+**You require [Python 3](https://www.python.org/downloads/) to be installed on your system.**
 
-The simpliest way of installing EazeBot is using the pip install command:
+After the next steps, no matter if you are on Windows or Linux/Mac, you should have two json files (_APIs.json_ and _botConfig.json_) and some scripts in your target folder.
+
+### Windows
+We simplified installation of the bot on Windows: Simply download (right click, save link as) [this File](https://github.com/MarcelBeining/EazeBot/wiki/files/install_and_init_bot_here.bat) and put the file in a folder, where you wish EazeBot files to be installed, and execute it.
+
+### Linux/Mac
+The simpliest and recommended way of installing EazeBot is using the pip install command:
 ````python
 python -m pip install eazebot
 ````
-or if you want to specify an installation folder (not recommended):
-````python
-python -m pip install eazebot -t <directory>
+You then need to copy the configuration files to some folder. Here is an example to make a folder in your home directory and copy the files there:
 ````
-
-Alternatively, you can clone or download the newest release version from [Github](https://github.com/MarcelBeining/EazeBot) 
-and install required packages from the command prompt by switching to the EazeBot directory in a terminal and typing `python setup.py install` 
-(or for Windows users doubleclick on _setup.bat_ in the EazeBot directory).
+mkdir ~/eazebot
+cd ~/eazebot
+python -c "from eazebot.EazeBot import copyJSON; copyJSON()"
+````
 
 
 ## Getting Started
 
 After installation of EazeBot you have to set up the bot so that you can control him via Telegram and that he can access your exchanges. 
 
-There are two json files that you have to configure: _APis.json_ and _botConfig.json_. 
 
-If you used `pip install`, the jsons are in the package folder, and you can copy them to your desired folder by using Python:
-````python
-from eazebot.EazeBot import copyJSON
-copyJSON(_yourTargetfolder_) # blank input copies them to your current Python working directory
-````
-If you cloned/downloaded the git files, they are located in the _eazebot_ subfolder.
-
-**Now the following steps are necessary:**
+**For this the following steps are necessary:**
 1. **Create a Telegram bot token using @botfather and add it to _botConfig.json_**  
    + This sounds complicated but is rather simple. Start a chat with [Botfather](https://t.me/botfather) on Telegram and 
    follow [these instructions](https://core.telegram.org/bots#creating-a-new-bot). Once you have the token, replace 
@@ -72,14 +68,13 @@ If you cloned/downloaded the git files, they are located in the _eazebot_ subfol
    EazeBot bot needs the permission to set and cancel orders for you and to fetch your balance in order to work properly. Also, if you want
    to use the built-in donation feature, it needs the right to withdraw.
 4. **Run the bot and start a conversation via Telegram.**
-   + How to run depends on the way you installed EazeBot. 
-   + If you used pip install, start Python, cd to the folder where you copied the JSONs too (see _Installing_ step) and run these commands:
-   ````python
-   from eazebot.EazeBot import startBot
-   startBot()
+   + On Windows, simply go to the folder where the JSONs were copied to and double-click _startBotScript.py_
+   + On Linux/Mac use the terminal, go to the folder, where the JSONs were copied to (see _Installing_ step) and run this command:
    ````
-   + If you simply cloned/downloaded the package, go to the eazebot subfolder and run EazeBot.py (double-clicking if your py files are linked to Python, or by typing `python EazeBot.py` into your command line)
-   + The bot will welcome you and show you a menu of things you can do. Everything should be rather self-explanatory as the bot will have a dialog with you on everything you click.
+   python startBotScript.py
+   ````
+   1) Thereafter you should start a conversation with your bot on Telegram.
+   2) The bot will welcome you and show you a menu of things you can do. Everything should be rather self-explanatory as the bot will have a dialog with you on everything you click.
 
 
 ## Help
