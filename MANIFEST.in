@@ -4,4 +4,5 @@ include LICENSE.LESSER
 include eazebot/*.json
 include requirements.txt
 include eazebot/version.txt
+include eazebot/updateBot.bat
 prune eazebot/__pycache__
