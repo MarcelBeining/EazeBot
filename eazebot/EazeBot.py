@@ -220,18 +220,24 @@ def checkBalance(bot,update,user_data,exchange=None):
     if exchange:
         ct = user_data['trade'][exchange]
         balance = ct.exchange.fetchBalance()
-        ticker = ct.exchange.fetchTickers()
+        if ct.exchange.has['fetchTickers']:
+            tickers = ct.safeRun(ct.exchange.fetchTickers)
+            func = lambda sym: tickers[sym]
+        else:
+            func = lambda sym: ct.safeRun(lambda : ct.exchange.fetchTicker(sym))
         coins = list(balance['total'].keys())
         string = '*Balance on %s (>0.001 BTC):*\n'%(exchange)
         for c in coins:
             BTCpair = '%s/BTC'%c
             BTCpair2 = 'BTC/%s'%c
-            if (c == 'BTC' and balance['total'][c] > 0.001):
-                string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec('ETH/BTC',balance['total'][c]), ct.cost2Prec('ETH/BTC',balance['free'][c]))
-            elif c in ['EUR','USD','USDT','TUSD'] and ((BTCpair2 in ticker and balance['total'][c]/ticker[BTCpair2]['last'] > 0.001) or (BTCpair in ticker and balance['total'][c]*ticker[BTCpair]['last'] > 0.001)):
-                string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec(BTCpair2,balance['total'][c]), ct.cost2Prec(BTCpair2,balance['free'][c]))
-            elif (BTCpair in ticker and ticker[BTCpair]['last']*balance['total'][c] > 0.001):
-                string += '*%s:* %s _(free: %s)_\n'%(c, ct.amount2Prec(BTCpair,balance['total'][c]), ct.amount2Prec(BTCpair,balance['free'][c]))
+            if balance['total'][c] > 0:
+                if c == 'BTC' and balance['total'][c] > 0.001:
+                    string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec('ETH/BTC',balance['total'][c]), ct.cost2Prec('ETH/BTC',balance['free'][c]))
+                elif BTCpair2 in ct.exchange.symbols and balance['total'][c]/func(BTCpair2)['last'] > 0.001 :
+                    string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec(BTCpair2,balance['total'][c]), ct.cost2Prec(BTCpair2,balance['free'][c]))
+                elif BTCpair in ct.exchange.symbols and func(BTCpair)['last']*balance['total'][c] > 0.001:
+                    string += '*%s:* %s _(free: %s)_\n'%(c, ct.amount2Prec(BTCpair,balance['total'][c]), ct.amount2Prec(BTCpair,balance['free'][c]))
+                
         bot.send_message(user_data['chatId'],string,parse_mode='markdown')
     else:
         user_data['lastFct'].append(lambda res: checkBalance(bot,update,user_data,res))
@@ -432,9 +438,9 @@ def addExchanges(bot,update,user_data):
 
 def botInfo(bot,update,user_data):
     remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/version.txt').json()['content'])
-    remoteVersion = re.search('(?<=version = )\d+\.\d+',str(remoteTxt)).group(0)
+    remoteVersion = re.search('(?<=version = ).+',str(remoteTxt)).group(0)
     string = '<b>******** EazeBot (v%s) ********</b>\n<i>Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges</i>\n'%thisVersion
-    if float(remoteVersion) > float(thisVersion):
+    if remoteVersion > thisVersion:
         string += '\n<b>There is a new version of EazeBot available on git (v%s)!</b>\n'%remoteVersion
     string+='\nReward my efforts on this bot by donating some cryptos!'
     bot.send_message(user_data['chatId'],string,parse_mode='html',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Donate',callback_data='1/xxx/xxx')]]))
@@ -787,7 +793,7 @@ def startBot():
         updater.bot.send_message(__config__['telegramUserId'],'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
     except:
         pass
-    
+
     updater.start_polling()
     updater.idle()
     save_data(updater)  # last data save when finishing
