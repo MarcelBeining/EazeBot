@@ -79,15 +79,15 @@ After installation of EazeBot you have to set up the bot so that you can control
 
 ## Help
 
-We will add a Wiki in the future. You may also open an issue if you encounter bugs or want to suggest improvements.
+We have added a [Wiki](https://github.com/MarcelBeining/EazeBot/wiki) with more details on installing and handling the bot. You may also open an issue if you encounter bugs or want to suggest improvements.
 
 ## Versioning
 
 For the versions available, see the [tags on this repository](https://github.com/MarcelBeining/eazebot/tags/). 
 
 From time to time you should update EazeBot by
-+ Executing `python -m pip install eazebot --upgrade` if you used pip for installing
-+ Or downloading the package again and overwriting the old files **(not the json files of course!)**
++ Executing `python -m pip install eazebot --upgrade` on Linux/Mac
++ Double-clicking on updateBot.bat on Windows
 
 ## Authors
 
