@@ -69,7 +69,7 @@ After installation of EazeBot you have to set up the bot so that you can control
    to use the built-in donation feature, it needs the right to withdraw.
 4. **Run the bot and start a conversation via Telegram.**
    + On Windows, simply go to the folder where the JSONs were copied to and double-click _startBotScript.py_
-   + On Linux/Mac use the terminal, go to the folder, where the JSONs were copied to (see _Installing_ step) and run this command:
+   + On Linux/Mac use the terminal, go to the folder, where the JSONs were copied to (see [Installing_ step](https://github.com/MarcelBeining/EazeBot/blob/master/readme.md#installing) and run this command:
    ````
    python startBotScript.py
    ````
