@@ -127,6 +127,15 @@ class tradeHandler:
         self.updating = False
         print('Network exception occurred 5 times in a row')             
         raise(e)
+
+    def waitForUpdate(self):
+        count = 0
+        while self.updating:
+            count += 1
+            time.sleep(0.5)		
+            if count > 50: # 25 sec max wait
+                raise Exception('Waiting for tradeSet update to finish timed out')
+        self.updating = True
         
     def updateBalance(self):
         self.balance = self.safeRun(self.exchange.fetch_balance)
@@ -182,7 +191,9 @@ class tradeHandler:
         ts['SL'] = None
         ts['active'] = False
         ts['virgin'] = True
+        self.waitForUpdate()
         self.tradeSets[iTs] = ts
+        self.updating = False
         return ts, iTs
         
     def activateTradeSet(self,iTs,verbose=True):
@@ -330,14 +341,17 @@ class tradeHandler:
         return string
     
     def deleteTradeSet(self,iTs,sellAll=False):
+        self.waitForUpdate()
         if sellAll:
             self.sellAllNow(iTs)
         else:
             self.deactivateTradeSet(iTs,1)
         self.tradeSets.pop(iTs)
+        self.updating = False
     
     def addInitCoins(self,iTs,initCoins=0,initPrice=None):
         if self.checkNum(initCoins,initPrice) or (initPrice is None and self.checkNum(initCoins)):
+            self.waitForUpdate()
             ts = self.tradeSets[iTs]
             if ts['coinsAvail'] > 0 and ts['initPrice'] is not None:
                 # remove old cost again
@@ -349,6 +363,7 @@ class tradeHandler:
             ts['initPrice'] = initPrice
             if initPrice is not None:
                 ts['costIn'] += (initCoins*initPrice)
+            self.updating = False
         else:
             raise ValueError('Some input was no number')
             
@@ -371,17 +386,22 @@ class tradeHandler:
         return sum([val['amount']*val['price'] for val in self.tradeSets[iTs]['OutTrades']])
     
     def addBuyLevel(self,iTs,buyPrice,buyAmount,candleAbove=None):
+        
         if self.checkNum(buyPrice,buyAmount,candleAbove) or (candleAbove is None and self.checkNum(buyPrice,buyAmount)):
+            self.waitForUpdate()
             wasactive = self.deactivateTradeSet(iTs)  
             self.tradeSets[iTs]['InTrades'].append({'oid': None, 'price': buyPrice, 'amount': buyAmount, 'candleAbove': candleAbove})
             if wasactive:
-                self.activateTradeSet(iTs,0)                
+                self.activateTradeSet(iTs,0)   
+            self.updating = False
             return  self.numBuyLevels(iTs)-1
         else:
             raise ValueError('Some input was no number')
     
-    def deleteBuyLevel(self,iTs,iTrade):   
+    def deleteBuyLevel(self,iTs,iTrade): 
+        
         if self.checkNum(iTrade):
+            self.waitForUpdate()
             ts = self.tradeSets[iTs]
             wasactive = self.deactivateTradeSet(iTs)
             if ts['InTrades'][iTrade]['oid'] is not None and ts['InTrades'][iTrade]['oid'] != 'filled' :
@@ -389,6 +409,7 @@ class tradeHandler:
             ts['InTrades'].pop(iTrade)
             if wasactive:
                 self.activateTradeSet(iTs,0) 
+            self.updating = False
         else:
             raise ValueError('Some input was no number')
             
@@ -413,23 +434,29 @@ class tradeHandler:
             raise ValueError('Some input was no number')
     
     def addSellLevel(self,iTs,sellPrice,sellAmount):
+        
         if self.checkNum(sellPrice,sellAmount):
+            self.waitForUpdate()
             wasactive = self.deactivateTradeSet(iTs)  
             self.tradeSets[iTs]['OutTrades'].append({'oid': None, 'price': sellPrice, 'amount': sellAmount})
             if wasactive:
-                self.activateTradeSet(iTs,0)                
+                self.activateTradeSet(iTs,0)  
+            self.Updating = False
             return  self.numSellLevels(iTs)-1
         else:
             raise ValueError('Some input was no number')
 
     def deleteSellLevel(self,iTs,iTrade):   
+        
         if self.checkNum(iTrade):
+            self.waitForUpdate()
             ts = self.tradeSets[iTs]
             wasactive = self.deactivateTradeSet(iTs)
             if ts['OutTrades'][iTrade]['oid'] is not None and ts['OutTrades'][iTrade]['oid'] != 'filled' :
                 self.cancelOrder(ts['OutTrades'][iTrade]['oid'],ts['symbol'],'SELL')
                 ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
             ts['OutTrades'].pop(iTrade)
+            self.updating = False
             if wasactive:
                 self.activateTradeSet(iTs,0) 
         else:
@@ -567,78 +594,77 @@ class tradeHandler:
     def update(self,dailyCheck=0):
         # goes through all trade sets and checks/updates the buy/sell/stop loss orders
         # daily check is for checking if a candle closed above a certain value
-        if not self.updating:
-            self.updating = True
-            tradeSetsToDelete = []
-            for iTs in self.tradeSets:
-                ts = self.tradeSets[iTs]
-                if not ts['active']:
+        self.waitForUpdate()
+        tradeSetsToDelete = []
+        for iTs in self.tradeSets:
+            ts = self.tradeSets[iTs]
+            if not ts['active']:
 #                        self.message('Trade set %d on exchange %s skipped during update'%(iTs,self.exchange.name))
+                continue
+            # check if stop loss is reached
+            if not dailyCheck and ts['SL'] is not None:
+                ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
+                if ticker['last'] <= ts['SL']:
+                    self.message('Stop loss for pair %s has been triggered!'%ts['symbol'],'warning')
+                    # cancel all sell orders, create market sell order and save resulting amount of base currency
+                    self.sellAllNow(iTs,price=ticker['last'])
+            filledIn = 0
+            filledOut = 0
+            # go through buy trades 
+            for iTrade,trade in enumerate(ts['InTrades']):
+                if trade['oid'] == 'filled':
+                    filledIn += 1
                     continue
-                # check if stop loss is reached
-                if not dailyCheck and ts['SL'] is not None:
+                elif dailyCheck and trade['oid'] is None and trade['candleAbove'] is not None:
                     ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
-                    if ticker['last'] <= ts['SL']:
-                        self.message('Stop loss for pair %s has been triggered!'%ts['symbol'],'warning')
-                        # cancel all sell orders, create market sell order and save resulting amount of base currency
-                        self.sellAllNow(iTs,price=ticker['last'])
-                filledIn = 0
-                filledOut = 0
-                # go through buy trades 
-                for iTrade,trade in enumerate(ts['InTrades']):
-                    if trade['oid'] == 'filled':
+                    if ticker['last'] > trade['candleAbove']:
+                        response = self.safeRun(lambda: self.exchange.createLimitBuyOrder(ts['symbol'], trade['amount'],trade['price']))
+                        ts['InTrades'][iTrade]['oid'] = response['id']
+                        self.message('Daily candle of %s above %s triggering buy level #%d on %s!'%(ts['symbol'],self.price2Prec(ts['symbol'],trade['candleAbove']),iTrade,self.exchange.name))
+                elif trade['oid'] is not None:
+                    orderInfo = self.fetchOrder(trade['oid'],ts['symbol'],'BUY')
+                    if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
+                        ts['InTrades'][iTrade]['oid'] = 'filled'
+                        ts['costIn'] += orderInfo['cost']
+                        self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
+                        ts['coinsAvail'] += orderInfo['filled']
                         filledIn += 1
+                    elif orderInfo['status'] == 'canceled':
+                        ts['InTrades'][iTrade]['oid'] = None
+                        self.message('Buy order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
+                else:
+                    self.initBuyOrders(iTs)                                
+                    time.sleep(1)
+                        
+            if not dailyCheck:
+                # go through all selling positions and create those for which the bought coins suffice
+                for iTrade,_ in enumerate(ts['OutTrades']):
+                    if ts['OutTrades'][iTrade]['oid'] is None and ts['coinsAvail'] >= ts['OutTrades'][iTrade]['amount']:
+                        response = self.safeRun(lambda: self.exchange.createLimitSellOrder(ts['symbol'], ts['OutTrades'][iTrade]['amount'], ts['OutTrades'][iTrade]['price']))
+                        ts['OutTrades'][iTrade]['oid'] = response['id']
+                        ts['coinsAvail'] -= ts['OutTrades'][iTrade]['amount']
+    
+                # go through sell trades 
+                for iTrade,trade in enumerate(ts['OutTrades']):
+                    if trade['oid'] == 'filled':
+                        filledOut += 1
                         continue
-                    elif dailyCheck and trade['oid'] is None and trade['candleAbove'] is not None:
-                        ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
-                        if ticker['last'] > trade['candleAbove']:
-                            response = self.safeRun(lambda: self.exchange.createLimitBuyOrder(ts['symbol'], trade['amount'],trade['price']))
-                            ts['InTrades'][iTrade]['oid'] = response['id']
-                            self.message('Daily candle of %s above %s triggering buy level #%d on %s!'%(ts['symbol'],self.price2Prec(ts['symbol'],trade['candleAbove']),iTrade,self.exchange.name))
                     elif trade['oid'] is not None:
-                        orderInfo = self.fetchOrder(trade['oid'],ts['symbol'],'BUY')
+                        orderInfo = self.fetchOrder(trade['oid'],ts['symbol'],'SELL')
                         if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
-                            ts['InTrades'][iTrade]['oid'] = 'filled'
-                            ts['costIn'] += orderInfo['cost']
-                            self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
-                            ts['coinsAvail'] += orderInfo['filled']
-                            filledIn += 1
-                        elif orderInfo['status'] == 'canceled':
-                            ts['InTrades'][iTrade]['oid'] = None
-                            self.message('Buy order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
-                    else:
-                        self.initBuyOrders(iTs)                                
-                        time.sleep(1)
-                            
-                if not dailyCheck:
-                    # go through all selling positions and create those for which the bought coins suffice
-                    for iTrade,_ in enumerate(ts['OutTrades']):
-                        if ts['OutTrades'][iTrade]['oid'] is None and ts['coinsAvail'] >= ts['OutTrades'][iTrade]['amount']:
-                            response = self.safeRun(lambda: self.exchange.createLimitSellOrder(ts['symbol'], ts['OutTrades'][iTrade]['amount'], ts['OutTrades'][iTrade]['price']))
-                            ts['OutTrades'][iTrade]['oid'] = response['id']
-                            ts['coinsAvail'] -= ts['OutTrades'][iTrade]['amount']
-        
-                    # go through sell trades 
-                    for iTrade,trade in enumerate(ts['OutTrades']):
-                        if trade['oid'] == 'filled':
+                            ts['OutTrades'][iTrade]['oid'] = 'filled'
+                            ts['costOut'] += orderInfo['cost']
                             filledOut += 1
-                            continue
-                        elif trade['oid'] is not None:
-                            orderInfo = self.fetchOrder(trade['oid'],ts['symbol'],'SELL')
-                            if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
-                                ts['OutTrades'][iTrade]['oid'] = 'filled'
-                                ts['costOut'] += orderInfo['cost']
-                                filledOut += 1
-                                self.message('Sell level of %s %s reached on %s! Sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
-                            elif orderInfo['status'] == 'canceled':
-                                ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
-                                ts['OutTrades'][iTrade]['oid'] = None
-                                self.message('Sell order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
-                    
-                    if self.numSellLevels(iTs) == filledOut and self.numBuyLevels(iTs) == filledIn:
-                        self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn']),ts['baseCurrency']))
-                        tradeSetsToDelete.append(iTs)
-            for iTs in tradeSetsToDelete:
-                self.tradeSets.pop(iTs) 
-            self.updating = False
+                            self.message('Sell level of %s %s reached on %s! Sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
+                        elif orderInfo['status'] == 'canceled':
+                            ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
+                            ts['OutTrades'][iTrade]['oid'] = None
+                            self.message('Sell order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
+                
+                if self.numSellLevels(iTs) == filledOut and self.numBuyLevels(iTs) == filledIn:
+                    self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn']),ts['baseCurrency']))
+                    tradeSetsToDelete.append(iTs)
+        for iTs in tradeSetsToDelete:
+            self.tradeSets.pop(iTs) 
+        self.updating = False
             
