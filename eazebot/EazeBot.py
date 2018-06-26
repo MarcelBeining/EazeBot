@@ -38,6 +38,7 @@ import os
 from telegram import (ReplyKeyboardMarkup,InlineKeyboardMarkup,InlineKeyboardButton,bot)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
                           ConversationHandler,CallbackQueryHandler)
+from telegram.error import BadRequest
 
 if __name__ == '__main__' or os.path.isfile('tradeHandler.py'):
     from tradeHandler import tradeHandler
@@ -496,8 +497,11 @@ def showSettings  (bot, update,user_data,botOrQuery=None):
     if botOrQuery == None or isinstance(botOrQuery,type(bot)):
         bot.send_message(user_data['chatId'], string, parse_mode = 'markdown', reply_markup=InlineKeyboardMarkup(settingButtons))
     else:
-        botOrQuery.answer('Settings updated')
-        botOrQuery.edit_message_text(string, parse_mode = 'markdown', reply_markup=InlineKeyboardMarkup(settingButtons))
+        try:
+            botOrQuery.answer('Settings updated')
+            botOrQuery.edit_message_text(string, parse_mode = 'markdown', reply_markup=InlineKeyboardMarkup(settingButtons))
+        except BadRequest:
+            bot.send_message(user_data['chatId'], string, parse_mode = 'markdown', reply_markup=InlineKeyboardMarkup(settingButtons))
         
 def updateTStext(bot,update,user_data,uidTS,query=None):
     if query:
@@ -530,9 +534,11 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                 if subcommand == 'defFiat':
                     if response is None:
                         user_data['lastFct'].append(lambda res : InlineButtonCallback(bot,update,user_data,query,res))
+                        bot.send_message(user_data['chatId'],'Please name your fiat currencies (e.g. USD). You can also name multiple currencies separated with commata,  \
+                                         (e.g. type: USD,USDT,TUSD) such that in case the first currency does not exist on an exchange, the second one is used, and so on.')
                         return INFO
                     else:
-                        user_data['settings']['fiat'] =  response.split(',')
+                        user_data['settings']['fiat'] =  response.upper().split(',')
                         
                 elif subcommand == 'toggleProfit':
                         if user_data['settings']['showProfitIn'] is None:
