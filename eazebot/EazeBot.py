@@ -61,7 +61,7 @@ rootLogger.addHandler(consoleHandler)
 
 
 with open(os.path.join(os.path.dirname(__file__),'version.txt')) as fh:
-    thisVersion = re.search('(?<=version = )\d+\.\d+',str(fh.read())).group(0)
+    thisVersion = re.search('(?<=version = )[0-9\.]+',str(fh.read())).group(0)
 
 #%% init menues
 mainMenu = [['Status of Trade Sets', 'New Trade Set','Check Balance'],['Add/update exchanges (APIs.json)','Settings','Bot Info']]
@@ -445,7 +445,7 @@ def addExchanges(bot,update,user_data):
 
 def botInfo(bot,update,user_data):
     remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/version.txt').json()['content'])
-    remoteVersion = re.search('(?<=version = ).+',str(remoteTxt)).group(0)
+    remoteVersion = re.search('(?<=version = )[0-9\.]+',str(remoteTxt)).group(0)
     string = '<b>******** EazeBot (v%s) ********</b>\n<i>Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges</i>\n'%thisVersion
     if remoteVersion > thisVersion:
         string += '\n<b>There is a new version of EazeBot available on git (v%s)!</b>\n'%remoteVersion
@@ -809,7 +809,7 @@ def startBot():
             updater.bot.send_message(user,'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
         except:
             pass
-
+    
     updater.start_polling()
     updater.idle()
     save_data(updater)  # last data save when finishing
