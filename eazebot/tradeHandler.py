@@ -29,6 +29,9 @@ import string
 import sys, os
 from ccxt.base.errors import (NetworkError)
 
+# might be usable in future release to calculate fees:
+# self.exchange.calculateFee('KCS/BTC','limit','buy',amount,price,'taker')
+
 class tradeHandler:
     
     def __init__(self,exchName,key,secret,password=None,uid=None,messagerFct=None):
@@ -145,7 +148,7 @@ class tradeHandler:
             return self.balance[coin]['free']
         else:
             return 0
-        
+
     def updateKeys(self,key,secret,password=None,uid=None):
         if key:
             self.exchange.apiKey = key
@@ -441,7 +444,7 @@ class tradeHandler:
             self.tradeSets[iTs]['OutTrades'].append({'oid': None, 'price': sellPrice, 'amount': sellAmount})
             if wasactive:
                 self.activateTradeSet(iTs,0)  
-            self.Updating = False
+            self.updating = False
             return  self.numSellLevels(iTs)-1
         else:
             raise ValueError('Some input was no number')

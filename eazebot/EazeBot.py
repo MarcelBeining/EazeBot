@@ -147,7 +147,7 @@ def receivedFloat(bot,update,user_data):
 ## define menu function
 def startCmd(bot, update,user_data):
     # initiate user_data if it does not exist yet
-    if __config__['telegramUserId'] != update.message.from_user.id:
+    if update.message.from_user.id not in __config__['telegramUserId']:
         bot.send_message(update.message.from_user.id,'Sorry your Telegram ID (%d) is not recognized! Bye!'%update.message.from_user.id)
         logging.warning('Unknown user %s %s (username: %s, id: %s) tried to start the bot!'%(update.message.from_user.first_name,update.message.from_user.last_name,update.message.from_user.username,update.message.from_user.id))
         return
@@ -405,8 +405,14 @@ def askPos(bot,user_data,exch,uidTS,direction,applyFct=None,inputType=None,respo
             return applyFct()
 
 def addExchanges(bot,update,user_data):
-    with open("APIs.json", "r") as fin:
-        APIs = json.load(fin)   
+    
+    idx = [i for i, x in enumerate(__config__['telegramUserId']) if x==user_data['chatId']][0]+1
+    if idx == 1:
+        with open("APIs.json", "r") as fin:
+            APIs = json.load(fin)   
+    else:
+        with open("APIs%d.json"%idx, "r") as fin:
+            APIs = json.load(fin)   
     keys = list(APIs.keys())
     hasKey = [re.search('(?<=^apiKey).*',val).group(0) for val in keys if re.search('(?<=^apiKey).*',val,re.IGNORECASE) is not None ]
     hasSecret = [re.search('(?<=^apiSecret).*',val).group(0) for val in keys if re.search('(?<=^apiSecret).*',val,re.IGNORECASE) is not None ]
@@ -458,7 +464,7 @@ def updateTradeSets(bot,job):
     updater = job.context
     logging.info('Updating trade sets...')
     for user in updater.dispatcher.user_data:
-        if user == __config__['telegramUserId']:
+        if user in __config__['telegramUserId'] and 'trade' in updater.dispatcher.user_data[user]:
             for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
                 updater.dispatcher.user_data[user]['trade'][ex].update()
     logging.info('Finished updating trade sets...')
@@ -467,7 +473,7 @@ def checkCandle(bot,job):
     updater = job.context
     logging.info('Checking candles for all trade sets...')
     for user in updater.dispatcher.user_data:
-        if user == __config__['telegramUserId']:
+        if user in __config__['telegramUserId']:
             for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
                 # avoid to hit it during updating
                 while updater.dispatcher.user_data[user]['trade'][ex].updating:
@@ -747,8 +753,10 @@ def startBot():
     #%% load bot configuration
     with open("botConfig.json", "r") as fin:
         __config__ = json.load(fin)
-    if isinstance(__config__['telegramUserId'],str):
-        __config__['telegramUserId'] = int(__config__['telegramUserId'])
+    if isinstance(__config__['telegramUserId'],str) or isinstance(__config__['telegramUserId'],int):
+        __config__['telegramUserId'] = [int(__config__['telegramUserId'])]
+    elif isinstance(__config__['telegramUserId'],list):
+        __config__['telegramUserId'] = [int(val) for val in __config__['telegramUserId']]
     if isinstance(__config__['updateInterval'],str):
         __config__['updateInterval'] = int(__config__['updateInterval'])
     
@@ -785,9 +793,10 @@ def startBot():
     updater.dispatcher.add_handler(unknown_handler)
     
     updater.dispatcher.user_data = load_data()
-    if len(updater.dispatcher.user_data[__config__['telegramUserId']]) > 0:
-        time.sleep(2) # wait because of possibility of temporary exchange lockout
-        addExchanges(updater.bot,None,updater.dispatcher.user_data[__config__['telegramUserId']])
+    for user in __config__['telegramUserId']:
+        if user in updater.dispatcher.user_data and len(updater.dispatcher.user_data[user]) > 0:
+            time.sleep(2) # wait because of possibility of temporary exchange lockout
+            addExchanges(updater.bot,None,updater.dispatcher.user_data[user])
     
     # start a job updating the trade sets each minute
     updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=60,context=updater)
@@ -795,10 +804,11 @@ def startBot():
     updater.job_queue.run_daily(checkCandle, datetime.time(0,0,10), context=updater)
     # start a job saving the user data each 5 minutes
     updater.job_queue.run_repeating(save_data, interval=5*60, first=60,context=updater)
-    try:
-        updater.bot.send_message(__config__['telegramUserId'],'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
-    except:
-        pass
+    for user in __config__['telegramUserId']:
+        try:
+            updater.bot.send_message(user,'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
+        except:
+            pass
 
     updater.start_polling()
     updater.idle()
