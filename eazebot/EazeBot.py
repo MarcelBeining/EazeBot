@@ -133,15 +133,20 @@ def getCName(symbol,which=0):
         return re.search('^\w+(?=/)',symbol).group(0)
     else:
         return re.search('(?<=/)\w+$',symbol).group(0)
-           
-def receivedSymbol(bot,update,user_data):
-    return user_data['lastFct'].pop()(update.message.text)
-    
+             
 def receivedInfo(bot,update,user_data):    
-    return user_data['lastFct'].pop()(update.message.text)
+    if len(user_data['lastFct']) > 0:
+        return user_data['lastFct'].pop()(update.message.text)
+    else:
+        bot.send_message(user_data['chatId'],'Unknown previous error, returning to main menu')
+        return MAINMENU
 
-def receivedFloat(bot,update,user_data):    
-    return user_data['lastFct'].pop()(float(update.message.text))
+def receivedFloat(bot,update,user_data): 
+    if len(user_data['lastFct']) > 0:
+        return user_data['lastFct'].pop()(float(update.message.text))
+    else:
+        bot.send_message(user_data['chatId'],'Unknown previous error, returning to main menu')
+        return MAINMENU
       
         
 ## define menu function
@@ -312,30 +317,37 @@ def askAmount(user_data,exch,uidTS,direction,botOrQuery):
     currency = ct.tradeSets[uidTS]['baseCurrency']
     if direction=='sell':
         # free balance is free coins plus coins that will be bought minus coins already selling
-        bal = ct.getFreeBalance(coin) + ct.sumBuyAmounts(uidTS) - ct.sumSellAmounts(uidTS)
+        bal = ct.getFreeBalance(coin) - ct.sumSellAmounts(uidTS)
+        buyAmounts = ct.sumBuyAmounts(uidTS)
         if user_data['whichCurrency']==0:
             cname = coin
             action = 'sell'
+            balText = 'free %s is'%coin
         else:
-            bal = bal*user_data['tempTradeSet'][0]
+            bal *= user_data['tempTradeSet'][0]
+            buyAmounts *= user_data['tempTradeSet'][0]
             cname = currency
             action = 'receive'
+            balText = 'return from free %s would be'%coin
     elif direction == 'buy':
         # free balance is free currency minus price for coins already buying
         bal = ct.getFreeBalance(currency) - ct.sumBuyCosts(uidTS)
         if user_data['whichCurrency']==0:
-            bal = bal/user_data['tempTradeSet'][0]
+            bal /= user_data['tempTradeSet'][0]
             cname = coin
             action = 'buy'
+            balText = 'possible buy amount from your free balance is'
         else:
             cname = currency
             action = 'use'
+            balText = 'free balance is'
     else:
         raise ValueError('Unknown direction specification')
+    text = "What amount of %s do you want to %s (%s ~%.5g %s)?"%(cname,action,balText,bal,'plus ~%.5g from your set future buys [minus trading fee]'%(buyAmounts) if direction == 'sell' else '')
     if isinstance(botOrQuery,bot.Bot):
-        botOrQuery.send_message(user_data['chatId'],"What amount of %s do you want to %s (max ~%.5g minus trading fee)?"%(cname,action,bal),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency/%s/%s/%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount/cancel')]]))
+        botOrQuery.send_message(user_data['chatId'],text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency/%s/%s/%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount/cancel')]]))
     else:
-        botOrQuery.edit_message_text("What amount of %s do you want to %s (max ~%.5g minus trading fee)?"%(cname,action,bal),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency/%s/%s/%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount/cancel')]]))
+        botOrQuery.edit_message_text(text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency/%s/%s/%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount/cancel')]]))
         botOrQuery.answer('Currency switched')
     
 def addInitBalance(bot,user_data,exch,uidTS,inputType=None,response=None,fct = None):
@@ -476,8 +488,7 @@ def checkCandle(bot,job):
         if user in __config__['telegramUserId']:
             for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
                 # avoid to hit it during updating
-                while updater.dispatcher.user_data[user]['trade'][ex].updating:
-                    time.sleep(0.5)
+                updater.dispatcher.user_data[user]['trade'][ex].waitForUpdate()
                 updater.dispatcher.user_data[user]['trade'][ex].update(dailyCheck=1)
     logging.info('Finished checking candles for all trade sets...')
 
@@ -773,7 +784,7 @@ def startBot():
                             RegexHandler('^Check Balance$',checkBalance,pass_user_data=True),
                             RegexHandler('^Settings$',showSettings,pass_user_data=True),
                             CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
-                SYMBOL:   [RegexHandler('\w+/\w+',receivedSymbol,pass_user_data=True),
+                SYMBOL:   [RegexHandler('\w+/\w+',receivedInfo,pass_user_data=True),
                             MessageHandler(Filters.text,wrongSymbolFormat),
                             CallbackQueryHandler(InlineButtonCallback,pass_user_data=True)],
                 NUMBER:   [RegexHandler('^[\+,\-]?\d+\.?\d*$',receivedFloat,pass_user_data=True),
@@ -787,7 +798,7 @@ def startBot():
     unknown_handler = MessageHandler(Filters.command, unknownCmd)
     
     #%% start telegram API, add handlers to dispatcher and start bot
-    updater = Updater(token = __config__['telegramAPI'], request_kwargs={'read_timeout': 8})#, 'connect_timeout': 7})
+    updater = Updater(token = __config__['telegramAPI'], request_kwargs={'read_timeout': 10})#, 'connect_timeout': 7})
     job_queue = updater.job_queue
     updater.dispatcher.add_handler(conv_handler)
     updater.dispatcher.add_handler(unknown_handler)

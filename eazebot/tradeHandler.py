@@ -27,7 +27,7 @@ import time
 import random
 import string
 import sys, os
-from ccxt.base.errors import (NetworkError)
+from ccxt.base.errors import (NetworkError,OrderNotFound)
 
 # might be usable in future release to calculate fees:
 # self.exchange.calculateFee('KCS/BTC','limit','buy',amount,price,'taker')
@@ -109,35 +109,50 @@ class tradeHandler:
      
     def safeRun(self,func,printError=True):
         count = 0
-        while count < 5:
+        while True:
             try:
                 return func()
             except NetworkError as e:
                 count += 1
-                time.sleep(0.5)
-                continue
+                if count >= 5:
+                    self.updating = False
+                    print('Network exception occurred 5 times in a row')             
+                    raise(e)
+                else:
+                    time.sleep(0.5)
+                    continue
+            except OrderNotFound as e:
+                count += 1
+                if count >= 5:
+                    self.updating = False
+                    print('Order not found 5 times in a row')             
+                    raise(e)
+                else:
+                    time.sleep(0.5)
+                    continue
             except Exception as e:
-                if 'unknown error' in str(e).lower() or 'connection' in str(e).lower():
+                if count < 4 and ('unknown error' in str(e).lower() or 'connection' in str(e).lower()):
                     count += 1
                     time.sleep(0.5)
                     continue
-                self.updating = False
-                exc_type, exc_obj, exc_tb = sys.exc_info()
-                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                if printError:
-                    self.message('%s in %s at line %s: %s'%(exc_type, fname, exc_tb.tb_lineno,str(e)),'Error')
-                raise(e)
-        self.updating = False
-        print('Network exception occurred 5 times in a row')             
-        raise(e)
+                else:
+                    self.updating = False
+                    if count >= 5:
+                        print('Network exception occurred 5 times in a row')             
+                    exc_type, exc_obj, exc_tb = sys.exc_info()
+                    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                    if printError:
+                        self.message('%s in %s at line %s: %s'%(exc_type, fname, exc_tb.tb_lineno,str(e)),'Error')
+                    raise(e)
+        
 
     def waitForUpdate(self):
         count = 0
         while self.updating:
             count += 1
             time.sleep(0.5)		
-            if count > 50: # 25 sec max wait
-                raise Exception('Waiting for tradeSet update to finish timed out')
+            if count > 60: # 60 sec max wait
+                self.message('Waiting for tradeSet update to finish timed out after 1 min, resetting updating variable','error')
         self.updating = True
         
     def updateBalance(self):
@@ -549,29 +564,35 @@ class tradeHandler:
                 
     def cancelSellOrders(self,iTs):
         if iTs in self.tradeSets and self.numSellLevels(iTs) > 0:
+            count = 0
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['OutTrades']))):
                 if trade['oid'] is not None and trade['oid'] != 'filled':
                     self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL') 
+                    count += 1
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL')
                     if orderInfo['filled'] > 0:
                         self.message('Partly filled sell order found during canceling. Updating balance')
                         self.tradeSets[iTs]['costOut'] += orderInfo['price']*orderInfo['filled']
                         self.tradeSets[iTs]['coinsAvail'] -= orderInfo['filled']                                
                     self.tradeSets[iTs]['coinsAvail'] += trade['amount']
-            self.message('All sell orders canceled for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
+            if count > 0:
+                self.message('%d sell orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
         return True
         
     def cancelBuyOrders(self,iTs):
         if iTs in self.tradeSets and self.numBuyLevels(iTs) > 0:
+            count = 0
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['InTrades']))):
                 if trade['oid'] is not None and trade['oid'] != 'filled':
                     self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY') 
+                    count += 1
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY')
                     if orderInfo['filled'] > 0:
                         self.message('Partly filled buy order found during canceling. Updating balance')
                         self.tradeSets[iTs]['costIn'] += orderInfo['price']*orderInfo['filled']
                         self.tradeSets[iTs]['coinsAvail'] += orderInfo['filled']   
-            self.message('All buy orders canceled for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
+            if count > 0:
+                self.message('%d buy orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
         return True
     
     def initBuyOrders(self,iTs):
@@ -634,7 +655,7 @@ class tradeHandler:
                         filledIn += 1
                     elif orderInfo['status'] == 'canceled':
                         ts['InTrades'][iTrade]['oid'] = None
-                        self.message('Buy order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
+                        self.message('Buy order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,list(self.tradeSets.keys()).index(iTs),self.exchange.name))
                 else:
                     self.initBuyOrders(iTs)                                
                     time.sleep(1)
