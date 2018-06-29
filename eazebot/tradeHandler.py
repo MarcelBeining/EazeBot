@@ -37,7 +37,7 @@ class tradeHandler:
     def __init__(self,exchName,key,secret,password=None,uid=None,messagerFct=None):
         checkThese = ['cancelOrder','createLimitOrder','fetchBalance','fetchTicker']
         self.tradeSets = {}
-        self.exchange = getattr (ccxt, exchName) ({'options': { 'adjustForTimeDifference': True }})
+        self.exchange = getattr (ccxt, exchName) ({'enableRateLimit': True,'options': { 'adjustForTimeDifference': True }}) # 'nonce': ccxt.Exchange.milliseconds,
         if key:
             self.exchange.apiKey = key
         else:
@@ -568,6 +568,7 @@ class tradeHandler:
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['OutTrades']))):
                 if trade['oid'] is not None and trade['oid'] != 'filled':
                     self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL') 
+                    time.sleep(1)
                     count += 1
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL')
                     if orderInfo['filled'] > 0:
@@ -585,6 +586,7 @@ class tradeHandler:
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['InTrades']))):
                 if trade['oid'] is not None and trade['oid'] != 'filled':
                     self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY') 
+                    time.sleep(1)
                     count += 1
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY')
                     if orderInfo['filled'] > 0:

@@ -751,8 +751,8 @@ def load_data(filename='data.pickle'):
         with open(filename, 'rb') as f:
             logging.info('Loading user data')
             return dill.load(f)
-    except:
-        logging.error('Error loading last autosave')
+    except Exception as e:
+        logging.error('Error loading last autosave:\n%s'%str(e))
         return defaultdict(dict)
     
     
