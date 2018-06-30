@@ -1,2 +1,2 @@
-python -m pip install eazebot --upgrade
+python -m pip install eazebot --upgrade --no-cache-dir
 pause

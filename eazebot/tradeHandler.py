@@ -219,7 +219,7 @@ class tradeHandler:
         ts = self.tradeSets[iTs]
         wasactive = ts['active']
         # sanity check of amounts to buy/sell
-        if self.sumSellAmounts(self,iTs) - (self.sumBuyAmounts(self,iTs)+ ts['initCoins']) > 0:
+        if self.sumSellAmounts(iTs) - (self.sumBuyAmounts(iTs)+ ts['initCoins']) > 0:
             self.message('Cannot activate trade set because the total amount you want to sell exceeds the total amount you want to buy plus the initial amount you set.Please adjust the trade set!')
             return wasactive
         self.tradeSets[iTs]['virgin'] = False
