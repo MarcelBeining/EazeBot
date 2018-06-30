@@ -724,15 +724,16 @@ def save_data(*arg):
         
 def load_data(filename='data.pickle'):
     # load latest user data
-    try:
-        with open(filename, 'rb') as f:
-            logging.info('Loading user data')
-            return dill.load(f)
-    except Exception as e:
-        logging.error('Error loading last autosave:\n%s'%str(e))
-        return defaultdict(dict)
-    
-    
+    if os.path.isfile(filename):
+        try:
+            with open(filename, 'rb') as f:
+                logging.info('Loading user data')
+                return dill.load(f)
+        except Exception as e:
+            raise(e)
+    else:
+        logging.error('No autosave file found')
+        return defaultdict(dict)    
     
 def startBot():
     global __config__

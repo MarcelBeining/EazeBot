@@ -218,9 +218,12 @@ class tradeHandler:
     def activateTradeSet(self,iTs,verbose=True):
         ts = self.tradeSets[iTs]
         wasactive = ts['active']
+        # sanity check of amounts to buy/sell
+        if self.sumSellAmounts(self,iTs) - (self.sumBuyAmounts(self,iTs)+ ts['initCoins']) > 0:
+            self.message('Cannot activate trade set because the total amount you want to sell exceeds the total amount you want to buy plus the initial amount you set.Please adjust the trade set!')
+            return wasactive
         self.tradeSets[iTs]['virgin'] = False
         self.tradeSets[iTs]['active'] = True
-        
         if verbose and not wasactive:
             totalBuyCost = ts['costIn'] + self.sumBuyCosts(iTs)
             self.message('Estimated return if all trades are executed: %s %s'%(self.cost2Prec(ts['symbol'],self.sumSellCosts(iTs)-totalBuyCost),ts['baseCurrency']))
@@ -383,6 +386,7 @@ class tradeHandler:
             if initPrice is not None:
                 ts['costIn'] += (initCoins*initPrice)
             self.updating = False
+            return 1
         else:
             raise ValueError('Some input was no number')
             
@@ -634,7 +638,9 @@ class tradeHandler:
                 if ticker['last'] <= ts['SL']:
                     self.message('Stop loss for pair %s has been triggered!'%ts['symbol'],'warning')
                     # cancel all sell orders, create market sell order and save resulting amount of base currency
+                    self.updating = False
                     self.sellAllNow(iTs,price=ticker['last'])
+                    self.waitForUpdate()
             filledIn = 0
             filledOut = 0
             # go through buy trades 
