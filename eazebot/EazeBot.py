@@ -197,17 +197,7 @@ def printTradeStatus(bot,update,user_data,onlyThisTs=None):
         ct = user_data['trade'][ex]
         if onlyThisTs is not None and onlyThisTs not in ct.tradeSets:
             continue
-        count = 0
-        while ct.updating:
-            if count > 5:
-                break
-            count += 1
-            bot.send_message(user_data['chatId'],'Trade sets on %s currently updating.. Waiting for 2 sec..\n\n'%ex)
-            time.sleep(2)
-        if count > 5:
-            bot.send_message(user_data['chatId'],'Something is wrong with tradeHandler on %s (still updating). Please check!\n\n'%ex)
-            continue
-        
+        count = 0       
         for iTs in ct.tradeSets:
             ts = ct.tradeSets[iTs]
             if onlyThisTs is not None and onlyThisTs != iTs:
@@ -488,7 +478,6 @@ def checkCandle(bot,job):
         if user in __config__['telegramUserId']:
             for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
                 # avoid to hit it during updating
-                updater.dispatcher.user_data[user]['trade'][ex].waitForUpdate()
                 updater.dispatcher.user_data[user]['trade'][ex].update(dailyCheck=1)
     logging.info('Finished checking candles for all trade sets...')
 
@@ -621,19 +610,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                     query.edit_message_reply_markup()
                     query.edit_message_text('This trade set is not found anymore. Probably it was deleted')
                 else:
-                    ct = user_data['trade'][exch]
-                    count = 0
-                    while ct.updating:
-                        if count > 5:
-                            break
-                        count += 1
-                        bot.send_message(user_data['chatId'],'Trade sets on %s currently updating.. Waiting for 2 sec..\n\n'%exch)
-                        time.sleep(2)
-                    if count > 5:
-                        bot.send_message(user_data['chatId'],'Something is wrong with tradeHandler on %s (still updating). Please check!\n\n'%exch)
-                        user_data['tempTradeSet'] = [None,None,None]
-                        return MAINMENU
-                
+                    ct = user_data['trade'][exch]                
                     if command == '2':  # edit trade set
                         if 'back' in args:
                             query.edit_message_reply_markup(reply_markup=makeTSInlineKeyboard(exch,uidTS))

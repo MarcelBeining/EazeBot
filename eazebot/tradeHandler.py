@@ -150,9 +150,10 @@ class tradeHandler:
         count = 0
         while self.updating:
             count += 1
-            time.sleep(0.5)		
+            time.sleep(1)		
             if count > 60: # 60 sec max wait
                 self.message('Waiting for tradeSet update to finish timed out after 1 min, resetting updating variable','error')
+                break
         self.updating = True
         
     def updateBalance(self):
