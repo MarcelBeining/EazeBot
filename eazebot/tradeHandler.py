@@ -27,7 +27,7 @@ import time
 import random
 import string
 import sys, os
-from ccxt.base.errors import (NetworkError,OrderNotFound)
+from ccxt.base.errors import (NetworkError,OrderNotFound,InvalidNonce)
 
 # might be usable in future release to calculate fees:
 # self.exchange.calculateFee('KCS/BTC','limit','buy',amount,price,'taker')
@@ -106,7 +106,11 @@ class tradeHandler:
     def checkNum(self,*value):
         return all([(isinstance(val,float) | isinstance(val,int)) if not isinstance(val,list) else self.checkNum(*val) for val in value])
     
-     
+    def checkQuantity(self,symbol,typ,qty):
+        if typ not in ['amount','price','cost']:
+            raise ValueError('Type is not amount, price or cost')
+        return qty >= self.exchange.markets[symbol]['limits'][typ]['min'] and qty <= self.exchange.markets[symbol]['limits'][typ]['max']
+        
     def safeRun(self,func,printError=True):
         count = 0
         while True:
@@ -130,6 +134,13 @@ class tradeHandler:
                 else:
                     time.sleep(0.5)
                     continue
+            except InvalidNonce as e:
+                count += 1
+                # this tries to resync the system timestamp with the exchange's timestamp
+                if hasattr(self.exchange, 'load_time_difference'):
+                    self.exchange.load_time_difference()
+                time.sleep(0.5)
+                continue
             except Exception as e:
                 if count < 4 and ('unknown error' in str(e).lower() or 'connection' in str(e).lower()):
                     count += 1
@@ -342,7 +353,7 @@ class tradeHandler:
             string += '*Filled sell orders:* %s %s for an average price of %s\n'%(self.amount2Prec(ts['symbol'],sumSells),ts['coinCurrency'],self.cost2Prec(ts['symbol'],sum([val[0]*val[1]/sumSells if sumSells > 0 else None for val in filledSells])))
         ticker = self.safeRun(lambda: self.exchange.fetchTicker(ts['symbol']))
         string += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n'%tuple([self.price2Prec(ts['symbol'],val) for val in [ticker['last'],ticker['high'],ticker['low']]])
-        if (ts['initCoins'] == 0 or ts['initPrice'] is not None) and (sumBuys>0 or ts['initCoins'] > 0):
+        if (ts['initCoins'] == 0 or ts['initPrice'] is not None) and ts['costIn'] > 0 and (sumBuys>0 or ts['initCoins'] > 0):
             costSells = ts['costOut'] + (ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled' and trade['oid'] is not None]))*ticker['last'] 
             gain = costSells - ts['costIn']
             gainOrig = gain
@@ -358,7 +369,6 @@ class tradeHandler:
                         gain *= self.safeRun(lambda: self.exchange.fetchTicker('%s/%s'%(ts['baseCurrency'],thisCur)))['last']
                     else:
                         gain /= self.safeRun(lambda: self.exchange.fetchTicker('%s/%s'%(thisCur,ts['baseCurrency'])))['last']
-                    
             string += '\n*Estimated gain/loss when selling all now: * %s %s (%+.2f %%)\n'%(self.cost2Prec(ts['symbol'],gain),thisCur,gainOrig/(ts['costIn'])*100)
         return string
     
@@ -373,15 +383,17 @@ class tradeHandler:
     
     def addInitCoins(self,iTs,initCoins=0,initPrice=None):
         if self.checkNum(initCoins,initPrice) or (initPrice is None and self.checkNum(initCoins)):
+            if initPrice is not None and initPrice < 0:
+                initPrice = None
+            ts = self.tradeSets[iTs]            
             self.waitForUpdate()
-            ts = self.tradeSets[iTs]
+            
             if ts['coinsAvail'] > 0 and ts['initPrice'] is not None:
                 # remove old cost again
                 ts['costIn'] -= (ts['coinsAvail']*ts['initPrice'])
             ts['coinsAvail'] = initCoins
             ts['initCoins'] = initCoins
-            if initPrice is not None and initPrice < 0:
-                initPrice = None
+            
             ts['initPrice'] = initPrice
             if initPrice is not None:
                 ts['costIn'] += (initCoins*initPrice)
@@ -409,11 +421,17 @@ class tradeHandler:
         return sum([val['amount']*val['price'] for val in self.tradeSets[iTs]['OutTrades']])
     
     def addBuyLevel(self,iTs,buyPrice,buyAmount,candleAbove=None):
-        
+        ts = self.tradeSets[iTs]
         if self.checkNum(buyPrice,buyAmount,candleAbove) or (candleAbove is None and self.checkNum(buyPrice,buyAmount)):
+            if not self.checkQuantity(ts['symbol'],'amount',buyAmount):
+                self.message('Adding buy level failed, amount is not within the range, the exchange accepts')
+                return 0
+            elif not self.checkQuantity(ts['symbol'],'price',buyPrice):
+                self.message('Adding buy level failed, price is not within the range, the exchange accepts')
+                return 0 
             self.waitForUpdate()
             wasactive = self.deactivateTradeSet(iTs)  
-            self.tradeSets[iTs]['InTrades'].append({'oid': None, 'price': buyPrice, 'amount': buyAmount, 'candleAbove': candleAbove})
+            ts['InTrades'].append({'oid': None, 'price': buyPrice, 'amount': buyAmount, 'candleAbove': candleAbove})
             if wasactive:
                 self.activateTradeSet(iTs,0)   
             self.updating = False
@@ -443,6 +461,12 @@ class tradeHandler:
                 self.message('This order is already filled! No change possible')
                 return 0
             else:
+                if not self.checkQuantity(ts['symbol'],'amount',amount):
+                    self.message('Changing buy level failed, amount is not within the range, the exchange accepts')
+                    return 0
+                elif not self.checkQuantity(ts['symbol'],'price',price):
+                    self.message('Changing buy level failed, price is not within the range, the exchange accepts')
+                    return 0 
                 wasactive = self.deactivateTradeSet(iTs)  
                 
                 if ts['InTrades'][iTrade]['oid'] is not None and ts['InTrades'][iTrade]['oid'] != 'filled' :
@@ -457,11 +481,17 @@ class tradeHandler:
             raise ValueError('Some input was no number')
     
     def addSellLevel(self,iTs,sellPrice,sellAmount):
-        
+        ts = self.tradeSets[iTs]
         if self.checkNum(sellPrice,sellAmount):
+            if not self.checkQuantity(ts['symbol'],'amount',sellAmount):
+                self.message('Adding sell level failed, amount is not within the range, the exchange accepts')
+                return 0
+            elif not self.checkQuantity(ts['symbol'],'price',sellPrice):
+                self.message('Adding sell level failed, price is not within the range, the exchange accepts')
+                return 0 
             self.waitForUpdate()
             wasactive = self.deactivateTradeSet(iTs)  
-            self.tradeSets[iTs]['OutTrades'].append({'oid': None, 'price': sellPrice, 'amount': sellAmount})
+            ts['OutTrades'].append({'oid': None, 'price': sellPrice, 'amount': sellAmount})
             if wasactive:
                 self.activateTradeSet(iTs,0)  
             self.updating = False
@@ -492,6 +522,12 @@ class tradeHandler:
                 self.message('This order is already filled! No change possible')
                 return 0
             else:
+                if not self.checkQuantity(ts['symbol'],'amount',amount):
+                    self.message('Changing sell level failed, amount is not within the range, the exchange accepts')
+                    return 0
+                elif not self.checkQuantity(ts['symbol'],'price',price):
+                    self.message('Changing sell level failed, price is not within the range, the exchange accepts')
+                    return 0 
                 wasactive = self.deactivateTradeSet(iTs)  
                 
                 if ts['OutTrades'][iTrade]['oid'] is not None and ts['OutTrades'][iTrade]['oid'] != 'filled' :

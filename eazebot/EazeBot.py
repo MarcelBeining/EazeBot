@@ -76,8 +76,6 @@ markupTradeSetMenu = ReplyKeyboardMarkup(tradeSetMenu,one_time_keyboard=True)
 __config__ = {}
 job_queue = []
 
-
-
 ## define  helper functions
 def copyJSON(folderName=os.getcwd(),force=0):
     if force == 0 and os.path.isfile(os.path.join(folderName,'botConfig.json')):
@@ -445,10 +443,13 @@ def addExchanges(bot,update,user_data):
         if update is not None:
             return MAINMENU
 
-def botInfo(bot,update,user_data):
+def getRemoteVersion():
     remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/version.txt').json()['content'])
-    remoteVersion = re.search('(?<=version = )[0-9\.]+',str(remoteTxt)).group(0)
+    return re.search('(?<=version = )[0-9\.]+',str(remoteTxt)).group(0)
+        
+def botInfo(bot,update,user_data):
     string = '<b>******** EazeBot (v%s) ********</b>\n<i>Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges</i>\n'%thisVersion
+    remoteVersion = getRemoteVersion()
     if remoteVersion > thisVersion:
         string += '\n<b>There is a new version of EazeBot available on git (v%s)!</b>\n'%remoteVersion
     string+='\nReward my efforts on this bot by donating some cryptos!'
@@ -462,6 +463,14 @@ def doneCmd(bot,update,user_data):
     
     
 # job functions   
+def checkForUpdates(bot,job):
+    updater = job.context
+    remoteVersion = getRemoteVersion()
+    if remoteVersion > thisVersion:
+        updater = job.context
+        for user in updater.dispatcher.user_data:
+            bot.send_message(updater.dispatcher.user_data[user]['chatId'],'There is a new version of EazeBot available on git/pip (v%s)! Consider updating!'%remoteVersion)
+
 def updateTradeSets(bot,job):
     updater = job.context
     logging.info('Updating trade sets...')
@@ -787,17 +796,20 @@ def startBot():
             time.sleep(2) # wait because of possibility of temporary exchange lockout
             addExchanges(updater.bot,None,updater.dispatcher.user_data[user])
     
-    # start a job updating the trade sets each minute
-    updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=60,context=updater)
-    # start a job checking every day 10 sec after midnight if any 'candleAbove' buys need to be initiated
-    updater.job_queue.run_daily(checkCandle, datetime.time(0,0,10), context=updater)
-    # start a job saving the user data each 5 minutes
-    updater.job_queue.run_repeating(save_data, interval=5*60, first=60,context=updater)
     for user in __config__['telegramUserId']:
         try:
             updater.bot.send_message(user,'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
         except:
             pass
+    
+    # start a job updating the trade sets each minute
+    updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=60,context=updater)
+    # start a job checking for updates once a  day
+    updater.job_queue.run_repeating(checkForUpdates, interval=60*60*24, first=0,context=updater)
+    # start a job checking every day 10 sec after midnight if any 'candleAbove' buys need to be initiated
+    updater.job_queue.run_daily(checkCandle, datetime.time(0,0,10), context=updater)
+    # start a job saving the user data each 5 minutes
+    updater.job_queue.run_repeating(save_data, interval=5*60, first=60,context=updater)
     
     updater.start_polling()
     updater.idle()
