@@ -5,4 +5,5 @@ include eazebot/*.json
 include requirements.txt
 include eazebot/version.txt
 include eazebot/updateBot.bat
+include eazebot/startBot.bat
 prune eazebot/__pycache__

@@ -87,6 +87,7 @@ def copyJSON(folderName=os.getcwd(),force=0):
     else:  
         copy2(os.path.join(os.path.dirname(__file__),'APIs.json'),folderName)
     copy2(os.path.join(os.path.dirname(__file__),'startBotScript.py'),folderName)
+    copy2(os.path.join(os.path.dirname(__file__),'startBot.bat'),folderName)
     copy2(os.path.join(os.path.dirname(__file__),'updateBot.bat'),folderName)
     logging.info('botConfig.json and APIs.json successfully copied to\n%s\nPlease open and configure these files before running the bot'%folderName)
         
@@ -169,24 +170,24 @@ def startCmd(bot, update,user_data):
 
 def makeTSInlineKeyboard(exch,iTS):
     button_list = [[
-        InlineKeyboardButton("Edit Set", callback_data='2/%s/%s'%(exch,iTS)),
-        InlineKeyboardButton("Delete/SellAll", callback_data='3/%s/%s'%(exch,iTS))]]
+        InlineKeyboardButton("Edit Set", callback_data='2|%s|%s'%(exch,iTS)),
+        InlineKeyboardButton("Delete/SellAll", callback_data='3|%s|%s'%(exch,iTS))]]
     return InlineKeyboardMarkup(button_list)
 
 def buttonsEditTS(ct,uidTS,mode='full'):
     exch = ct.exchange.name.lower()
-    buttons = [[InlineKeyboardButton("Add buy level",callback_data='2/%s/%s/buyAdd'%(exch,uidTS)),InlineKeyboardButton("Add sell level",callback_data='2/%s/%s/sellAdd'%(exch,uidTS))]]
+    buttons = [[InlineKeyboardButton("Add buy level",callback_data='2|%s|%s|buyAdd'%(exch,uidTS)),InlineKeyboardButton("Add sell level",callback_data='2|%s|%s|sellAdd'%(exch,uidTS))]]
     for i,_ in enumerate(ct.tradeSets[uidTS]['InTrades']):
-        buttons.append([InlineKeyboardButton("Delete Buy level #%d"%i,callback_data='2/%s/%s/BLD%d'%(exch,uidTS,i))])
+        buttons.append([InlineKeyboardButton("Delete Buy level #%d"%i,callback_data='2|%s|%s|BLD%d'%(exch,uidTS,i))])
     for i,_ in enumerate(ct.tradeSets[uidTS]['OutTrades']):
-            buttons.append([InlineKeyboardButton("Delete Sell level #%d"%i,callback_data='2/%s/%s/SLD%d'%(exch,uidTS,i))])
+            buttons.append([InlineKeyboardButton("Delete Sell level #%d"%i,callback_data='2|%s|%s|SLD%d'%(exch,uidTS,i))])
     if mode == 'full':
-        buttons.append([InlineKeyboardButton("Set SL Break Even",callback_data='2/%s/%s/SLBE'%(exch,uidTS)),InlineKeyboardButton("Change SL",callback_data='2/%s/%s/SLC'%(exch,uidTS))])
+        buttons.append([InlineKeyboardButton("Set SL Break Even",callback_data='2|%s|%s|SLBE'%(exch,uidTS)),InlineKeyboardButton("Change SL",callback_data='2|%s|%s|SLC'%(exch,uidTS))])
     elif mode == 'init':
-        buttons.append([InlineKeyboardButton("Add initial coins",callback_data='2/%s/%s/AIC'%(exch,uidTS)),InlineKeyboardButton("Add/change SL",callback_data='2/%s/%s/SLC'%(exch,uidTS))])
-    buttons.append([InlineKeyboardButton("%s trade set"%('Deactivate' if ct.tradeSets[uidTS]['active'] else 'Activate'),callback_data='2/%s/%s/%s'%(exch,uidTS,'TSstop' if ct.tradeSets[uidTS]['active'] else 'TSgo')),InlineKeyboardButton("Delete trade set",callback_data='3/%s/%s/ok/no'%(exch,uidTS))])
+        buttons.append([InlineKeyboardButton("Add initial coins",callback_data='2|%s|%s|AIC'%(exch,uidTS)),InlineKeyboardButton("Add/change SL",callback_data='2|%s|%s|SLC'%(exch,uidTS))])
+    buttons.append([InlineKeyboardButton("%s trade set"%('Deactivate' if ct.tradeSets[uidTS]['active'] else 'Activate'),callback_data='2|%s|%s|%s'%(exch,uidTS,'TSstop' if ct.tradeSets[uidTS]['active'] else 'TSgo')),InlineKeyboardButton("Delete trade set",callback_data='3|%s|%s|ok|no'%(exch,uidTS))])
     if mode == 'full':
-        buttons.append([InlineKeyboardButton("Back",callback_data='2/%s/%s/back'%(exch,uidTS))])
+        buttons.append([InlineKeyboardButton("Back",callback_data='2|%s|%s|back'%(exch,uidTS))])
     return buttons
     
 def printTradeStatus(bot,update,user_data,onlyThisTs=None):
@@ -237,7 +238,7 @@ def checkBalance(bot,update,user_data,exchange=None):
         user_data['lastFct'].append(lambda res: checkBalance(bot,update,user_data,res))
         # list all available exanches for choosing
         exchs = [ct.exchange.name for _,ct in user_data['trade'].items()]
-        buttons = [[InlineKeyboardButton(exch,callback_data='chooseExch/%s/xxx'%(exch.lower()))] for exch in sorted(exchs)] + [[InlineKeyboardButton('Cancel',callback_data='chooseExch/xxx/xxx/cancel')]]
+        buttons = [[InlineKeyboardButton(exch,callback_data='chooseExch|%s|xxx'%(exch.lower()))] for exch in sorted(exchs)] + [[InlineKeyboardButton('Cancel',callback_data='chooseExch|xxx|xxx|cancel')]]
         bot.send_message(user_data['chatId'],'For which exchange do you want to see your balance?',reply_markup=InlineKeyboardMarkup(buttons))
             
     
@@ -260,13 +261,13 @@ def createTradeSet(bot,update,user_data,exchange=None,symbol=None):
                 else:
                     text = 'Please specify your trade set now. First: Which currency pair do you want to trade? (e.g. ETH/BTC)'
                 user_data['lastFct'].append(lambda res: createTradeSet(bot,update,user_data,exchange,res))
-                bot.send_message(user_data['chatId'],text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Cancel',callback_data='blabla/cancel')]]))
+                bot.send_message(user_data['chatId'],text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('List all pairs on %s'%exchange,callback_data='showSymbols|%s|%s'%(exchange,'xxx')),InlineKeyboardButton('Cancel',callback_data='blabla|cancel')]]))
                 return SYMBOL
         else:
             user_data['lastFct'].append(lambda res: createTradeSet(bot,update,user_data,res))
             # list all available exanches for choosing
             exchs = [ct.exchange.name for _,ct in user_data['trade'].items()]
-            buttons = [[InlineKeyboardButton(exch,callback_data='chooseExch/%s/xxx'%(exch.lower()))] for exch in sorted(exchs)] + [[InlineKeyboardButton('Cancel',callback_data='chooseExch/xxx/xxx/cancel')]]
+            buttons = [[InlineKeyboardButton(exch,callback_data='chooseExch|%s|xxx'%(exch.lower()))] for exch in sorted(exchs)] + [[InlineKeyboardButton('Cancel',callback_data='chooseExch|xxx|xxx|cancel')]]
             bot.send_message(user_data['chatId'],'For which of your authenticated exchanges do you want to add a trade set?',reply_markup=InlineKeyboardMarkup(buttons))
     else:
         bot.send_message(user_data['chatId'],'No authenticated exchanges found for your account! Please click "Add exchanges"')
@@ -307,21 +308,21 @@ def askAmount(user_data,exch,uidTS,direction,botOrQuery):
         raise ValueError('Unknown direction specification')
     text = "What amount of %s do you want to %s (%s ~%.5g %s)?"%(cname,action,balText,bal,'plus ~%.5g from your set future buys [minus trading fee]'%(buyAmounts) if direction == 'sell' else '')
     if isinstance(botOrQuery,bot.Bot):
-        botOrQuery.send_message(user_data['chatId'],text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency/%s/%s/%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount/cancel')]]))
+        botOrQuery.send_message(user_data['chatId'],text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency|%s|%s|%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount|cancel')]]))
     else:
-        botOrQuery.edit_message_text(text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency/%s/%s/%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount/cancel')]]))
+        botOrQuery.edit_message_text(text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency|%s|%s|%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount|cancel')]]))
         botOrQuery.answer('Currency switched')
     
 def addInitBalance(bot,user_data,exch,uidTS,inputType=None,response=None,fct = None):
     ct = user_data['trade'][exch]
     if inputType is None:
         user_data['lastFct'].append(lambda res : addInitBalance(bot,user_data,exch,uidTS,'initCoins',res,fct))
-        bot.send_message(user_data['chatId'],"You already have %s that you want to add to the trade set? How much is it?"%ct.tradeSets[uidTS]['coinCurrency'], reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data='addInitBal/cancel')]]))
+        bot.send_message(user_data['chatId'],"You already have %s that you want to add to the trade set? How much is it?"%ct.tradeSets[uidTS]['coinCurrency'], reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data='addInitBal|cancel')]]))
         return NUMBER
     elif inputType == 'initCoins':
         user_data['tempTradeSet'][0] = response
         user_data['lastFct'].append(lambda res : addInitBalance(bot,user_data,exch,uidTS,'initPrice',res,fct))
-        bot.send_message(user_data['chatId'],"What was the average price (%s) you bought it for? Type 0 if received for free and a negative number if you do not know?"%ct.tradeSets[uidTS]['symbol'], reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data='addInitBal/cancel')]]))
+        bot.send_message(user_data['chatId'],"What was the average price (%s) you bought it for? Type 0 if received for free and a negative number if you do not know?"%ct.tradeSets[uidTS]['symbol'], reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data='addInitBal|cancel')]]))
         return NUMBER
     elif inputType == 'initPrice':
         if response >= 0:
@@ -347,7 +348,7 @@ def askPos(bot,user_data,exch,uidTS,direction,applyFct=None,inputType=None,respo
     if inputType is None:
         user_data['tempTradeSet'] = [None,None,None]
         user_data['lastFct'].append(lambda res : askPos(bot,user_data,exch,uidTS,direction,applyFct,'price',res))
-        bot.send_message(user_data['chatId'],"At which price do you want to %s %s"%(direction,symbol), reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data='askPos/cancel')]]))
+        bot.send_message(user_data['chatId'],"At which price do you want to %s %s"%(direction,symbol), reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]]))
         return NUMBER
     elif inputType == 'price':        
         if response == 0:
@@ -365,7 +366,7 @@ def askPos(bot,user_data,exch,uidTS,direction,applyFct=None,inputType=None,respo
         user_data['tempTradeSet'][1] = response
         if direction == 'buy':
             user_data['lastFct'].append(lambda res : askPos(bot,user_data,exch,uidTS,direction,applyFct,'candleAbove',res))
-            bot.send_message(user_data['chatId'],'Do you want to make this a timed buy (buy only if daily candle closes above X)',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='Yes'),InlineKeyboardButton("No", callback_data='No')], [InlineKeyboardButton("Cancel", callback_data='askPos/cancel')]]))
+            bot.send_message(user_data['chatId'],'Do you want to make this a timed buy (buy only if daily candle closes above X)',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='Yes'),InlineKeyboardButton("No", callback_data='No')], [InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]]))
             return TIMING    
         else:
             inputType = 'apply'
@@ -427,7 +428,7 @@ def botInfo(bot,update,user_data):
     if remoteVersion > thisVersion:
         string += '\n<b>There is a new version of EazeBot available on git (v%s)!</b>\n'%remoteVersion
     string+='\nReward my efforts on this bot by donating some cryptos!'
-    bot.send_message(user_data['chatId'],string,parse_mode='html',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Donate',callback_data='1/xxx/xxx')]]))
+    bot.send_message(user_data['chatId'],string,parse_mode='html',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Donate',callback_data='1|xxx|xxx')]]))
     return MAINMENU
     
 def doneCmd(bot,update,user_data):
@@ -483,7 +484,7 @@ def showSettings  (bot, update,user_data,botOrQuery=None):
     # give preferred fiat
     # stop bot with security question
     string = '*Settings:*\n_Fiat currencies(descending priority):_ %s\n_Show gain/loss in:_ %s'%(', '.join(user_data['settings']['fiat']), 'Fiat (if available)' if user_data['settings']['showProfitIn'] is not None else 'Base currency') #user_data['settings']['showProfitIn']
-    settingButtons = [[InlineKeyboardButton('Define your fiat',callback_data='settings/defFiat')],[InlineKeyboardButton("Toggle showing gain/loss in baseCurrency or fiat", callback_data='settings/toggleProfit')],[InlineKeyboardButton("*Stop bot*", callback_data='settings/stopBot'),InlineKeyboardButton("Back", callback_data='settings/cancel')]]    
+    settingButtons = [[InlineKeyboardButton('Define your fiat',callback_data='settings|defFiat')],[InlineKeyboardButton("Toggle showing gain/loss in baseCurrency or fiat", callback_data='settings|toggleProfit')],[InlineKeyboardButton("*Stop bot*", callback_data='settings|stopBot'),InlineKeyboardButton("Back", callback_data='settings|cancel')]]    
     if botOrQuery == None or isinstance(botOrQuery,type(bot)):
         bot.send_message(user_data['chatId'], string, parse_mode = 'markdown', reply_markup=InlineKeyboardMarkup(settingButtons))
     else:
@@ -504,7 +505,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
         query = update.callback_query
     if query is None:
         return 0
-    command,*args = query.data.split('/')
+    command,*args = query.data.split('|')
     
     if 'cancel' in args:
         query.message.delete()
@@ -515,7 +516,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
             if subcommand == 'stopBot':
                 if len(args) == 0:
                     query.answer('')
-                    bot.send_message(user_data['chatId'],'Are you sure you want to stop the bot? *Caution! You have to restart the Python script; until then the bot will not be responding to Telegram input!*',parse_mode = 'markdown', reply_markup = InlineKeyboardMarkup( [[InlineKeyboardButton('Yes',callback_data='settings/stopBot/Yes')],[InlineKeyboardButton("No", callback_data='settings/cancel')]]) )
+                    bot.send_message(user_data['chatId'],'Are you sure you want to stop the bot? *Caution! You have to restart the Python script; until then the bot will not be responding to Telegram input!*',parse_mode = 'markdown', reply_markup = InlineKeyboardMarkup( [[InlineKeyboardButton('Yes',callback_data='settings|stopBot|Yes')],[InlineKeyboardButton("No", callback_data='settings|cancel')]]) )
                 elif args[0] == 'Yes':
                     query.answer('stopping')
                     bot.send_message(user_data['chatId'],'Bot is aborting now. Goodbye!')
@@ -545,12 +546,37 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
             if command == 'toggleCurrency':
                 user_data['whichCurrency'] = (user_data['whichCurrency']+1)%2
                 return askAmount(user_data,exch,uidTS,args[0],query)
+            
+            elif command == 'showSymbols':
+                syms = [val for val in user_data['trade'][exch].exchange.symbols if not '.d' in val]
+                buttons = list()
+                rowbuttons = []
+                string = ''                        
+                for count, sym in enumerate(syms):
+                    if count % 4 == 0: # 4 buttons per row
+                        if len(rowbuttons) > 0:
+                            buttons.append(rowbuttons)
+                        rowbuttons = [InlineKeyboardButton(sym,callback_data='chooseSymbol|%s|%s'%(exch,sym))]
+                    else:
+                        rowbuttons.append(InlineKeyboardButton(sym,callback_data='chooseSymbol|%s|%s'%(exch,sym)))
+                    string += (sym + ', ')
+                buttons.append(rowbuttons)
+                buttons.append([InlineKeyboardButton('Cancel',callback_data='xxx|cancel')])
+                try:
+                    query.edit_message_text('Choose a pair...',reply_markup=InlineKeyboardMarkup(buttons))
+                except BadRequest as e:
+                    query.edit_message_text('Too many pairs to make buttons, you have to type the pair. Here is a list of all pairs:\n'+string[0:-2],reply_markup=[])
+                
+            elif command == 'chooseSymbol' :
+                query.message.delete()
+                return user_data['lastFct'].pop()(uidTS)  # it is no uidTS but the chosen symbol..i was too lazy to use new variable ;-)
+            
             elif command == '1':   # donations
                 if len(args) > 0:
                     if exch == 'xxx':
                         # get all exchange names that list the chosen coin and ask user from where to withdraw
                         exchs = [ct.exchange.name for _,ct in user_data['trade'].items() if args[0] in ct.exchange.currencies]
-                        buttons = [[InlineKeyboardButton(exch,callback_data='1/%s/%s/%s'%(exch.lower(),'xxx',args[0]))] for exch in sorted(exchs)] + [[InlineKeyboardButton('Cancel',callback_data='1/xxx/xxx/cancel')]]
+                        buttons = [[InlineKeyboardButton(exch,callback_data='1|%s|%s|%s'%(exch.lower(),'xxx',args[0]))] for exch in sorted(exchs)] + [[InlineKeyboardButton('Cancel',callback_data='1|xxx|xxx|cancel')]]
                         query.edit_message_text('From which exchange listing %s do you want to donate?'%args[0],reply_markup=InlineKeyboardMarkup(buttons))
                         query.answer('')
                     else:
@@ -583,7 +609,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                             else:
                                 query.answer('%s has insufficient free %s. Choose another exchange!'%(exch,args[0])) 
                 else:
-                    buttons = [[InlineKeyboardButton("Donate BTC",callback_data='1/%s/%s/BTC'%('xxx','xxx')),InlineKeyboardButton("Donate ETH",callback_data='%s/%s/%d/ETH'%('xxx','xxx',1)),InlineKeyboardButton("Donate NEO",callback_data='1/%s/%s/NEO'%('xxx','xxx'))]] 
+                    buttons = [[InlineKeyboardButton("Donate BTC",callback_data='1|%s|%s|BTC'%('xxx','xxx')),InlineKeyboardButton("Donate ETH",callback_data='%s|%s|%d|ETH'%('xxx','xxx',1)),InlineKeyboardButton("Donate NEO",callback_data='1|%s|%s|NEO'%('xxx','xxx'))]] 
                     query.edit_message_text('Thank you very much for your intention to donate some crypto! Accepted coins are BTC, ETH and NEO.\nYou may either donate by sending coins manually to one of the addresses below, or more easily by letting the bot send coins (amount will be asked in a later step) from one of your exchanges by clicking the corresponding button below.\n\n*BTC address:*\n17SfuTsJ3xpbzgArgRrjYSjvmzegMRcU3L\n*ETH address:*\n0x2DdbDA69B27D36D0900970BCb8049546a9d621Ef\n*NEO address:*\nAaGRMPuwtGrudXR5s7F5n11cxK595hCWUg'  ,reply_markup=InlineKeyboardMarkup(buttons),parse_mode='markdown')
             elif command == 'chooseExch':
                 query.answer('%s chosen'%exch)
@@ -675,10 +701,10 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                             query.answer('Trade Set deleted')
                         elif 'yes' in args or 'no' in args:
                             query.answer('Ok, and are you really sure to delete this trade set?')
-                            query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3/%s/%s/ok/%s'%(exch,uidTS,'/'.join(args))),InlineKeyboardButton("Cancel",callback_data='3/%s/%s/cancel'%(exch,uidTS))]]))
+                            query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3|%s|%s|ok|%s'%(exch,uidTS,'|'.join(args))),InlineKeyboardButton("Cancel",callback_data='3|%s|%s|cancel'%(exch,uidTS))]]))
                         else:
                             query.answer('Do you want to sell your remaining coins?')
-                            query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3/%s/%s/yes'%(exch,uidTS)),InlineKeyboardButton("No", callback_data='3/%s/%s/no'%(exch,uidTS))]]))
+                            query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3|%s|%s|yes'%(exch,uidTS)),InlineKeyboardButton("No", callback_data='3|%s|%s|no'%(exch,uidTS))]]))
     return MAINMENU
             
 
