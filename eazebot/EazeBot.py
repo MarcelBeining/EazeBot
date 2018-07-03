@@ -583,7 +583,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                             if args[0] == 'BTC':
                                 address = '17SfuTsJ3xpbzgArgRrjYSjvmzegMRcU3L'
                             elif args[0] == 'ETH':
-                                address = '0x2DdbDA69B27D36D0900970BCb8049546a9d621Ef'
+                                address = '0xa86711B0a368E4ed3B01a48E79844f6941Af579f'
                             elif args[0] == 'NEO':
                                 address = 'AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg'  
                             try:
@@ -796,12 +796,12 @@ def startBot():
             time.sleep(2) # wait because of possibility of temporary exchange lockout
             addExchanges(updater.bot,None,updater.dispatcher.user_data[user])
     
+    
     for user in __config__['telegramUserId']:
         try:
             updater.bot.send_message(user,'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
         except:
             pass
-    
     # start a job updating the trade sets each minute
     updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=60,context=updater)
     # start a job checking for updates once a  day

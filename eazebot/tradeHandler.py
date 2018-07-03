@@ -109,7 +109,7 @@ class tradeHandler:
     def checkQuantity(self,symbol,typ,qty):
         if typ not in ['amount','price','cost']:
             raise ValueError('Type is not amount, price or cost')
-        return qty >= self.exchange.markets[symbol]['limits'][typ]['min'] and qty <= self.exchange.markets[symbol]['limits'][typ]['max']
+        return (self.exchange.markets[symbol]['limits'][typ]['min'] is None or qty >= self.exchange.markets[symbol]['limits'][typ]['min']) and (self.exchange.markets[symbol]['limits'][typ]['max'] is None or qty <= self.exchange.markets[symbol]['limits'][typ]['max'])
         
     def safeRun(self,func,printError=True):
         count = 0
@@ -679,6 +679,7 @@ class tradeHandler:
                     self.waitForUpdate()
             filledIn = 0
             filledOut = 0
+            orderExecuted = False
             # go through buy trades 
             for iTrade,trade in enumerate(ts['InTrades']):
                 if trade['oid'] == 'filled':
@@ -693,6 +694,7 @@ class tradeHandler:
                 elif trade['oid'] is not None:
                     orderInfo = self.fetchOrder(trade['oid'],ts['symbol'],'BUY')
                     if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
+                        orderExecuted = True
                         ts['InTrades'][iTrade]['oid'] = 'filled'
                         ts['costIn'] += orderInfo['cost']
                         self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
@@ -721,6 +723,7 @@ class tradeHandler:
                     elif trade['oid'] is not None:
                         orderInfo = self.fetchOrder(trade['oid'],ts['symbol'],'SELL')
                         if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
+                            orderExecuted = True
                             ts['OutTrades'][iTrade]['oid'] = 'filled'
                             ts['costOut'] += orderInfo['cost']
                             filledOut += 1
@@ -729,8 +732,8 @@ class tradeHandler:
                             ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
                             ts['OutTrades'][iTrade]['oid'] = None
                             self.message('Sell order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
-                
-                if self.numSellLevels(iTs) == filledOut and self.numBuyLevels(iTs) == filledIn:
+                # delete Tradeset when all orders have been filled (but only if there were any to execute)
+                if orderExecuted and self.sumBuyAmounts(iTs) > 0 and self.sumSellAmounts(iTs) > 0 and self.numSellLevels(iTs) == filledOut and self.numBuyLevels(iTs) == filledIn:
                     self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn']),ts['baseCurrency']))
                     tradeSetsToDelete.append(iTs)
         for iTs in tradeSetsToDelete:
