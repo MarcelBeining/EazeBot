@@ -220,16 +220,16 @@ def checkBalance(bot,update,user_data,exchange=None):
         else:
             func = lambda sym: ct.safeRun(lambda : ct.exchange.fetchTicker(sym))
         coins = list(balance['total'].keys())
-        string = '*Balance on %s (>0.001 BTC):*\n'%(exchange)
+        string = '*Balance on %s (>%g BTC):*\n'%(exchange,__config__['minBalanceInBTC'])
         for c in coins:
             BTCpair = '%s/BTC'%c
             BTCpair2 = 'BTC/%s'%c
             if balance['total'][c] > 0:
-                if c == 'BTC' and balance['total'][c] > 0.001:
+                if c == 'BTC' and balance['total'][c] > __config__['minBalanceInBTC']:
                     string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec('ETH/BTC',balance['total'][c]), ct.cost2Prec('ETH/BTC',balance['free'][c]))
-                elif BTCpair2 in ct.exchange.symbols and balance['total'][c]/func(BTCpair2)['last'] > 0.001 :
+                elif BTCpair2 in ct.exchange.symbols and balance['total'][c]/func(BTCpair2)['last'] > __config__['minBalanceInBTC'] :
                     string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec(BTCpair2,balance['total'][c]), ct.cost2Prec(BTCpair2,balance['free'][c]))
-                elif BTCpair in ct.exchange.symbols and func(BTCpair)['last']*balance['total'][c] > 0.001:
+                elif BTCpair in ct.exchange.symbols and func(BTCpair)['last']*balance['total'][c] > __config__['minBalanceInBTC']:
                     string += '*%s:* %s _(free: %s)_\n'%(c, ct.amount2Prec(BTCpair,balance['total'][c]), ct.amount2Prec(BTCpair,balance['free'][c]))
                 
         bot.send_message(user_data['chatId'],string,parse_mode='markdown')
@@ -254,32 +254,6 @@ def createTradeSet(bot,update,user_data,exchange=None,symbol=None):
                 bot.send_message(user_data['chatId'],'Thank you, now let us begin setting the trade set')#,reply_markup=markupTradeSetMenu)
                 printTradeStatus(bot,update,user_data,uidTS)
                 return MAINMENU
-    
-#            exchange = user_data['chosenExchange']
-#            if user_data['currentTradeSet']:
-#                dif = user_data['currentTradeSet']['initCoins'] + sum(user_data['currentTradeSet']['buyAmounts']) - sum(user_data['currentTradeSet']['sellAmounts'])
-#                if dif < 0:
-#                    coin = getCName(user_data['currentTradeSet']['symbol'],0)
-#                    freeCoins = user_data['trade'][exchange].exchange.fetchBalance()[coin]['free']
-#                    if freeCoins >= -dif:
-#                        user_data['currentTradeSet']['initCoins'] += -dif
-#                        bot.send_message(user_data['chatId'],'Warning: You want to sell %.5g %s more than you want to buy! I will use that amount of %s from your free balance on %s. Please make sure that amount stays free, otherwise the trade will not work.'%(-dif,coin,coin,exchange))
-#                    else:
-#                        bot.send_message(user_data['chatId'],'Warning: You want to sell %.5g %s more than you want to buy and your free balance of %s on %s is not sufficient! Please adjust trade set.'%(-dif,coin,coin,exchange))
-#                        return TRADESET
-#                logging.info('User id %s wants to create new trade set'%(update.message.from_user.id))
-#                user_data['currentTradeSet']['force']=1
-#                try:    
-#                    # filter out non arguments and initialize tradeSet
-#                    user_data['currentTradeSet'] = { key: user_data['currentTradeSet'][key] for key in list(set(inspect.signature(user_data['trade'][exchange].newTradeSet).parameters.keys()) & set(user_data['currentTradeSet'])) }
-#                    user_data['trade'][exchange].newTradeSet(**user_data['currentTradeSet'])
-#                except Exception as e:
-#                    bot.send_message(user_data['chatId'],'There was an error during initializing the trade :\n%s\nPlease check your trade settings'%str(e),reply_markup=markupTradeSetMenu)
-#                    return TRADESET
-#                user_data['currentTradeSet'] = None
-#                user_data['chosenExchange'] = None
-#                bot.send_message(user_data['chatId'],"%s trade set initiated and updated every %d min."%(user_data['trade'][exchange].tradeSets[-1]['symbol'],__config__['updateInterval']),reply_markup=markupMainMenu)
-#                return MAINMENU
             else:
                 if symbol:
                     text = 'Symbol %s was not found on exchange %s'%(symbol,exchange)
@@ -306,7 +280,7 @@ def askAmount(user_data,exch,uidTS,direction,botOrQuery):
     if direction=='sell':
         # free balance is free coins plus coins that will be bought minus coins already selling
         bal = ct.getFreeBalance(coin) - ct.sumSellAmounts(uidTS)
-        buyAmounts = ct.sumBuyAmounts(uidTS)
+        buyAmounts = ct.sumBuyAmounts(uidTS,'notfilled')
         if user_data['whichCurrency']==0:
             cname = coin
             action = 'sell'
@@ -469,7 +443,8 @@ def checkForUpdates(bot,job):
     if remoteVersion > thisVersion:
         updater = job.context
         for user in updater.dispatcher.user_data:
-            bot.send_message(updater.dispatcher.user_data[user]['chatId'],'There is a new version of EazeBot available on git/pip (v%s)! Consider updating!'%remoteVersion)
+            if 'chatId' in updater.dispatcher.user_data[user]:
+                bot.send_message(updater.dispatcher.user_data[user]['chatId'],'There is a new version of EazeBot available on git/pip (v%s)! Consider updating!'%remoteVersion)
 
 def updateTradeSets(bot,job):
     updater = job.context
@@ -757,8 +732,10 @@ def startBot():
         __config__['telegramUserId'] = [int(val) for val in __config__['telegramUserId']]
     if isinstance(__config__['updateInterval'],str):
         __config__['updateInterval'] = int(__config__['updateInterval'])
-    
-    
+    if 'minBalanceInBTC' not in __config__:
+        __config__['minBalanceInBTC'] = 0.001
+    if isinstance(__config__['minBalanceInBTC'],str):
+        __config__['minBalanceInBTC'] = float(__config__['minBalanceInBTC'])
     
     #%% define the handlers to communicate with user
     conv_handler = ConversationHandler(

@@ -192,7 +192,7 @@ class tradeHandler:
         self.safeRun(self.exchange.loadMarkets) 
         try:
             # check if keys work
-            self.safeRun(self.updateBalance,0)
+            self.updateBalance()
             self.authenticated = True
         except getattr(ccxt,'AuthenticationError') as e:#
             self.authenticated = False
@@ -203,6 +203,7 @@ class tradeHandler:
           
     
     def initTradeSet(self,symbol):
+        self.updateBalance()
         ts = {}
         ts['symbol'] = symbol
         ts['InTrades'] = []
@@ -230,16 +231,16 @@ class tradeHandler:
         ts = self.tradeSets[iTs]
         wasactive = ts['active']
         # sanity check of amounts to buy/sell
-        if self.sumSellAmounts(iTs) - (self.sumBuyAmounts(iTs)+ ts['initCoins']) > 0:
+        if self.sumAmounts(iTs,'sell') - (self.sumAmounts(iTs,'buy')+ ts['initCoins']) > 0:
             self.message('Cannot activate trade set because the total amount you want to sell exceeds the total amount you want to buy plus the initial amount you set.Please adjust the trade set!')
             return wasactive
         self.tradeSets[iTs]['virgin'] = False
         self.tradeSets[iTs]['active'] = True
         if verbose and not wasactive:
-            totalBuyCost = ts['costIn'] + self.sumBuyCosts(iTs)
-            self.message('Estimated return if all trades are executed: %s %s'%(self.cost2Prec(ts['symbol'],self.sumSellCosts(iTs)-totalBuyCost),ts['baseCurrency']))
+            totalBuyCost = ts['costIn'] + self.sumCosts(iTs,'buy')
+            self.message('Estimated return if all trades are executed: %s %s'%(self.cost2Prec(ts['symbol'],self.sumCosts(iTs,'sell')-totalBuyCost),ts['baseCurrency']))
             if ts['SL'] is not None:
-                loss = totalBuyCost-(ts['initCoins']+self.sumBuyAmounts(iTs))*ts['SL']
+                loss = totalBuyCost-(ts['initCoins']+self.sumAmounts(iTs,'buy'))*ts['SL']
                 self.message('Estimated loss if buys reach stop-loss before selling: %s %s %s'%(self.cost2Prec(ts['symbol'],loss),'*(negative = gain!)*'if loss<0 else '',ts['baseCurrency']))        
         self.initBuyOrders(iTs)
         self.update()
@@ -292,7 +293,6 @@ class tradeHandler:
             raise ValueError('Warning: It seems the buy and sell amount of %s is not the same. Is this correct?'%ts['coinCurrency'])
         if buyLevels.size > 0 and sellLevels.size > 0 and max(buyLevels) > min(sellLevels):
             raise ValueError('It seems at least one of your sell prices is lower than one of your buy, which does not make sense')
-        self.updateBalance()
         if self.balance[ts['baseCurrency']]['free'] < sum(buyLevels*buyAmounts):
             raise ValueError('Free balance of %s not sufficient to initiate trade set'%ts['baseCurrency'])
         
@@ -385,7 +385,11 @@ class tradeHandler:
         if self.checkNum(initCoins,initPrice) or (initPrice is None and self.checkNum(initCoins)):
             if initPrice is not None and initPrice < 0:
                 initPrice = None
-            ts = self.tradeSets[iTs]            
+            ts = self.tradeSets[iTs]
+            # check if free balance is indeed sufficient
+            if self.getFreeBalance(ts['coinCurrency']) < initCoins:
+                self.message('Adding initial balance failed: %s %s requested but only %s %s are free!'%(self.amount2Prec(ts['symbol'],initCoins),ts['coinCurrency'],self.amount2Prec(ts['symbol'],self.getFreeBalance(ts['coinCurrency'])),ts['coinCurrency']),'error')
+                return 0
             self.waitForUpdate()
             
             if ts['coinsAvail'] > 0 and ts['initPrice'] is not None:
@@ -405,20 +409,52 @@ class tradeHandler:
     def numBuyLevels(self,iTs):
         return len(self.tradeSets[iTs]['InTrades'])
 
-    def sumBuyAmounts(self,iTs):
-        return sum([val['amount'] for val in self.tradeSets[iTs]['InTrades']])
-
-    def sumBuyCosts(self,iTs):
-        return sum([val['amount']*val['price'] for val in self.tradeSets[iTs]['InTrades']])
+    def sumBuyAmounts(self,iTs,typ='all'):
+        return self.sumAmounts(iTs,'buy',typ)
     
+    def sumSellAmounts(self,iTs,typ='all'):
+        return self.sumAmounts(iTs,'sell',typ)
+    
+    def sumBuyCosts(self,iTs,typ='all'):
+        return self.sumCosts(iTs,'buy',typ)
+    
+    def sumSellCosts(self,iTs,typ='all'):
+        return self.sumCosts(iTs,'sell',typ)
+        
     def numSellLevels(self,iTs):
         return len(self.tradeSets[iTs]['OutTrades'])
     
-    def sumSellAmounts(self,iTs):
-        return sum([val['amount'] for val in self.tradeSets[iTs]['OutTrades']])
+    def sumAmounts(self,iTs,direction, typ='all'):
+        if direction == 'sell':
+            trade = 'OutTrades'
+        else:
+            trade = 'InTrades'
+        if typ == 'all':
+            return sum([val['amount'] for val in self.tradeSets[iTs][trade]])
+        elif typ == ' filled':
+            return sum([val['amount'] for val in self.tradeSets[iTs][trade] if val['oid'] == 'filled'])
+        elif typ == 'open':
+            return sum([val['amount'] for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled' and val['oid'] is not None])
+        elif typ == 'notfilled':
+            return sum([val['amount'] for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled'])
+        else:
+            raise ValueError('typ has to be all, filled or open')
 
-    def sumSellCosts(self,iTs):
-        return sum([val['amount']*val['price'] for val in self.tradeSets[iTs]['OutTrades']])
+    def sumCosts(self,iTs,direction,typ='all'):
+        if direction == 'sell':
+            trade = 'OutTrades'
+        else:
+            trade = 'InTrades'
+        if typ == 'all':
+            return sum([val['amount']*val['price'] for val in self.tradeSets[iTs][trade]])
+        elif typ == ' filled':
+            return sum([val['amount']*val['price'] for val in self.tradeSets[iTs][trade] if val['oid'] == 'filled'])
+        elif typ == 'open':
+            return sum([val['amount']*val['price'] for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled' and val['oid'] is not None])
+        elif typ == 'open':
+            return sum([val['amount']*val['price'] for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled'])
+        else:
+            raise ValueError('typ has to be all, filled or open')
     
     def addBuyLevel(self,iTs,buyPrice,buyAmount,candleAbove=None):
         ts = self.tradeSets[iTs]

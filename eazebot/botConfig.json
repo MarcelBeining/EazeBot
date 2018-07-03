@@ -2,4 +2,5 @@
   "telegramAPI": "YOURBOTTOKEN",
   "telegramUserId": "000000000",
   "updateInterval": 1
+  "minBalanceInBTC" : 0.001
 }
