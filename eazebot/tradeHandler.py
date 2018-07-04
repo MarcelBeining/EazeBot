@@ -241,7 +241,7 @@ class tradeHandler:
         wasactive = ts['active']
         # sanity check of amounts to buy/sell
         if self.sumAmounts(iTs,'sell') - (self.sumAmounts(iTs,'buy')+ ts['initCoins']) > 0:
-            self.message('Cannot activate trade set because the total amount you want to sell exceeds the total amount you want to buy plus the initial amount you set.Please adjust the trade set!')
+            self.message('Cannot activate trade set because the total amount you want to sell exceeds the total amount you want to buy plus the initial amount you set. Please adjust the trade set!')
             return wasactive
         self.tradeSets[iTs]['virgin'] = False
         self.tradeSets[iTs]['active'] = True
@@ -252,7 +252,6 @@ class tradeHandler:
                 loss = totalBuyCost-(ts['initCoins']+self.sumAmounts(iTs,'buy'))*ts['SL']
                 self.message('Estimated loss if buys reach stop-loss before selling: %s %s %s'%(self.cost2Prec(ts['symbol'],loss),'*(negative = gain!)*'if loss<0 else '',ts['baseCurrency']))        
         self.initBuyOrders(iTs)
-        self.update()
         return wasactive
     
     def deactivateTradeSet(self,iTs,cancelOrders=False):

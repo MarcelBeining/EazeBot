@@ -177,10 +177,14 @@ def makeTSInlineKeyboard(exch,iTS):
 def buttonsEditTS(ct,uidTS,mode='full'):
     exch = ct.exchange.name.lower()
     buttons = [[InlineKeyboardButton("Add buy level",callback_data='2|%s|%s|buyAdd'%(exch,uidTS)),InlineKeyboardButton("Add sell level",callback_data='2|%s|%s|sellAdd'%(exch,uidTS))]]
-    for i,_ in enumerate(ct.tradeSets[uidTS]['InTrades']):
+    for i,trade in enumerate(ct.tradeSets[uidTS]['InTrades']):
+        if trade['oid'] == 'filled':
+            buttons.append([InlineKeyboardButton("Readd BuyOrder from level #%d"%i,callback_data='2|%s|%s|buyReAdd%d'%(exch,uidTS,i))])
         buttons.append([InlineKeyboardButton("Delete Buy level #%d"%i,callback_data='2|%s|%s|BLD%d'%(exch,uidTS,i))])
-    for i,_ in enumerate(ct.tradeSets[uidTS]['OutTrades']):
-            buttons.append([InlineKeyboardButton("Delete Sell level #%d"%i,callback_data='2|%s|%s|SLD%d'%(exch,uidTS,i))])
+    for i,trade in enumerate(ct.tradeSets[uidTS]['OutTrades']):
+        if trade['oid'] == 'filled':
+            buttons.append([InlineKeyboardButton("Readd SellOrder from level #%d"%i,callback_data='2|%s|%s|sellReAdd%d'%(exch,uidTS,i))])
+        buttons.append([InlineKeyboardButton("Delete Sell level #%d"%i,callback_data='2|%s|%s|SLD%d'%(exch,uidTS,i))])
     if mode == 'full':
         buttons.append([InlineKeyboardButton("Set SL Break Even",callback_data='2|%s|%s|SLBE'%(exch,uidTS)),InlineKeyboardButton("Change SL",callback_data='2|%s|%s|SLC'%(exch,uidTS))])
     elif mode == 'init':
@@ -655,7 +659,20 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                                 ct.addSellLevel(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1])
                                 user_data['tempTradeSet'] = [None,None,None]
                                 updateTStext(bot,update,user_data,uidTS,query)
+                                
+                        elif any(['buyReAdd' in val for val in args]):
+                            logging.info(args)
+                            level = int([re.search('(?<=^buyReAdd)\d+',val).group(0) for val in args if isinstance(val,str) and 'buyReAdd' in val][0])
+                            trade = ct.tradeSets[uidTS]['InTrades'][level]
+                            ct.addBuyLevel(uidTS,trade['price'],trade['amount'],trade['candleAbove'])                             
+                            updateTStext(bot,update,user_data,uidTS,query)
                         
+                        elif any(['sellReAdd' in val for val in args]):
+                            level = int([re.search('(?<=^sellReAdd)\d+',val).group(0) for val in args if isinstance(val,str) and 'sellReAdd' in val][0])
+                            trade = ct.tradeSets[uidTS]['OutTrades'][level]
+                            ct.addSellLevel(uidTS,trade['price'],trade['amount'])                             
+                            updateTStext(bot,update,user_data,uidTS,query)
+                            
                         elif 'AIC' in args:
                             query.edit_message_reply_markup()
                             query.answer('Adding initial coins')
