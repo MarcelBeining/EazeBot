@@ -802,7 +802,6 @@ def startBot():
     updater.dispatcher.add_handler(unknown_handler)
     
     updater.dispatcher.user_data = load_data()
-    sdfs
     clean_data(updater)
     for user in __config__['telegramUserId']:
         if user in updater.dispatcher.user_data and len(updater.dispatcher.user_data[user]) > 0:
