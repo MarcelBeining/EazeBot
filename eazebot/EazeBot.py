@@ -380,7 +380,6 @@ def askPos(bot,user_data,exch,uidTS,direction,applyFct=None,inputType=None,respo
             return applyFct()
 
 def addExchanges(bot,update,user_data):
-    
     idx = [i for i, x in enumerate(__config__['telegramUserId']) if x==user_data['chatId']][0]+1
     if idx == 1:
         with open("APIs.json", "r") as fin:
@@ -405,7 +404,8 @@ def addExchanges(bot,update,user_data):
                 exchParams['password'] = APIs['apiPassword%s'%a]
             # if no tradeHandler object has been created yet, create one, but also check for correct authentication, otherwise remove again
             if exch not in user_data['trade']:
-                user_data['trade'][exch] = tradeHandler(exch,**exchParams,messagerFct = lambda a,b='info': broadcastMsg(bot,user_data['chatId'],a,b))
+                userId = user_data['chatId']
+                user_data['trade'][exch] = tradeHandler(exch,**exchParams,messagerFct = lambda a,b='info': broadcastMsg(bot,userId,a,b))
             else:
                 user_data['trade'][exch].updateKeys(**exchParams)
             if not user_data['trade'][exch].authenticated:
@@ -706,7 +706,14 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                             query.answer('Do you want to sell your remaining coins?')
                             query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3|%s|%s|yes'%(exch,uidTS)),InlineKeyboardButton("No", callback_data='3|%s|%s|no'%(exch,uidTS))]]))
     return MAINMENU
-            
+
+def clean_data(updater):
+    delThese = []
+    for user in updater.dispatcher.user_data:
+        if not (user in __config__['telegramUserId'] and 'trade' in updater.dispatcher.user_data[user]):
+            delThese.append(user)
+    for k in delThese:
+        updater.dispatcher.user_data.pop(k, None)
 
 def save_data(*arg):
     if len(arg) == 1:
@@ -727,6 +734,7 @@ def save_data(*arg):
     except:
         logging.warning('Could not rename last saved data to backup')
         pass
+    clean_data(updater)
     # write user data
     with open('data.pickle', 'wb') as f:
         dill.dump(updater.dispatcher.user_data, f)
@@ -794,6 +802,8 @@ def startBot():
     updater.dispatcher.add_handler(unknown_handler)
     
     updater.dispatcher.user_data = load_data()
+    sdfs
+    clean_data(updater)
     for user in __config__['telegramUserId']:
         if user in updater.dispatcher.user_data and len(updater.dispatcher.user_data[user]) > 0:
             time.sleep(2) # wait because of possibility of temporary exchange lockout

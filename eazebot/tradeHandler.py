@@ -73,12 +73,21 @@ class tradeHandler:
             self.balance = self.safeRun(self.exchange.fetch_balance,0)
             self.authenticated = True
         except getattr(ccxt,'AuthenticationError') as e:#
-            self.message('Failed to authenticate at exchange %s. Please check your keys'%exchName,'error')
+            try:
+                self.message('Failed to authenticate at exchange %s. Please check your keys'%exchName,'error')
+            except:
+                print('Failed to authenticate at exchange %s. Please check your keys'%exchName)
         except getattr(ccxt,'ExchangeError') as e:#
             if 'key' in str(e).lower():
-                self.message('Failed to authenticate at exchange %s. Please check your keys'%exchName,'error')
+                try:
+                    self.message('Failed to authenticate at exchange %s. Please check your keys'%exchName,'error')
+                except:
+                    print('Failed to authenticate at exchange %s. Please check your keys'%exchName)
             else:
-                self.message('An error occured during checking authentication:\n%s'%str(e),'error')
+                try:
+                    self.message('An error occured during checking authentication:\n%s'%str(e),'error')
+                except:
+                    print('Failed to authenticate at exchange %s. Please check your keys'%exchName)
           
     def __reduce__(self):
         # function needes for serializing the object
