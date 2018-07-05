@@ -27,10 +27,7 @@ import time
 import random
 import string
 import sys, os
-from ccxt.base.errors import (NetworkError,OrderNotFound,InvalidNonce)
-
-# might be usable in future release to calculate fees:
-# self.exchange.calculateFee('KCS/BTC','limit','buy',amount,price,'taker')
+from ccxt.base.errors import (AuthenticationError,NetworkError,OrderNotFound,InvalidNonce)
 
 class tradeHandler:
     
@@ -72,7 +69,7 @@ class tradeHandler:
             # check if keys work
             self.balance = self.safeRun(self.exchange.fetch_balance,0)
             self.authenticated = True
-        except getattr(ccxt,'AuthenticationError') as e:#
+        except AuthenticationError as e:#
             try:
                 self.message('Failed to authenticate at exchange %s. Please check your keys'%exchName,'error')
             except:
@@ -129,7 +126,7 @@ class tradeHandler:
                 count += 1
                 if count >= 5:
                     self.updating = False
-                    print('Network exception occurred 5 times in a row')             
+                    self.message('Network exception occurred 5 times in a row')             
                     raise(e)
                 else:
                     time.sleep(0.5)
@@ -138,7 +135,16 @@ class tradeHandler:
                 count += 1
                 if count >= 5:
                     self.updating = False
-                    print('Order not found 5 times in a row')             
+                    self.message('Order not found error 5 times in a row')             
+                    raise(e)
+                else:
+                    time.sleep(0.5)
+                    continue
+            except AuthenticationError as e:
+                count += 1
+                if count >= 5:
+                    self.updating = False
+                    self.message('Authentication error 5 times in a row')             
                     raise(e)
                 else:
                     time.sleep(0.5)
@@ -157,12 +163,14 @@ class tradeHandler:
                     continue
                 else:
                     self.updating = False
+                    string = ''
                     if count >= 5:
-                        print('Network exception occurred 5 times in a row')             
+                        string += 'Network exception occurred 5 times in a row! Last error was:\n'
                     exc_type, exc_obj, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                    string += '%s in %s at line %s: %s'%(exc_type, fname, exc_tb.tb_lineno,str(e))
                     if printError:
-                        self.message('%s in %s at line %s: %s'%(exc_type, fname, exc_tb.tb_lineno,str(e)),'Error')
+                        self.message(string,'Error')
                     raise(e)
         
 
@@ -203,7 +211,7 @@ class tradeHandler:
             # check if keys work
             self.updateBalance()
             self.authenticated = True
-        except getattr(ccxt,'AuthenticationError') as e:#
+        except AuthenticationError as e:#
             self.authenticated = False
             self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
         except getattr(ccxt,'ExchangeError') as e:
