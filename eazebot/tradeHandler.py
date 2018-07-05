@@ -91,13 +91,16 @@ class tradeHandler:
         return (self.__class__, (self.exchange.__class__.__name__,self.exchange.apiKey,self.exchange.secret,self.exchange.password,self.exchange.uid,self.message),self.__getstate__(),None,None)
     
     def __setstate__(self,state):
-        if isinstance(state,list):  # temp fix for old class
-            tmpstate = {}
-            for trade in state:
-                tmpstate[trade['uid']] = trade
-            self.tradeSets = tmpstate
-        else:
-            self.tradeSets = state
+        for iTs in state: # temp fix for old trade sets that do not have the actualAmount var
+            ts = state[iTs]
+            for trade in ts['InTrades']:
+                if 'actualAmount' not in trade:
+                    fee = self.exchange.calculateFee(ts['symbol'],'limit','buy',trade['amount'],trade['price'],'maker')
+                    if fee['currency'] == ts['coinCurrency']:
+                        trade['actualAmount'] = trade['amount'] - fee['cost']
+                    else:
+                        trade['actualAmount'] = trade['amount']
+        self.tradeSets = state
         
     def __getstate__(self):
         return self.tradeSets
@@ -340,7 +343,7 @@ class tradeHandler:
                     tmpstr = tmpstr + 'if DC > %s'%self.price2Prec(ts['symbol'],trade['candleAbove'])
             elif trade['oid'] == 'filled':
                 tmpstr = tmpstr + '_Order filled_\n'
-                filledBuys.append([trade['amount'],trade['price']])
+                filledBuys.append([trade['actualAmount'],trade['price']])
             else:
                 tmpstr = tmpstr + '_Open order_\n'
             string += tmpstr
@@ -364,13 +367,15 @@ class tradeHandler:
         if ts['initCoins']>0:
             string += '*Initial coins:* %s %s for an average price of %s\n'%(self.amount2Prec(ts['symbol'],ts['initCoins']),ts['coinCurrency'],self.price2Prec(ts['symbol'],ts['initPrice']) if ts['initPrice'] is not None else 'unknown')
         if sumBuys>0:
-            string += '*Filled buy orders:* %s %s for an average price of %s\n'%(self.amount2Prec(ts['symbol'],sumBuys),ts['coinCurrency'],self.cost2Prec(ts['symbol'],sum([val[0]*val[1]/sumBuys if sumBuys > 0 else None for val in filledBuys])))
+            string += '*Filled buy orders (fee subtracted):* %s %s for an average price of %s\n'%(self.amount2Prec(ts['symbol'],sumBuys),ts['coinCurrency'],self.cost2Prec(ts['symbol'],sum([val[0]*val[1]/sumBuys if sumBuys > 0 else None for val in filledBuys])))
         if sumSells>0:
             string += '*Filled sell orders:* %s %s for an average price of %s\n'%(self.amount2Prec(ts['symbol'],sumSells),ts['coinCurrency'],self.cost2Prec(ts['symbol'],sum([val[0]*val[1]/sumSells if sumSells > 0 else None for val in filledSells])))
         ticker = self.safeRun(lambda: self.exchange.fetchTicker(ts['symbol']))
         string += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n'%tuple([self.price2Prec(ts['symbol'],val) for val in [ticker['last'],ticker['high'],ticker['low']]])
         if (ts['initCoins'] == 0 or ts['initPrice'] is not None) and ts['costIn'] > 0 and (sumBuys>0 or ts['initCoins'] > 0):
-            costSells = ts['costOut'] + (ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled' and trade['oid'] is not None]))*ticker['last'] 
+            totalAmountToSell = ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled' and trade['oid'] is not None])
+            fee = self.exchange.calculateFee(ts['symbol'],'market','sell',totalAmountToSell,ticker['last'] ,'taker')
+            costSells = ts['costOut'] +   ticker['last'] * totalAmountToSell - (fee['cost'] if fee['currency'] == ts['baseCurrency'] else 0)
             gain = costSells - ts['costIn']
             gainOrig = gain
             thisCur = ts['baseCurrency']
@@ -440,19 +445,19 @@ class tradeHandler:
     def numSellLevels(self,iTs):
         return len(self.tradeSets[iTs]['OutTrades'])
     
-    def sumAmounts(self,iTs,direction, typ='all'):
+    def sumAmounts(self,iTs,direction, typ='all',subtractFee = True):
         if direction == 'sell':
             trade = 'OutTrades'
         else:
             trade = 'InTrades'
         if typ == 'all':
-            return sum([val['amount'] for val in self.tradeSets[iTs][trade]])
+            return sum([(val['amount'] if direction == 'sell' or subtractFee == False else val['actualAmount']) for val in self.tradeSets[iTs][trade]])
         elif typ == ' filled':
-            return sum([val['amount'] for val in self.tradeSets[iTs][trade] if val['oid'] == 'filled'])
+            return sum([(val['amount'] if direction == 'sell' or subtractFee == False else val['actualAmount'])  for val in self.tradeSets[iTs][trade] if val['oid'] == 'filled'])
         elif typ == 'open':
-            return sum([val['amount'] for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled' and val['oid'] is not None])
+            return sum([(val['amount'] if direction == 'sell' or subtractFee == False else val['actualAmount'])  for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled' and val['oid'] is not None])
         elif typ == 'notfilled':
-            return sum([val['amount'] for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled'])
+            return sum([(val['amount'] if direction == 'sell' or subtractFee == False else val['actualAmount'])  for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled'])
         else:
             raise ValueError('typ has to be all, filled or open')
 
@@ -475,15 +480,24 @@ class tradeHandler:
     def addBuyLevel(self,iTs,buyPrice,buyAmount,candleAbove=None):
         ts = self.tradeSets[iTs]
         if self.checkNum(buyPrice,buyAmount,candleAbove) or (candleAbove is None and self.checkNum(buyPrice,buyAmount)):
+            fee = self.exchange.calculateFee(ts['symbol'],'limit','buy',buyAmount,buyPrice,'maker')
             if not self.checkQuantity(ts['symbol'],'amount',buyAmount):
                 self.message('Adding buy level failed, amount is not within the range, the exchange accepts')
                 return 0
             elif not self.checkQuantity(ts['symbol'],'price',buyPrice):
                 self.message('Adding buy level failed, price is not within the range, the exchange accepts')
                 return 0 
+            elif self.getFreeBalance(ts['baseCurrency']) < buyAmount*buyPrice + fee['cost'] if fee['currency'] == ts['baseCurrency'] else 0:
+                self.message('Adding buy level failed, your balance of %s does not suffice to buy this amount%s!'%(ts['baseCurrency'],' and pay the trading fee (%s %s)'%(self.fee2Prec(ts['symbol'],fee['cost']),ts['baseCurrency']) if fee['currency'] == ts['baseCurrency'] else ''))
+                return 0 
+            
+            if fee['currency'] == ts['coinCurrency']:
+                boughtAmount = buyAmount - fee['cost']
+            else:
+                boughtAmount = buyAmount
             self.waitForUpdate()
             wasactive = self.deactivateTradeSet(iTs)  
-            ts['InTrades'].append({'oid': None, 'price': buyPrice, 'amount': buyAmount, 'candleAbove': candleAbove})
+            ts['InTrades'].append({'oid': None, 'price': buyPrice, 'amount': buyAmount, 'actualAmount': boughtAmount, 'candleAbove': candleAbove})
             if wasactive:
                 self.activateTradeSet(iTs,0)   
             self.updating = False
@@ -513,18 +527,25 @@ class tradeHandler:
                 self.message('This order is already filled! No change possible')
                 return 0
             else:
+                fee = self.exchange.calculateFee(ts['symbol'],'limit','buy',amount,price,'maker')
                 if not self.checkQuantity(ts['symbol'],'amount',amount):
                     self.message('Changing buy level failed, amount is not within the range, the exchange accepts')
                     return 0
                 elif not self.checkQuantity(ts['symbol'],'price',price):
                     self.message('Changing buy level failed, price is not within the range, the exchange accepts')
                     return 0 
+                elif self.getFreeBalance(ts['baseCurrency']) + ts['InTrades'][iTrade]['amount']*ts['InTrades'][iTrade]['price'] < amount*price + fee['cost'] if fee['currency'] == ts['baseCurrency'] else 0:
+                    self.message('Changing buy level failed, your balance of %s does not suffice to buy this amount%s!'%(ts['baseCurrency'],' and pay the trading fee (%s %s)'%(self.fee2Prec(ts['symbol'],fee['cost']),ts['baseCurrency']) if fee['currency'] == ts['baseCurrency'] else ''))
+                    return 0 
+                if fee['currency'] == ts['coinCurrency']:
+                    boughtAmount = amount - fee['cost']
+                else:
+                    boughtAmount = amount
                 wasactive = self.deactivateTradeSet(iTs)  
                 
                 if ts['InTrades'][iTrade]['oid'] is not None and ts['InTrades'][iTrade]['oid'] != 'filled' :
                     self.cancelOrder(ts['InTrades'][iTrade]['oid'],ts['symbol'],'BUY')
-                ts['InTrades'][iTrade]['amount'] = amount
-                ts['InTrades'][iTrade]['price'] = price
+                ts['InTrades'][iTrade].update({'amount': amount, 'actualAmount': boughtAmount, 'price': price})
                 
                 if wasactive:
                     self.activateTradeSet(iTs,0)                
@@ -612,7 +633,7 @@ class tradeHandler:
             self.message('Break even SL cannot be set as there are no unsold %s coins right now'%ts['coinCurrency'])
             return 0
         else:
-            breakEvenPrice = (ts['costIn']-ts['costOut'])/(ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled' and trade['oid'] is not None]))
+            breakEvenPrice = (ts['costIn']-ts['costOut'])/((1-self.exchange.fees['trading']['taker'])*(ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled' and trade['oid'] is not None])))
             ticker = self.safeRun(lambda :self.exchange.fetch_ticker(ts['symbol']))
             if ticker['last'] < breakEvenPrice:
                 self.message('Break even SL of %s cannot be set as the current market price is lower (%s)!'%tuple([self.price2Prec(ts['symbol'],val) for val in [breakEvenPrice,ticker['last']]]))
@@ -750,7 +771,7 @@ class tradeHandler:
                         ts['InTrades'][iTrade]['oid'] = 'filled'
                         ts['costIn'] += orderInfo['cost']
                         self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
-                        ts['coinsAvail'] += orderInfo['filled']
+                        ts['coinsAvail'] += ts['actualAmount']#orderInfo['filled']
                         filledIn += 1
                     elif orderInfo['status'] == 'canceled':
                         ts['InTrades'][iTrade]['oid'] = None
