@@ -221,7 +221,7 @@ def checkBalance(bot,update,user_data,exchange=None):
         balance = ct.exchange.fetchBalance()
         if ct.exchange.has['fetchTickers']:
             tickers = ct.safeRun(ct.exchange.fetchTickers)
-            func = lambda sym: tickers[sym]
+            func = lambda sym: tickers[sym] if sym in tickers else ct.safeRun(lambda : ct.exchange.fetchTicker(sym))  # includes a hot fix for some ccxt problems
         else:
             func = lambda sym: ct.safeRun(lambda : ct.exchange.fetchTicker(sym))
         coins = list(balance['total'].keys())
