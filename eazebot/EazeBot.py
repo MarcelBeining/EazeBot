@@ -310,7 +310,7 @@ def askAmount(user_data,exch,uidTS,direction,botOrQuery):
             balText = 'free balance is'
     else:
         raise ValueError('Unknown direction specification')
-    text = "What amount of %s do you want to %s (%s ~%.5g %s)?"%(cname,action,balText,bal,'plus ~%.5g from your set future buys [minus trading fee]'%(buyAmounts) if direction == 'sell' else '')
+    text = "What amount of %s do you want to %s (%s ~%.5g %s)?"%(cname,action,balText,bal,'plus ~%.5g from your set future buys [trading fee subtracted]'%(buyAmounts) if direction == 'sell' else '')
     if isinstance(botOrQuery,bot.Bot):
         botOrQuery.send_message(user_data['chatId'],text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency|%s|%s|%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount|cancel')]]))
     else:
