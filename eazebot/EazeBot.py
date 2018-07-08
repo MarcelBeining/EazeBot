@@ -813,7 +813,7 @@ def startBot():
     unknown_handler = MessageHandler(Filters.command, unknownCmd)
     
     #%% start telegram API, add handlers to dispatcher and start bot
-    updater = Updater(token = __config__['telegramAPI'], request_kwargs={'read_timeout': 10})#, 'connect_timeout': 7})
+    updater = Updater(token = __config__['telegramAPI'], request_kwargs={'read_timeout': 10, 'connect_timeout': 10})
     job_queue = updater.job_queue
     updater.dispatcher.add_handler(conv_handler)
     updater.dispatcher.add_handler(unknown_handler)

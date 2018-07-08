@@ -793,7 +793,7 @@ class tradeHandler:
                         ts['InTrades'][iTrade]['oid'] = 'filled'
                         ts['costIn'] += orderInfo['cost']
                         self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
-                        ts['coinsAvail'] += ts['actualAmount']#orderInfo['filled']
+                        ts['coinsAvail'] += trade['actualAmount']#orderInfo['filled']
                     elif orderInfo['status'] == 'canceled':
                         ts['InTrades'][iTrade]['oid'] = None
                         self.message('Buy order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,list(self.tradeSets.keys()).index(iTs),self.exchange.name))
