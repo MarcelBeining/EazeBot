@@ -266,11 +266,11 @@ class tradeHandler:
         self.tradeSets[iTs]['virgin'] = False
         self.tradeSets[iTs]['active'] = True
         if verbose and not wasactive:
-            totalBuyCost = ts['costIn'] + self.sumCosts(iTs,'buy')
+            totalBuyCost = ts['costIn'] + self.sumCosts(iTs,'buy','notfilled')
             self.message('Estimated return if all trades are executed: %s %s'%(self.cost2Prec(ts['symbol'],self.sumCosts(iTs,'sell')-totalBuyCost),ts['baseCurrency']))
             if ts['SL'] is not None:
                 loss = totalBuyCost-(ts['initCoins']+self.sumAmounts(iTs,'buy'))*ts['SL']
-                self.message('Estimated loss if buys reach stop-loss before selling: %s %s %s'%(self.cost2Prec(ts['symbol'],loss),'*(negative = gain!)*'if loss<0 else '',ts['baseCurrency']))        
+                self.message('Estimated %s if buys reach stop-loss before selling: %s %s'%('*gain*' if loss<0 else 'loss',self.cost2Prec(ts['symbol'],-loss if loss<0 else loss),ts['baseCurrency']))        
         self.initBuyOrders(iTs)
         return wasactive
     
@@ -497,10 +497,10 @@ class tradeHandler:
             return sum([val['amount']*val['price'] for val in self.tradeSets[iTs][trade] if val['oid'] == 'filled'])
         elif typ == 'open':
             return sum([val['amount']*val['price'] for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled' and val['oid'] is not None])
-        elif typ == 'open':
+        elif typ == 'notfilled':
             return sum([val['amount']*val['price'] for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled'])
         else:
-            raise ValueError('typ has to be all, filled or open')
+            raise ValueError('typ has to be all, filled, notfilled or open')
     
     def addBuyLevel(self,iTs,buyPrice,buyAmount,candleAbove=None):
         ts = self.tradeSets[iTs]

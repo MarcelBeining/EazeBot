@@ -26,7 +26,7 @@ import logging
 import logging.handlers  # necessary if run as main script and not interactively...dunno why
 import re
 import time
-import datetime
+import datetime as dt
 import json
 import dill
 import requests
@@ -98,7 +98,7 @@ def broadcastMsg(bot,userId,msg,level='info'):
     count = 0
     while count < 5:
         try:
-            bot.send_message(chat_id=userId, text=level + ': ' + msg)
+            bot.send_message(chat_id=userId, text=level + ': ' + msg, parse_mode='markdown')
             break
         except TypeError as e:
             pass            
@@ -824,8 +824,8 @@ def startBot():
         if user in updater.dispatcher.user_data and len(updater.dispatcher.user_data[user]) > 0:
             time.sleep(2) # wait because of possibility of temporary exchange lockout
             addExchanges(updater.bot,None,updater.dispatcher.user_data[user])
-    
-    
+            
+        
     for user in __config__['telegramUserId']:
         try:
             updater.bot.send_message(user,'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
@@ -835,8 +835,8 @@ def startBot():
     updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=60,context=updater)
     # start a job checking for updates once a  day
     updater.job_queue.run_repeating(checkForUpdates, interval=60*60*24, first=0,context=updater)
-    # start a job checking every day 10 sec after midnight if any 'candleAbove' buys need to be initiated
-    updater.job_queue.run_daily(checkCandle, datetime.time(0,0,10), context=updater)
+    # start a job checking every day 10 sec after midnight (UTC time) if any 'candleAbove' buys need to be initiated
+    updater.job_queue.run_daily(checkCandle, (dt.datetime.combine(dt.date(1900,5,5),dt.time(0,0,10)) + (dt.datetime.now()-dt.datetime.utcnow())).time(), context=updater)
     # start a job saving the user data each 5 minutes
     updater.job_queue.run_repeating(save_data, interval=5*60, first=60,context=updater)
     
