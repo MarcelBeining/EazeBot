@@ -4,7 +4,7 @@
 import codecs
 import re
 from os import path
-from setuptools import setup, find_packages
+from setuptools import setup
 
 def requirements():
     """Build the requirements list for this project"""
@@ -20,7 +20,10 @@ with codecs.open('readme.md', 'r', 'utf-8') as fd:
     fn = path.join('eazebot/version.txt')
     with open(fn) as fh:
 	    __version__ = re.search('(?<=version = ).+',str(fh.read())).group(0)
-
+    with open(path.join('eazebot/APIs.json')) as fh:
+        if '"apiKeyBinance": "YOURBINANCEKEY"' not in str(fh.read()):
+            raise Exception('Modified key file! Possibly wrong folder?')
+			
     setup(name = 'eazebot',
           version=__version__,
 		  author = 'Marcel Beining',

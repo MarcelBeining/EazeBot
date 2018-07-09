@@ -150,7 +150,6 @@ class tradeHandler:
                 count += 1
                 if count >= 5:
                     self.updating = False
-                    self.message('Authentication error 5 times in a row')             
                     raise(e)
                 else:
                     time.sleep(0.5)
