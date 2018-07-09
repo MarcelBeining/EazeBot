@@ -94,6 +94,8 @@ class tradeHandler:
     def __setstate__(self,state):
         for iTs in state: # temp fix for old trade sets that do not have the actualAmount var
             ts = state[iTs]
+            if 'trailingSL' not in ts:
+                ts['trailingSL'] = [None,None]
             for trade in ts['InTrades']:
                 if 'actualAmount' not in trade:
                     fee = self.exchange.calculateFee(ts['symbol'],'limit','buy',trade['amount'],trade['price'],'maker')
@@ -368,7 +370,7 @@ class tradeHandler:
                 tmpstr = tmpstr + '_Open order_\n'
             string += tmpstr
         if ts['SL'] is not None:
-            string += '\n*Stop-loss* set at %s\n\n'%self.price2Prec(ts['symbol'],ts['SL'])
+            string += '\n*Stop-loss* set at %s%s\n\n'%(self.price2Prec(ts['symbol'],ts['SL']),'' if ts['trailingSL'][0] is None else (' (trailing with offset %.5g)'%ts['trailingSL'][0] if ts['trailingSL'][1] == 'abs' else ' (trailing with offset %.2g %%)'%(ts['trailingSL'][0]*100) ))
         else:
             string += '\n*No stop-loss set.*\n\n'
         sumBuys = sum([val[0] for val in filledBuys])
@@ -639,9 +641,28 @@ class tradeHandler:
         else:
             raise ValueError('Some input was no number')
             
+    def setTrailingSL(self,iTs,value,typ='abs'):   
+        ts = self.tradeSets[iTs]
+        if self.checkNum(value):
+            ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
+            if typ == 'abs':
+                if value >= ticker['last'] or value <= 0:
+                    raise ValueError('absolute trailing stop-loss offset is not between 0 and current price')
+                newSL = ticker['last'] - value
+            else:
+                if value >= 1 or value <= 0:
+                    raise ValueError('Relative trailing stop-loss offset is not between 0 and 1')
+                newSL = ticker['last'] * (1- value)     
+            ts['trailingSL'] = [value,typ]          
+            ts['SL'] = newSL
+        elif value is None:
+            ts['trailingSL'] = [None,None]
+        else:
+            raise ValueError('Input was no number')
             
     def setSL(self,iTs,value):   
         if self.checkNum(value) or value is None:
+            self.setTrailingSL(iTs,None) # deactivate trailing SL
             self.tradeSets[iTs]['SL'] = value
         else:
             raise ValueError('Input was no number')
@@ -658,6 +679,7 @@ class tradeHandler:
             self.message('Break even SL cannot be set as there are no unsold %s coins right now'%ts['coinCurrency'])
             return 0
         else:
+            self.setTrailingSL(iTs,None) # deactivate trailing SL
             breakEvenPrice = (ts['costIn']-ts['costOut'])/((1-self.exchange.fees['trading']['taker'])*(ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled' and trade['oid'] is not None])))
             ticker = self.safeRun(lambda :self.exchange.fetch_ticker(ts['symbol']))
             if ticker['last'] < breakEvenPrice:
@@ -764,24 +786,29 @@ class tradeHandler:
         for iTs in self.tradeSets:
             ts = self.tradeSets[iTs]
             if not ts['active']:
-#                        self.message('Trade set %d on exchange %s skipped during update'%(iTs,self.exchange.name))
                 continue
+            ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
             # check if stop loss is reached
             if not dailyCheck and ts['SL'] is not None:
-                ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
                 if ticker['last'] <= ts['SL']:
                     self.message('Stop loss for pair %s has been triggered!'%ts['symbol'],'warning')
                     # cancel all sell orders, create market sell order and save resulting amount of base currency
                     self.updating = False
                     self.sellAllNow(iTs,price=ticker['last'])
                     self.waitForUpdate()
+                elif 'trailingSL' in ts and ts['trailingSL'][0] is not None:
+                    if ts['trailingSL'][1] == 'abs':
+                        newSL = ticker['last'] - ts['trailingSL'][0]
+                    else:
+                        newSL = ticker['last'] * (1- ts['trailingSL'][0])
+                    if newSL > ts['SL']:
+                        ts['SL'] = newSL
             orderExecuted = 0
             # go through buy trades 
             for iTrade,trade in enumerate(ts['InTrades']):
                 if trade['oid'] == 'filled':
                     continue
                 elif dailyCheck and trade['oid'] is None and trade['candleAbove'] is not None:
-                    ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
                     if ticker['last'] > trade['candleAbove']:
                         response = self.safeRun(lambda: self.exchange.createLimitBuyOrder(ts['symbol'], trade['amount'],trade['price']))
                         ts['InTrades'][iTrade]['oid'] = response['id']
@@ -793,7 +820,7 @@ class tradeHandler:
                         ts['InTrades'][iTrade]['oid'] = 'filled'
                         ts['costIn'] += orderInfo['cost']
                         self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
-                        ts['coinsAvail'] += trade['actualAmount']#orderInfo['filled']
+                        ts['coinsAvail'] += trade['actualAmount']
                     elif orderInfo['status'] == 'canceled':
                         ts['InTrades'][iTrade]['oid'] = None
                         self.message('Buy order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,list(self.tradeSets.keys()).index(iTs),self.exchange.name))
