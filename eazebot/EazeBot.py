@@ -775,7 +775,8 @@ def clean_data(updater):
         if not (user in __config__['telegramUserId'] and 'trade' in updater.dispatcher.user_data[user]):
             delThese.append(user)
         else: # discard cached messages
-            deleteMessages(updater.dispatcher.user_data[user],'all',True)
+            if 'messages' in updater.dispatcher.user_data[user]:
+                deleteMessages(updater.dispatcher.user_data[user],'all',True)
     for k in delThese:
         updater.dispatcher.user_data.pop(k, None)
 
