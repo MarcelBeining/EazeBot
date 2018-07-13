@@ -187,9 +187,12 @@ def buttonsEditTS(ct,uidTS,mode='full'):
             buttons.append([InlineKeyboardButton("Readd SellOrder from level #%d"%i,callback_data='2|%s|%s|sellReAdd%d'%(exch,uidTS,i))])
         buttons.append([InlineKeyboardButton("Delete Sell level #%d"%i,callback_data='2|%s|%s|SLD%d'%(exch,uidTS,i))])
     if mode == 'full':
-        buttons.append([InlineKeyboardButton("Set SL Break Even",callback_data='2|%s|%s|SLBE'%(exch,uidTS)),InlineKeyboardButton("Change SL",callback_data='2|%s|%s|SLC'%(exch,uidTS)),InlineKeyboardButton("Trailing SL",callback_data='2|%s|%s|TSL'%(exch,uidTS))])
+        if ct.numBuyLevels(uidTS,'notfilled') > 0:
+            buttons.append([InlineKeyboardButton("Set SL Break Even",callback_data='2|%s|%s|SLBE'%(exch,uidTS)),InlineKeyboardButton("Change SL",callback_data='2|%s|%s|SLC'%(exch,uidTS))])
+        else:  # only show trailing SL option if all buy orders are filled
+            buttons.append([InlineKeyboardButton("Set SL Break Even",callback_data='2|%s|%s|SLBE'%(exch,uidTS)),InlineKeyboardButton("Change SL",callback_data='2|%s|%s|SLC'%(exch,uidTS)),InlineKeyboardButton("Trailing SL",callback_data='2|%s|%s|TSL'%(exch,uidTS))])
     elif mode == 'init':
-        buttons.append([InlineKeyboardButton("Add initial coins",callback_data='2|%s|%s|AIC'%(exch,uidTS)),InlineKeyboardButton("Add/change SL",callback_data='2|%s|%s|SLC'%(exch,uidTS)),InlineKeyboardButton("Trailing SL",callback_data='2|%s|%s|TSL'%(exch,uidTS))])
+        buttons.append([InlineKeyboardButton("Add initial coins",callback_data='2|%s|%s|AIC'%(exch,uidTS)),InlineKeyboardButton("Add/change SL",callback_data='2|%s|%s|SLC'%(exch,uidTS))])
     buttons.append([InlineKeyboardButton("%s trade set"%('Deactivate' if ct.tradeSets[uidTS]['active'] else 'Activate'),callback_data='2|%s|%s|%s'%(exch,uidTS,'TSstop' if ct.tradeSets[uidTS]['active'] else 'TSgo')),InlineKeyboardButton("Delete trade set",callback_data='3|%s|%s|ok|no'%(exch,uidTS))])
     if mode == 'full':
         buttons.append([InlineKeyboardButton("Back",callback_data='2|%s|%s|back'%(exch,uidTS))])
@@ -303,8 +306,8 @@ def askAmount(user_data,exch,uidTS,direction,botOrQuery):
     coin = ct.tradeSets[uidTS]['coinCurrency']
     currency = ct.tradeSets[uidTS]['baseCurrency']
     if direction=='sell':
-        # free balance is free coins plus coins that will be bought minus coins already selling
-        bal = ct.getFreeBalance(coin) - ct.sumSellAmounts(uidTS)
+        # free balance is free coins plus coins that will be bought minus coins that will be sold
+        bal = ct.getFreeBalance(coin) - ct.sumSellAmounts(uidTS,'notinitiated')
         buyAmounts = ct.sumBuyAmounts(uidTS,'notfilled')
         if user_data['whichCurrency']==0:
             cname = coin
@@ -317,8 +320,8 @@ def askAmount(user_data,exch,uidTS,direction,botOrQuery):
             action = 'receive'
             balText = 'return from free %s would be'%coin
     elif direction == 'buy':
-        # free balance is free currency minus price for coins already buying
-        bal = ct.getFreeBalance(currency) - ct.sumBuyCosts(uidTS)
+        # free balance is free currency minus cost for coins that will be bought
+        bal = ct.getFreeBalance(currency) - ct.sumBuyCosts(uidTS,'notinitiated')
         if user_data['whichCurrency']==0:
             bal /= user_data['tempTradeSet'][0]
             cname = coin
@@ -357,12 +360,15 @@ def addInitBalance(bot,user_data,exch,uidTS,inputType=None,response=None,fct = N
 
 def addPos(bot,user_data,exch,uidTS,direction,fct=None):
     ct = user_data['trade'][exch]
-    if direction == 'buy':
-        ct.addBuyLevel(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1],user_data['tempTradeSet'][2])
-    elif direction == 'sell':
-        ct.addSellLevel(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1])
-    else:
-        ct.addInitCoins(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1])
+    try:
+        if direction == 'buy':
+            ct.addBuyLevel(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1],user_data['tempTradeSet'][2])
+        elif direction == 'sell':
+            ct.addSellLevel(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1])
+        else:
+            ct.addInitCoins(uidTS,user_data['tempTradeSet'][0],user_data['tempTradeSet'][1])
+    except Exception as e:
+        broadcastMsg(bot,user_data['chatId'],str(e),'error')
     user_data['tempTradeSet'] = [None,None,None]
     if fct:
         fct()
