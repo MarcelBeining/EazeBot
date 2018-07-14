@@ -100,7 +100,7 @@ class tradeHandler:
                 if 'actualAmount' not in trade:
                     fee = self.exchange.calculateFee(ts['symbol'],'limit','buy',trade['amount'],trade['price'],'maker')
                     if fee['currency'] == ts['coinCurrency']:
-                        trade['actualAmount'] = trade['amount'] - (fee['cost'] if self.exchange.name != 'binance' or self.getFreeBalance('BNB') < 0.5 else 0) # this is a hack, as fees on binance are deduced from BNB if this is activated and there is enough BNB, however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay the fee for the trade and thus the fee is not subtracted from the traded coin
+                        trade['actualAmount'] = trade['amount'] - (fee['cost'] if self.exchange.name.lower() != 'binance' or self.getFreeBalance('BNB') < 0.5 else 0) # this is a hack, as fees on binance are deduced from BNB if this is activated and there is enough BNB, however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay the fee for the trade and thus the fee is not subtracted from the traded coin
                     else:
                         trade['actualAmount'] = trade['amount']
         self.tradeSets = state
@@ -261,10 +261,10 @@ class tradeHandler:
         ts = self.tradeSets[iTs]
         wasactive = ts['active']
         # sanity check of amounts to buy/sell
-        if self.sumSellAmounts(iTs) - (self.sumBuyAmounts(iTs,'open')+ ts['coinsAvail']) > 0:
-            self.message('Cannot activate trade set because the total amount you want to sell exceeds the total amount you want to buy (%s %s after fee subtraction) or added as initial coins. Please adjust the trade set!'%(self.amount2Prec(ts['symbol'],self.sumBuyAmounts(iTs,'open',1)),ts['coinCurrency']))
+        if self.sumSellAmounts(iTs) - (self.sumBuyAmounts(iTs,'notfilled')+ ts['coinsAvail']) > 0:
+            self.message('Cannot activate trade set because the total amount you want to sell exceeds the total amount you want to buy (%s %s after fee subtraction) or added as initial coins. Please adjust the trade set!'%(self.amount2Prec(ts['symbol'],self.sumBuyAmounts(iTs,'notfilled',1)),ts['coinCurrency']))
             return wasactive
-        elif ts['SL'] >= self.minBuyPrice(iTs,order='notfilled'):
+        elif self.minBuyPrice(iTs,order='notfilled') is not None and ts['SL'] is not None and ts['SL'] >= self.minBuyPrice(iTs,order='notfilled'):
             self.message('Cannot activate trade set because the current stop loss price is higher than the lowest non-filled buy order price, which means this buy order could never be reached. Please adjust the trade set!')
             return wasactive
         self.tradeSets[iTs]['virgin'] = False
@@ -466,11 +466,11 @@ class tradeHandler:
         if method == 'sum':
             func = lambda x: sum(x)
         elif method == 'min':
-            func = lambda x: np.min(x)
+            func = lambda x: None if len(x)==0 else np.min(x)
         elif method == 'max':
-            func = lambda x: np.max(x)
+            func = lambda x: None if len(x)==0 else np.max(x)
         elif method == 'mean':
-            func = lambda x: np.mean(x)
+            func = lambda x: None if len(x)==0 else np.mean(x)
         elif method == 'num':
             func = lambda x: len(x)
             
@@ -578,7 +578,7 @@ class tradeHandler:
                     self.message('Changing buy level failed, your balance of %s does not suffice to buy this amount%s!'%(ts['baseCurrency'],' and pay the trading fee (%s %s)'%(self.fee2Prec(ts['symbol'],fee['cost']),ts['baseCurrency']) if fee['currency'] == ts['baseCurrency'] else ''))
                     return 0 
                 if fee['currency'] == ts['coinCurrency']:
-                    boughtAmount = amount - (fee['cost'] if (self.exchange.name != 'binance' or self.getFreeBalance('BNB') < 0.5) else 0) # this is a hack, as fees on binance are deduced from BNB if this is activated and there is enough BNB, however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay the fee for the trade and thus the fee is not subtracted from the traded coin
+                    boughtAmount = amount - (fee['cost'] if (self.exchange.name.lower() != 'binance' or self.getFreeBalance('BNB') < 0.5) else 0) # this is a hack, as fees on binance are deduced from BNB if this is activated and there is enough BNB, however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay the fee for the trade and thus the fee is not subtracted from the traded coin
                 else:
                     boughtAmount = amount
                 wasactive = self.deactivateTradeSet(iTs)  
