@@ -485,7 +485,7 @@ class tradeHandler:
         if what == 'amount':
             if order == 'all':
                 return func([(val['amount'] if direction == 'sell' or subtractFee == False else val['actualAmount']) for val in self.tradeSets[iTs][trade]])
-            elif order == ' filled':
+            elif order == 'filled':
                 return func([(val['amount'] if direction == 'sell' or subtractFee == False else val['actualAmount'])  for val in self.tradeSets[iTs][trade] if val['oid'] == 'filled'])
             elif order == 'open':
                 return func([(val['amount'] if direction == 'sell' or subtractFee == False else val['actualAmount'])  for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled' and val['oid'] is not None])
@@ -496,7 +496,7 @@ class tradeHandler:
         elif what == 'price':
             if order == 'all':
                 return func([val['price'] for val in self.tradeSets[iTs][trade]])
-            elif order == ' filled':
+            elif order == 'filled':
                 return func([val['price'] for val in self.tradeSets[iTs][trade] if val['oid'] == 'filled'])
             elif order == 'open':
                 return func([val['price'] for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled' and val['oid'] is not None])
@@ -507,7 +507,7 @@ class tradeHandler:
         elif what == 'cost':
             if order == 'all':
                 return func([val['amount']*val['price'] for val in self.tradeSets[iTs][trade]])
-            elif order == ' filled':
+            elif order == 'filled':
                 return func([val['amount']*val['price'] for val in self.tradeSets[iTs][trade] if val['oid'] == 'filled'])
             elif order == 'open':
                 return func([val['amount']*val['price'] for val in self.tradeSets[iTs][trade] if val['oid'] != 'filled' and val['oid'] is not None])
