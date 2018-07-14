@@ -261,7 +261,7 @@ class tradeHandler:
         ts = self.tradeSets[iTs]
         wasactive = ts['active']
         # sanity check of amounts to buy/sell
-        if self.sumSellAmounts(iTs) - (self.sumBuyAmounts(iTs,'notfilled')+ ts['coinsAvail']) > 0:
+        if self.sumSellAmounts(iTs) - self.sumSellAmounts(iTs,'open') - (self.sumBuyAmounts(iTs,'notfilled')+ ts['coinsAvail']) > 0:
             self.message('Cannot activate trade set because the total amount you want to sell exceeds the total amount you want to buy (%s %s after fee subtraction) or added as initial coins. Please adjust the trade set!'%(self.amount2Prec(ts['symbol'],self.sumBuyAmounts(iTs,'notfilled',1)),ts['coinCurrency']))
             return wasactive
         elif self.minBuyPrice(iTs,order='notfilled') is not None and ts['SL'] is not None and ts['SL'] >= self.minBuyPrice(iTs,order='notfilled'):
