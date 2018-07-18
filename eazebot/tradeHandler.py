@@ -54,10 +54,16 @@ class tradeHandler:
         if uid:
             self.exchange.uid = uid
         self.safeRun(self.exchange.loadMarkets)
-        self.amount2Prec = lambda a,b: self.stripZeros(format(self.exchange.amountToPrecision(a,b),'.10f'))
-        self.price2Prec = lambda a,b: self.stripZeros(format(self.exchange.priceToPrecision(a,b),'.10f'))
-        self.cost2Prec = lambda a,b: self.stripZeros(format(self.exchange.costToPrecision(a,b),'.10f'))
-        self.fee2Prec = lambda a,b: self.stripZeros(format(self.exchange.feeToPrecision(a,b),'.10f'))
+        if self.exchange.name != 'bittrex':
+            self.amount2Prec = lambda a,b: self.stripZeros(str(self.exchange.amountToPrecision(a,b)))
+            self.price2Prec = lambda a,b: self.stripZeros(str(self.exchange.priceToPrecision(a,b)))
+            self.cost2Prec = lambda a,b: self.stripZeros(str(self.exchange.costToPrecision(a,b)))
+            self.fee2Prec = lambda a,b: self.stripZeros(str(self.exchange.feeToPrecision(a,b)))
+        else:
+            self.amount2Prec = lambda a,b: self.stripZeros(format(self.exchange.amountToPrecision(a,b),'.10f'))
+            self.price2Prec = lambda a,b: self.stripZeros(format(self.exchange.priceToPrecision(a,b),'.10f'))
+            self.cost2Prec = lambda a,b: self.stripZeros(format(self.exchange.costToPrecision(a,b),'.10f'))
+            self.fee2Prec = lambda a,b: self.stripZeros(format(self.exchange.feeToPrecision(a,b),'.10f'))
             
         if not all([self.exchange.has[x] for x in checkThese]):
             text = 'Exchange %s does not support all required features (%s)'%(exchName,', '.join(checkThese))
