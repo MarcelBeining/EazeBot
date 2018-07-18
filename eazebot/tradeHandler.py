@@ -54,10 +54,10 @@ class tradeHandler:
         if uid:
             self.exchange.uid = uid
         self.safeRun(self.exchange.loadMarkets)
-        self.amount2Prec = lambda a,b: self.stripZeros(str(self.exchange.amountToPrecision(a,b)))
-        self.price2Prec = lambda a,b: self.stripZeros(str(self.exchange.priceToPrecision(a,b)))
-        self.cost2Prec = lambda a,b: self.stripZeros(str(self.exchange.costToPrecision(a,b)))
-        self.fee2Prec = lambda a,b: self.stripZeros(str(self.exchange.feeToPrecision(a,b)))
+        self.amount2Prec = lambda a,b: self.stripZeros(format(self.exchange.amountToPrecision(a,b),'.10f'))
+        self.price2Prec = lambda a,b: self.stripZeros(format(self.exchange.priceToPrecision(a,b),'.10f'))
+        self.cost2Prec = lambda a,b: self.stripZeros(format(self.exchange.costToPrecision(a,b),'.10f'))
+        self.fee2Prec = lambda a,b: self.stripZeros(format(self.exchange.feeToPrecision(a,b),'.10f'))
             
         if not all([self.exchange.has[x] for x in checkThese]):
             text = 'Exchange %s does not support all required features (%s)'%(exchName,', '.join(checkThese))
@@ -198,6 +198,7 @@ class tradeHandler:
         self.waiting.remove(mystamp)
         
     def updateBalance(self):
+        self.safeRun(self.exchange.loadMarkets) 
         self.balance = self.safeRun(self.exchange.fetch_balance)
         
     def getFreeBalance(self,coin):
@@ -261,7 +262,7 @@ class tradeHandler:
         ts = self.tradeSets[iTs]
         wasactive = ts['active']
         # sanity check of amounts to buy/sell
-        if self.sumSellAmounts(iTs) - self.sumSellAmounts(iTs,'open') - (self.sumBuyAmounts(iTs,'notfilled')+ ts['coinsAvail']) > 0:
+        if self.sumSellAmounts(iTs,'notinitiated') - (self.sumBuyAmounts(iTs,'notfilled')+ ts['coinsAvail']) > 0:
             self.message('Cannot activate trade set because the total amount you want to sell exceeds the total amount you want to buy (%s %s after fee subtraction) or added as initial coins. Please adjust the trade set!'%(self.amount2Prec(ts['symbol'],self.sumBuyAmounts(iTs,'notfilled',1)),ts['coinCurrency']))
             return wasactive
         elif self.minBuyPrice(iTs,order='notfilled') is not None and ts['SL'] is not None and ts['SL'] >= self.minBuyPrice(iTs,order='notfilled'):
