@@ -22,6 +22,7 @@
 
 import ccxt
 import re
+from json import JSONDecodeError
 import numpy as np
 import time
 import random
@@ -53,28 +54,13 @@ class tradeHandler:
             self.exchange.password = password
         if uid:
             self.exchange.uid = uid
-        self.safeRun(self.exchange.loadMarkets)
-        if self.exchange.name != 'bittrex':
-            self.amount2Prec = lambda a,b: self.stripZeros(str(self.exchange.amountToPrecision(a,b)))
-            self.price2Prec = lambda a,b: self.stripZeros(str(self.exchange.priceToPrecision(a,b)))
-            self.cost2Prec = lambda a,b: self.stripZeros(str(self.exchange.costToPrecision(a,b)))
-            self.fee2Prec = lambda a,b: self.stripZeros(str(self.exchange.feeToPrecision(a,b)))
-        else:
-            self.amount2Prec = lambda a,b: self.stripZeros(format(self.exchange.amountToPrecision(a,b),'.10f'))
-            self.price2Prec = lambda a,b: self.stripZeros(format(self.exchange.priceToPrecision(a,b),'.10f'))
-            self.cost2Prec = lambda a,b: self.stripZeros(format(self.exchange.costToPrecision(a,b),'.10f'))
-            self.fee2Prec = lambda a,b: self.stripZeros(format(self.exchange.feeToPrecision(a,b),'.10f'))
-            
-        if not all([self.exchange.has[x] for x in checkThese]):
-            text = 'Exchange %s does not support all required features (%s)'%(exchName,', '.join(checkThese))
-            self.message(text,'error')
-            raise Exception(text)
+
         self.updating = False
         self.waiting = []
         self.authenticated = False
         try:
             # check if keys work
-            self.balance = self.safeRun(self.exchange.fetch_balance,0)
+            self.updateBalance()
             self.authenticated = True
         except AuthenticationError as e:#
             try:
@@ -92,6 +78,17 @@ class tradeHandler:
                     self.message('An error occured during checking authentication:\n%s'%str(e),'error')
                 except:
                     print('Failed to authenticate at exchange %s. Please check your keys'%exchName)
+                    
+        if not all([self.exchange.has[x] for x in checkThese]):
+            text = 'Exchange %s does not support all required features (%s)'%(exchName,', '.join(checkThese))
+            self.message(text,'error')
+            raise Exception(text)
+        self.amount2Prec = lambda a,b: self.stripZeros(self.exchange.amountToPrecision(a,b)) if isinstance(self.exchange.amountToPrecision(a,b),str) else self.stripZeros(format(self.exchange.amountToPrecision(a,b),'.10f'))
+        self.price2Prec = lambda a,b: self.stripZeros(self.exchange.priceToPrecision(a,b)) if isinstance(self.exchange.priceToPrecision(a,b),str) else self.stripZeros(format(self.exchange.priceToPrecision(a,b),'.10f'))
+        self.cost2Prec = lambda a,b: self.stripZeros(self.exchange.costToPrecision(a,b)) if isinstance(self.exchange.costToPrecision(a,b),str) else self.stripZeros(format(self.exchange.costToPrecision(a,b),'.10f'))
+        self.fee2Prec = lambda a,b: self.stripZeros(str(b))
+        
+        
           
     def __reduce__(self):
         # function needes for serializing the object
@@ -138,7 +135,7 @@ class tradeHandler:
                 count += 1
                 if count >= 5:
                     self.updating = False
-                    self.message('Network exception occurred 5 times in a row')             
+                    self.message('Network exception occurred 5 times in a row on %s'%self.exchange.name)                
                     raise(e)
                 else:
                     time.sleep(0.5)
@@ -147,7 +144,7 @@ class tradeHandler:
                 count += 1
                 if count >= 5:
                     self.updating = False
-                    self.message('Order not found error 5 times in a row')             
+                    self.message('Order not found error 5 times in a row on %s'%self.exchange.name)             
                     raise(e)
                 else:
                     time.sleep(0.5)
@@ -167,6 +164,10 @@ class tradeHandler:
                     self.exchange.load_time_difference()
                 time.sleep(0.5)
                 continue
+            except JSONDecodeError as e:
+                if 'Expecting value' in str(e):
+                    self.message('%s seems to be down.'%self.exchange.name)   
+                raise(e)
             except Exception as e:
                 if count < 4 and ('unknown error' in str(e).lower() or 'connection' in str(e).lower()):
                     count += 1
@@ -814,7 +815,16 @@ class tradeHandler:
         # goes through all trade sets and checks/updates the buy/sell/stop loss orders
         # daily check is for checking if a candle closed above a certain value
         self.waitForUpdate()
-        self.updateBalance()
+        try:
+            self.updateBalance()
+        except AuthenticationError as e:#
+            self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
+        except ccxt.ExchangeError as e:#
+            if 'key' in str(e).lower():
+                self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
+            else:
+                self.message('Some error occured at exchange %s. Maybe it is down.'%self.exchange.name,'error')
+                    
         tradeSetsToDelete = []
         for iTs in self.tradeSets:
             ts = self.tradeSets[iTs]

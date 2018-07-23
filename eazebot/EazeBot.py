@@ -224,15 +224,19 @@ def printTradeStatus(bot,update,user_data,onlyThisTs=None):
             continue
         count = 0       
         for iTs in ct.tradeSets:
-            ts = ct.tradeSets[iTs]
-            if onlyThisTs is not None and onlyThisTs != iTs:
-                continue
-            if ts['virgin']:
-                markup = InlineKeyboardMarkup(buttonsEditTS(ct,iTs,mode='init'))
-            else:
-                markup = makeTSInlineKeyboard(ex,iTs)
-            count += 1
-            user_data['messages']['status'].append(bot.send_message(user_data['chatId'],ct.getTradeSetInfo(iTs,user_data['settings']['showProfitIn']),reply_markup=markup,parse_mode='markdown'))
+            try:  # catch errors in order to be able to see the statuses of other exchanges, if one exchange has a problem
+                ts = ct.tradeSets[iTs]
+                if onlyThisTs is not None and onlyThisTs != iTs:
+                    continue
+                if ts['virgin']:
+                    markup = InlineKeyboardMarkup(buttonsEditTS(ct,iTs,mode='init'))
+                else:
+                    markup = makeTSInlineKeyboard(ex,iTs)
+                count += 1
+                user_data['messages']['status'].append(bot.send_message(user_data['chatId'],ct.getTradeSetInfo(iTs,user_data['settings']['showProfitIn']),reply_markup=markup,parse_mode='markdown'))
+            except Exception as e:
+                logging.error(str(e))
+                pass
     if count == 0:
         user_data['messages']['status'].append(bot.send_message(user_data['chatId'],'No Trade sets found'))
     return MAINMENU 
@@ -903,8 +907,6 @@ def startBot():
             pass
     # start a job updating the trade sets each interval
     updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=60,context=updater)
-    # start a job updating the balances each hour
-    updater.job_queue.run_repeating(updateBalance, interval=60*60, first=30,context=updater)
     # start a job checking for updates once a  day
     updater.job_queue.run_repeating(checkForUpdates, interval=60*60*24, first=0,context=updater)
     # start a job checking every day 10 sec after midnight (UTC time) if any 'candleAbove' buys need to be initiated
