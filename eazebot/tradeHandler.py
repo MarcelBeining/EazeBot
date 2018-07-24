@@ -32,7 +32,7 @@ from ccxt.base.errors import (AuthenticationError,NetworkError,OrderNotFound,Inv
 
 class tradeHandler:
     
-    def __init__(self,exchName,key,secret,password=None,uid=None,messagerFct=None):
+    def __init__(self,exchName,key=None,secret=None,password=None,uid=None,messagerFct=None):
         # use either the given messager function or define a simple print messager function which takes a level argument as second optional input
         if messagerFct:
             self.message = messagerFct
@@ -44,12 +44,8 @@ class tradeHandler:
         self.exchange = getattr (ccxt, exchName) ({'enableRateLimit': True,'options': { 'adjustForTimeDifference': True }}) # 'nonce': ccxt.Exchange.milliseconds,
         if key:
             self.exchange.apiKey = key
-        else:
-            raise TypeError('key argument not given to class')
         if secret:
             self.exchange.secret = secret
-        else:
-            raise TypeError('key argument not given to class')
         if password:
             self.exchange.password = password
         if uid:
@@ -58,27 +54,9 @@ class tradeHandler:
         self.updating = False
         self.waiting = []
         self.authenticated = False
-        try:
-            # check if keys work
-            self.updateBalance()
-            self.authenticated = True
-        except AuthenticationError as e:#
-            try:
-                self.message('Failed to authenticate at exchange %s. Please check your keys'%exchName,'error')
-            except:
-                print('Failed to authenticate at exchange %s. Please check your keys'%exchName)
-        except getattr(ccxt,'ExchangeError') as e:#
-            if 'key' in str(e).lower():
-                try:
-                    self.message('Failed to authenticate at exchange %s. Please check your keys'%exchName,'error')
-                except:
-                    print('Failed to authenticate at exchange %s. Please check your keys'%exchName)
-            else:
-                try:
-                    self.message('An error occured during checking authentication:\n%s'%str(e),'error')
-                except:
-                    print('Failed to authenticate at exchange %s. Please check your keys'%exchName)
-                    
+        if 0:#key:
+            self.updateKeys(key,secret,password,uid)
+                        
         if not all([self.exchange.has[x] for x in checkThese]):
             text = 'Exchange %s does not support all required features (%s)'%(exchName,', '.join(checkThese))
             self.message(text,'error')
@@ -92,7 +70,8 @@ class tradeHandler:
           
     def __reduce__(self):
         # function needes for serializing the object
-        return (self.__class__, (self.exchange.__class__.__name__,self.exchange.apiKey,self.exchange.secret,self.exchange.password,self.exchange.uid,self.message),self.__getstate__(),None,None)
+#        return (self.__class__, (self.exchange.__class__.__name__,self.exchange.apiKey,self.exchange.secret,self.exchange.password,self.exchange.uid,self.message),self.__getstate__(),None,None)
+        return (self.__class__, (self.exchange.__class__.__name__,None,None,None,None,self.message),self.__getstate__(),None,None)
     
     def __setstate__(self,state):
         for iTs in state: # temp fix for old trade sets that do not have the actualAmount var
@@ -133,6 +112,8 @@ class tradeHandler:
                 return func()
             except NetworkError as e:
                 count += 1
+                if hasattr(self.exchange, 'load_time_difference'):
+                    self.exchange.load_time_difference()
                 if count >= 5:
                     self.updating = False
                     self.message('Network exception occurred 5 times in a row on %s'%self.exchange.name)                
@@ -205,8 +186,10 @@ class tradeHandler:
         self.waiting.remove(mystamp)
         
     def updateBalance(self):
+        # reloads the exchange market and private balance and, if successul, sets the exchange as authenticated
         self.safeRun(self.exchange.loadMarkets) 
         self.balance = self.safeRun(self.exchange.fetch_balance)
+        self.authenticated = True
         
     def getFreeBalance(self,coin):
         if coin in self.balance:
@@ -214,30 +197,35 @@ class tradeHandler:
         else:
             return 0
 
-    def updateKeys(self,key,secret,password=None,uid=None):
+    def updateKeys(self,key=None,secret=None,password=None,uid=None):
         if key:
             self.exchange.apiKey = key
-        else:
-            raise TypeError('key argument not given to class')
         if secret:
             self.exchange.secret = secret
-        else:
-            raise TypeError('key argument not given to class')
         if password:
             self.exchange.password = password
         if uid:
             self.exchange.uid = uid
-        self.safeRun(self.exchange.loadMarkets) 
-        try:
-            # check if keys work
+        try: # check if keys work
             self.updateBalance()
-            self.authenticated = True
         except AuthenticationError as e:#
             self.authenticated = False
-            self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
+            try:
+                self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
+            except:
+                print('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name)
         except getattr(ccxt,'ExchangeError') as e:
             self.authenticated = False
-            self.message('Failed to fetch balance at exchange %s. The following error occurred:\n%s'%(self.exchange.name,str(e)),'error')
+            if 'key' in str(e).lower():
+                try:
+                    self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
+                except:
+                    print('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name)
+            else:
+                try:
+                    self.message('An error occured at exchange %s. The following error occurred:\n%s'%(self.exchange.name,str(e)),'error')
+                except:
+                    print('An error occured at exchange %s. The following error occurred:\n%s'%(self.exchange.name,str(e)))
           
     
     def initTradeSet(self,symbol):
@@ -540,7 +528,7 @@ class tradeHandler:
                 return 0 
             
             if fee['currency'] == ts['coinCurrency']:
-                boughtAmount = buyAmount - fee['cost']
+                boughtAmount = buyAmount - (fee['cost'] if (self.exchange.name.lower() != 'binance' or self.getFreeBalance('BNB') < 0.5) else 0) # this is a hack, as fees on binance are deduced from BNB if this is activated and there is enough BNB, however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay the fee for the trade and thus the fee is not subtracted from the traded coin
             else:
                 boughtAmount = buyAmount
             self.waitForUpdate()
@@ -819,11 +807,13 @@ class tradeHandler:
             self.updateBalance()
         except AuthenticationError as e:#
             self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
+            return
         except ccxt.ExchangeError as e:#
             if 'key' in str(e).lower():
                 self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
             else:
                 self.message('Some error occured at exchange %s. Maybe it is down.'%self.exchange.name,'error')
+            return
                     
         tradeSetsToDelete = []
         for iTs in self.tradeSets:

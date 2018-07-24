@@ -34,7 +34,6 @@ import base64
 from shutil import copy2
 from collections import defaultdict
 import os
-#import inspect
 from telegram import (ReplyKeyboardMarkup,InlineKeyboardMarkup,InlineKeyboardButton,bot)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
                           ConversationHandler,CallbackQueryHandler)
@@ -50,7 +49,7 @@ MAINMENU,SETTINGS,SYMBOL,NUMBER,TIMING,INFO = range(6)
 
 logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
 rootLogger = logging.getLogger()
-rootLogger.handlers = []  # delete old handlers in case bot is restarted but not python
+rootLogger.handlers = []  # delete old handlers in case bot is restarted but not python kernel
 rootLogger.setLevel('INFO')
 fileHandler = logging.handlers.RotatingFileHandler("{0}/{1}.log".format(os.getcwd(), logFileName),maxBytes=1000000, backupCount=5)
 fileHandler.setFormatter(logFormatter)
@@ -438,21 +437,29 @@ def addExchanges(bot,update,user_data):
                 exchParams['uid'] = APIs['apiUid%s'%a]
             if a in hasPassword:
                 exchParams['password'] = APIs['apiPassword%s'%a]
-            # if no tradeHandler object has been created yet, create one, but also check for correct authentication, otherwise remove again
+            # if no tradeHandler object has been created yet, create one, but also check for correct authentication
             if exch not in user_data['trade']:
                 userId = user_data['chatId']
                 user_data['trade'][exch] = tradeHandler(exch,**exchParams,messagerFct = lambda a,b='info': broadcastMsg(bot,userId,a,b))
             else:
                 user_data['trade'][exch].updateKeys(**exchParams)
-            if not user_data['trade'][exch].authenticated:
+            if not user_data['trade'][exch].authenticated and len(user_data['trade'][exch].tradeSets) == 0:
                 user_data['trade'].pop(exch)
             else:
                 authenticatedExchanges.append(a)
         bot.send_message(user_data['chatId'],'Exchanges %s added/updated'%authenticatedExchanges)
     else:
         bot.send_message(user_data['chatId'],'No exchange found to add')    
-        if update is not None:
-            return MAINMENU
+#        if update is not None:
+#            return MAINMENU
+    oldExchanges = set(ct.exchange.name for _,ct in user_data['trade'].items()) - availableExchanges
+    removedExchanges = []
+    for exch in oldExchanges:
+        if len(user_data['trade'][exch].tradeSets) == 0:
+            user_data['trade'].pop(exch)
+            removedExchanges.append(exch)
+    if len(removedExchanges) > 0:
+        bot.send_message(user_data['chatId'],'Old exchanges %s with no tradeSets removed'%authenticatedExchanges)
 
 def getRemoteVersion():
     remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/version.txt').json()['content'])
@@ -489,7 +496,11 @@ def updateTradeSets(bot,job):
     for user in updater.dispatcher.user_data:
         if user in __config__['telegramUserId'] and 'trade' in updater.dispatcher.user_data[user]:
             for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
-                updater.dispatcher.user_data[user]['trade'][ex].update()
+                try: # make sure other exchanges are checked too, even if one has a problem
+                    updater.dispatcher.user_data[user]['trade'][ex].update()
+                except Exception as e:
+                    logging.error(str(e))
+                    pass
     logging.info('Finished updating trade sets...')
 
 def updateBalance(bot,job):
