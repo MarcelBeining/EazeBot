@@ -31,6 +31,7 @@ import json
 import dill
 import requests
 import base64
+from copy import deepcopy
 from shutil import copy2
 from collections import defaultdict
 import os
@@ -772,7 +773,6 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                                 if 'rel' in args:
                                     response /= 100
                                 ct.setTrailingSL(uidTS,response,typ='abs' if 'abs' in args else 'rel')
-                                query.answer('Trailing SL set')
                                 deleteMessages(user_data,'dialog')
                                 updateTStext(bot,update,user_data,uidTS,query)
                                 
@@ -804,17 +804,18 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                             query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3|%s|%s|yes'%(exch,uidTS)),InlineKeyboardButton("No", callback_data='3|%s|%s|no'%(exch,uidTS))]]))
     return MAINMENU
 
-def clean_data(updater):
+def clean_data(user_data):
     delThese = []
-    for user in updater.dispatcher.user_data:
+    for user in user_data:
         # discard unknown users
-        if not (user in __config__['telegramUserId'] and 'trade' in updater.dispatcher.user_data[user]):
+        if not (user in __config__['telegramUserId'] and 'trade' in user_data[user]):
             delThese.append(user)
         else: # discard cached messages
-            if 'messages' in updater.dispatcher.user_data[user]:
-                deleteMessages(updater.dispatcher.user_data[user],'all',True)
+            if 'messages' in user_data[user]:
+                deleteMessages(user_data[user],'all',True)
     for k in delThese:
-        updater.dispatcher.user_data.pop(k, None)
+        user_data.pop(k, None)
+    return user_data
 
 def save_data(*arg):
     if len(arg) == 1:
@@ -835,10 +836,11 @@ def save_data(*arg):
     except:
         logging.warning('Could not rename last saved data to backup')
         pass
-    clean_data(updater)
+    user_data = deepcopy(updater.dispatcher.user_data)
+    clean_data(user_data)
     # write user data
     with open('data.pickle', 'wb') as f:
-        dill.dump(updater.dispatcher.user_data, f)
+        dill.dump(user_data, f)
     logging.info('User data autosaved')
         
 def load_data(filename='data.pickle'):
@@ -902,15 +904,13 @@ def startBot():
     job_queue = updater.job_queue
     updater.dispatcher.add_handler(conv_handler)
     updater.dispatcher.add_handler(unknown_handler)
+    updater.dispatcher.user_data = clean_data(load_data())
     
-    updater.dispatcher.user_data = load_data()
-    clean_data(updater)
     for user in __config__['telegramUserId']:
         if user in updater.dispatcher.user_data and len(updater.dispatcher.user_data[user]) > 0:
             time.sleep(2) # wait because of possibility of temporary exchange lockout
             addExchanges(updater.bot,None,updater.dispatcher.user_data[user])
             
-       
     for user in __config__['telegramUserId']:
         try:
             updater.bot.send_message(user,'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
