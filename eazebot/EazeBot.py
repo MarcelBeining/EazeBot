@@ -313,7 +313,7 @@ def askAmount(user_data,exch,uidTS,direction,botOrQuery):
     currency = ts['baseCurrency']
     if direction=='sell':
         # free balance is coins available in trade set minus coins that will be sold plus coins that will be bought
-        bal = ts['coinsAvail'] - ct.sumSellAmounts(uidTS,'notfilled') + ct.sumBuyAmounts(uidTS,'notfilled',subtractFee = True)
+        bal = ts['coinsAvail'] - ct.sumSellAmounts(uidTS,'notinitiated') + ct.sumBuyAmounts(uidTS,'notfilled',subtractFee = True)
         if user_data['whichCurrency']==0:
             cname = coin
             action = 'sell'
