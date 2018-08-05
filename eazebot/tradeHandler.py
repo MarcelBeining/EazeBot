@@ -42,20 +42,10 @@ class tradeHandler:
         checkThese = ['cancelOrder','createLimitOrder','fetchBalance','fetchTicker']
         self.tradeSets = {}
         self.exchange = getattr (ccxt, exchName) ({'enableRateLimit': True,'options': { 'adjustForTimeDifference': True }}) # 'nonce': ccxt.Exchange.milliseconds,
-        if key:
-            self.exchange.apiKey = key
-        if secret:
-            self.exchange.secret = secret
-        if password:
-            self.exchange.password = password
-        if uid:
-            self.exchange.uid = uid
 
         self.updating = False
         self.waiting = []
-        self.authenticated = False
-        if 0:#key:
-            self.updateKeys(key,secret,password,uid)
+        self.updateKeys(key,secret,password,uid)
                         
         if not all([self.exchange.has[x] for x in checkThese]):
             text = 'Exchange %s does not support all required features (%s)'%(exchName,', '.join(checkThese))
