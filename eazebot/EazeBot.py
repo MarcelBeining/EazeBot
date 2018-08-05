@@ -430,6 +430,7 @@ def addExchanges(bot,update,user_data):
     hasPassword = [re.search('(?<=^apiPassword).*',val).group(0) for val in keys if re.search('(?<=^apiPassword).*',val,re.IGNORECASE) is not None ]
     availableExchanges = set(hasKey).intersection(set(hasSecret))
     if len(availableExchanges) > 0:
+        logging.info('Found exchanges %s with keys %s, secrets %s, uids %s, password %s'%(availableExchanges,hasKey,hasSecret,hasUid,hasPassword))
         authenticatedExchanges = []
         for a in availableExchanges:
             exch = a.lower()
