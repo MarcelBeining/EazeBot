@@ -348,7 +348,7 @@ def addInitBalance(bot,user_data,exch,uidTS,inputType=None,response=None,fct = N
     ct = user_data['trade'][exch]
     if inputType is None:
         user_data['lastFct'].append(lambda res : addInitBalance(bot,user_data,exch,uidTS,'initCoins',res,fct))
-        user_data['messages']['dialog'].append(bot.send_message(user_data['chatId'],"You already have %s that you want to add to the trade set? How much is it?"%ct.tradeSets[uidTS]['coinCurrency'], reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data='addInitBal|cancel')]])))
+        user_data['messages']['dialog'].append(bot.send_message(user_data['chatId'],"You already have %s that you want to add to the trade set? How much is it (found %.5g free %s on %s)?"%(ct.tradeSets[uidTS]['coinCurrency'],ct.getFreeBalance(ct.tradeSets[uidTS]['coinCurrency']),ct.tradeSets[uidTS]['coinCurrency'],exch), reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", callback_data='addInitBal|cancel')]])))
         return NUMBER
     elif inputType == 'initCoins':
         user_data['tempTradeSet'][0] = response

@@ -406,10 +406,12 @@ class tradeHandler:
     def deleteTradeSet(self,iTs,sellAll=False):
         self.waitForUpdate()
         if sellAll:
-            self.sellAllNow(iTs)
+            sold = self.sellAllNow(iTs)
         else:
+            sold = True
             self.deactivateTradeSet(iTs,1)
-        self.tradeSets.pop(iTs)
+        if sold:
+            self.tradeSets.pop(iTs)
         self.updating = False
     
     def addInitCoins(self,iTs,initCoins=0,initPrice=None):
@@ -712,7 +714,9 @@ class tradeHandler:
         ts['InTrades'] = []
         ts['OutTrades'] = []
         ts['SL'] = None # necessary to not retrigger SL
-        if ts['coinsAvail'] > 0:
+        sold = True
+                
+        if ts['coinsAvail'] > 0 and self.checkQuantity(ts['symbol'],'amount',ts['coinsAvail']):
             if self.exchange.has['createMarketOrder']:
                 try:
                     response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail']),0)
@@ -736,13 +740,14 @@ class tradeHandler:
                     orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
                 ts['costOut'] += orderInfo['cost']
                 self.message('Sold immediately at a price of %s %s: Sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
-                self.deleteTradeSet(iTs)
             else:
                 self.message('Sell order was not traded immediately, updating status soon.')
+                sold = False
                 ts['OutTrades'].append({'oid':response['id'],'price': orderInfo['price'],'amount': orderInfo['amount']})
                 self.activateTradeSet(iTs,0)
         else:
-            self.message('No coins to sell from this trade set.')
+            self.message('No coins (or too low amount) to sell from this trade set. Thus stop-loss is omitted.','warning')
+        return sold
                 
     def cancelSellOrders(self,iTs):
         if iTs in self.tradeSets and self.numSellLevels(iTs) > 0:
@@ -827,8 +832,11 @@ class tradeHandler:
                     self.message('Stop loss for pair %s has been triggered!'%ts['symbol'],'warning')
                     # cancel all sell orders, create market sell order and save resulting amount of base currency
                     self.updating = False
-                    self.sellAllNow(iTs,price=ticker['last'])
+                    sold = self.sellAllNow(iTs,price=ticker['last'])
                     self.waitForUpdate()
+                    if sold:
+                        tradeSetsToDelete.append(iTs)
+                        continue
                 elif 'trailingSL' in ts and ts['trailingSL'][0] is not None:
                     if ts['trailingSL'][1] == 'abs':
                         newSL = ticker['last'] - ts['trailingSL'][0]
