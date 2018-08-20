@@ -1,5 +1,5 @@
 # EazeBot
-![Logo]((https://github.com/MarcelBeining/EazeBot/blob/master/botLogo.png "EazeBot")
+![Logo](https://github.com/MarcelBeining/EazeBot/blob/master/botLogo.png)
 
 ## Introduction
 - Have you ever traded cryptocurrencies and lost overview of your planned buys/sells?
