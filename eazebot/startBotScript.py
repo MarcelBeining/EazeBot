@@ -1,6 +1,6 @@
 try:
     import os.path
-    # check if script is started from packacge folder or not
+    # check if script is started from package folder or not
     if os.path.isfile('EazeBot.py') :
         from EazeBot import *
     else:

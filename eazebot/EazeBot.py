@@ -651,7 +651,9 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                             elif args[0] == 'ETH':
                                 address = '0xa86711B0a368E4ed3B01a48E79844f6941Af579f'
                             elif args[0] == 'NEO':
-                                address = 'AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg'  
+                                address = 'AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg' 
+                            elif args[0] == 'XLM':
+                                address = 'GCP2KKXERN4MRBPEKPA2PGMEC573NBNVSU5KNU5V2RHE46Y7ZDNRNUCM'
                             try:
                                 if response > 0:
                                     user_data['trade'][exch].exchange.withdraw(args[0], response, address)
@@ -674,7 +676,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                             else:
                                 query.answer('%s has insufficient free %s. Choose another exchange!'%(exch,args[0])) 
                 else:
-                    buttons = [[InlineKeyboardButton("Donate BTC",callback_data='1|%s|%s|BTC'%('xxx','xxx')),InlineKeyboardButton("Donate ETH",callback_data='%s|%s|%d|ETH'%('xxx','xxx',1)),InlineKeyboardButton("Donate NEO",callback_data='1|%s|%s|NEO'%('xxx','xxx'))]] 
+                    buttons = [[InlineKeyboardButton("Donate BTC",callback_data='1|%s|%s|BTC'%('xxx','xxx')),InlineKeyboardButton("Donate ETH",callback_data='%s|%s|%d|ETH'%('xxx','xxx',1)),InlineKeyboardButton("Donate NEO",callback_data='1|%s|%s|NEO'%('xxx','xxx')),InlineKeyboardButton("Donate XLM",callback_data='1|%s|%s|XLM'%('xxx','xxx'))]] 
                     query.edit_message_text('Thank you very much for your intention to donate some crypto! Accepted coins are BTC, ETH and NEO.\nYou may either donate by sending coins manually to one of the addresses below, or more easily by letting the bot send coins (amount will be asked in a later step) from one of your exchanges by clicking the corresponding button below.\n\n*BTC address:*\n17SfuTsJ3xpbzgArgRrjYSjvmzegMRcU3L\n*ETH address:*\n0x2DdbDA69B27D36D0900970BCb8049546a9d621Ef\n*NEO address:*\nAaGRMPuwtGrudXR5s7F5n11cxK595hCWUg'  ,reply_markup=InlineKeyboardMarkup(buttons),parse_mode='markdown')
             elif command == 'chooseExch':
                 query.answer('%s chosen'%exch)
@@ -858,6 +860,7 @@ def load_data(filename='data.pickle'):
         return defaultdict(dict)    
     
 def startBot():
+    print(string = '\n\n******** Welcome to EazeBot (v%s) ********\nFree python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges\n\n'%thisVersion)
     global __config__
     global job_queue
     global updater

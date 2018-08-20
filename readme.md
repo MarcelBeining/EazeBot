@@ -1,4 +1,6 @@
 # EazeBot
+![Logo]((https://github.com/MarcelBeining/EazeBot/blob/master/botLogo.png "EazeBot")
+
 ## Introduction
 - Have you ever traded cryptocurrencies and lost overview of your planned buys/sells?
 - Have you encountered the experience that your buy order was executed while you slept, and before you could place any stop-loss, the price rushed so deep that you made huge loss?
@@ -104,7 +106,7 @@ donation to one of the crypto addresses below, or use the built-in donation feat
 | Currency        | Address           | 
 | ------------- |:-------------:|
 | Bitcoin      | `17SfuTsJ3xpbzgArgRrjYSjvmzegMRcU3L` |
-| ETH      | `0x2DdbDA69B27D36D0900970BCb8049546a9d621Ef`| 
+| ETH      | `0xa86711B0a368E4ed3B01a48E79844f6941Af579f`| 
 | Neo | `AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg` |
 | XLM |`GCP2KKXERN4MRBPEKPA2PGMEC573NBNVSU5KNU5V2RHE46Y7ZDNRNUCM`|
 
