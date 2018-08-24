@@ -53,7 +53,7 @@ After installation of EazeBot you have to set up the bot so that you can control
 2. **Add your Telegram ID to _botConfig.json_**
    + This ensures that **only you** are able to control the bot via Telegram.
    + Simply replace the *000000000* text in *botConfig.json* with your telegram ID. This is (normally) a 9-digit number. 
-   If you do not know it, simply start EazeBot bot (_see step 5_) and start a conversation with him
+   If you do not know it, simply start EazeBot bot (_see step 4_) and start a conversation with him
    (e.g. if you named your telegram bot @mysuperbot,  search for him in Telegram and click the Start button). The bot will tell you
    your Telegram ID (now you can add it to the json file) and that you are not authorized (yet). Stop the bot (e.g. ctrl+c in Python) again for now!
 3. **Create API keys for each exchange you want to access via EazeBot and add them to _APIs.json_**
@@ -73,7 +73,7 @@ After installation of EazeBot you have to set up the bot so that you can control
    + On Windows, simply go to the folder where the JSONs were copied to and double-click _startBotScript.py_
    + On Linux/Mac use the terminal, go to the folder, where the JSONs were copied to (see [Installing_ step](https://github.com/MarcelBeining/EazeBot/blob/master/readme.md#installing) and run this command:
    ````
-   python startBotScript.py
+   python startBotScript.py // on AWS Ubuntu it is python3 startBotScript.py
    ````
    1) Thereafter you should start a conversation with your bot on Telegram.
    2) The bot will welcome you and show you a menu of things you can do. Everything should be rather self-explanatory as the bot will have a dialog with you on everything you click.
