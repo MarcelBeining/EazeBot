@@ -76,7 +76,10 @@ class tradeHandler:
         return (self.__class__, (self.exchange.__class__.__name__,None,None,None,None,self.message),self.__getstate__(),None,None)
     
     def __setstate__(self,state):
-        state,tshs = state
+        if isinstance(state,tuple):
+            state,tshs = state
+        else:
+            tshs = []
         for iTs in state: # temp fix for old trade sets that do not have the actualAmount var
             ts = state[iTs]
             if 'trailingSL' not in ts:
@@ -403,7 +406,7 @@ class tradeHandler:
     
 
     def createTradeHistoryEntry(self,ts):
-        gain = self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn'])
+        gain = ts['costOut']-ts['costIn']
         # try to convert gain amount into btc currency
         gainBTC,curr = self.convertAmount(gain,ts['baseCurrency'],'BTC')
         if curr != 'BTC':
@@ -417,16 +420,16 @@ class tradeHandler:
                     gainUSD = None
         else:
             gainUSD = None
-        self.tradeSetHistory.append({'time':time.time(),'days':None if not 'createdAt' in ts else (ts['createdAt']-time.time())/60/60/24 ,'symbol':ts['symbol'],'gain':gain,'gainRel':gain/(ts['costIn'])*100,'quote':ts['baseCurrency'],'gainBTC':gainBTC,'gainUSD':gainUSD})
+        self.tradeSetHistory.append({'time':time.time(),'days':None if not 'createdAt' in ts else (time.time()-ts['createdAt'])/60/60/24 ,'symbol':ts['symbol'],'gain':gain,'gainRel':gain/(ts['costIn'])*100,'quote':ts['baseCurrency'],'gainBTC':gainBTC,'gainUSD':gainUSD})
     
     def getTradeHistory(self):
         string = ''
         for tsh in self.tradeSetHistory:
-            string += '%s: %s\t%+7.1f%% = %+.5f BTC = %+.2f USD\n'%(datetime.datetime.utcfromtimestamp(tsh['time']).strftime('%Y-%m-%d'),tsh['symbol'],tsh['gainRel'],tsh['gainBTC'] if tsh['gainBTC'] else 'N/A',tsh['gainUSD'] if tsh['gainUSD'] else 'N/A')
+            string += '%s:  %s\t%+7.1f%% ( %+.5f BTC | %+.2f USD)\n'%(datetime.datetime.utcfromtimestamp(tsh['time']).strftime('%Y-%m-%d'),tsh['symbol'],tsh['gainRel'],tsh['gainBTC'] if tsh['gainBTC'] else 'N/A',tsh['gainUSD'] if tsh['gainUSD'] else 'N/A')
         if len(self.tradeSetHistory) > 0:
-            return 'Profit history on %s:\nAvg. relative gain: %+7.1f%%\nTotal profit in BTC: %+.5f\nTotal profit in USD: %+.2f\nDetails:\nDate\tSymbol\tRel. gain\tin BTC\tin USD\n'%(self.exchange.name,np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory]),sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]),sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory])) + string
+            return '*Profit history on %s:\nAvg. relative gain: %+7.1f%%\nTotal profit in BTC: %+.5f\nTotal profit in USD: %+.2f\n\nDetailed Set Info:\n*'%(self.exchange.name,np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory]),sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]),sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory])) + string
         else:
-            return 'No profit history on %s'%self.exchange.name
+            return '*No profit history on %s*'%self.exchange.name
     
     
     def convertAmount(self,amount,currency,targetCurrency):

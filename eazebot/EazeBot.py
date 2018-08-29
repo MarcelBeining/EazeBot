@@ -64,7 +64,7 @@ with open(os.path.join(os.path.dirname(__file__),'version.txt')) as fh:
     thisVersion = re.search('(?<=version = )[0-9\.]+',str(fh.read())).group(0)
 
 #%% init menues
-mainMenu = [['Status of Trade Sets', 'New Trade Set','Check Balance'],['Add/update exchanges (APIs.json)','Settings','Bot Info']]
+mainMenu = [['Status of Trade Sets', 'New Trade Set','Trade History'],['Check Balance','Bot Info'],['Add/update exchanges (APIs.json)','Settings']]
 markupMainMenu = ReplyKeyboardMarkup(mainMenu)#, one_time_keyboard=True)
 
 tradeSetMenu = [['Add buy position', 'Add sell position','Add initial coins'],
@@ -160,7 +160,7 @@ def startCmd(bot, update,user_data):
         logging.info('User %s %s (username: %s, id: %s) (re)started the bot'%(update.message.from_user.first_name,update.message.from_user.last_name,update.message.from_user.username,update.message.from_user.id))
     if user_data:
         washere = 'back '
-        user_data.update({'lastFct':[],'whichCurrency':0,'tempTradeSet':[None,None,None],'messages':{'status':[],'dialog':[],'botInfo':[],'settings':[]}})
+        user_data.update({'lastFct':[],'whichCurrency':0,'tempTradeSet':[None,None,None],'messages':{'status':[],'dialog':[],'botInfo':[],'settings':[],'history':[]}})
     else:
         washere = ''
         user_data.update({'chatId':update.message.chat_id,'exchanges':{},'trade':{},'settings':{'fiat':[],'showProfitIn':None},'lastFct':[],'whichCurrency':0,'tempTradeSet':[None,None,None],'messages':{'status':[],'dialog':[],'botInfo':[],'settings':[]}})
@@ -202,7 +202,7 @@ def buttonsEditTS(ct,uidTS,mode='full'):
 def deleteMessages(user_data,typ='all',onlyForget=False):
     if isinstance(typ,str):
         if typ == 'all':
-            typ = ['status','dialog','botInfo','settings']
+            typ = list(user_data['messages'].keys())
         elif not isinstance(typ,list):
             typ = [typ]
     for t in typ:
@@ -239,6 +239,13 @@ def printTradeStatus(bot,update,user_data,onlyThisTs=None):
                 pass
     if count == 0:
         user_data['messages']['status'].append(bot.send_message(user_data['chatId'],'No Trade sets found'))
+    return MAINMENU 
+
+def printTradeHistory(bot,update,user_data):
+    deleteMessages(user_data,'history') #%!!!
+    for iex,ex in enumerate(user_data['trade']):
+        ct = user_data['trade'][ex]
+        user_data['messages']['history'].append(bot.send_message(user_data['chatId'],ct.getTradeHistory(),parse_mode='markdown'))
     return MAINMENU 
     
 def checkBalance(bot,update,user_data,exchange=None):
@@ -860,7 +867,7 @@ def load_data(filename='data.pickle'):
         return defaultdict(dict)    
     
 def startBot():
-    print(string = '\n\n******** Welcome to EazeBot (v%s) ********\nFree python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges\n\n'%thisVersion)
+    print('\n\n******** Welcome to EazeBot (v%s) ********\nFree python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges\n\n'%thisVersion)
     global __config__
     global job_queue
     global updater
@@ -884,6 +891,7 @@ def startBot():
             states={
                 MAINMENU: [RegexHandler('^Status of Trade Sets$',printTradeStatus,pass_user_data=True),
                             RegexHandler('^New Trade Set$',createTradeSet,pass_user_data=True),
+                            RegexHandler('^Trade History$',printTradeHistory,pass_user_data=True),
                             RegexHandler('^Add/update exchanges',addExchanges,pass_user_data=True),
                             RegexHandler('^Bot Info$',botInfo,pass_user_data=True),
                             RegexHandler('^Check Balance$',checkBalance,pass_user_data=True),
