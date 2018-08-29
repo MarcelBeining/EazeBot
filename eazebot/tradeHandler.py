@@ -25,6 +25,7 @@ import re
 from json import JSONDecodeError
 import numpy as np
 import time
+import datetime
 import random
 import string
 import sys, os
@@ -41,6 +42,7 @@ class tradeHandler:
             
         checkThese = ['cancelOrder','createLimitOrder','fetchBalance','fetchTicker']
         self.tradeSets = {}
+        self.tradeSetHistory = []
         self.exchange = getattr (ccxt, exchName) ({'enableRateLimit': True,'options': { 'adjustForTimeDifference': True }}) # 'nonce': ccxt.Exchange.milliseconds,
         if key:
             self.exchange.apiKey = key
@@ -74,6 +76,10 @@ class tradeHandler:
         return (self.__class__, (self.exchange.__class__.__name__,None,None,None,None,self.message),self.__getstate__(),None,None)
     
     def __setstate__(self,state):
+        if isinstance(state,tuple):
+            state,tshs = state
+        else:
+            tshs = []
         for iTs in state: # temp fix for old trade sets that do not have the actualAmount var
             ts = state[iTs]
             if 'trailingSL' not in ts:
@@ -86,9 +92,13 @@ class tradeHandler:
                     else:
                         trade['actualAmount'] = trade['amount']
         self.tradeSets = state
+        self.tradeSetHistory = tshs
         
     def __getstate__(self):
-        return self.tradeSets
+        if hasattr(self,'tradeSetHistory'):
+            return (self.tradeSets,self.tradeSetHistory)
+        else:
+            return (self.tradeSets,[])
     
     @staticmethod
     def stripZeros(string):
@@ -237,6 +247,7 @@ class tradeHandler:
         # redo if uid already reserved
         while iTs in self.tradeSets:
             iTs = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
+        ts['createdAt'] = time.time()
         ts['OutTrades'] = []
         ts['baseCurrency'] = re.search("(?<=/).*", symbol).group(0)
         ts['coinCurrency'] = re.search(".*(?=/)", symbol).group(0)
@@ -388,21 +399,55 @@ class tradeHandler:
             costSells = ts['costOut'] +   ticker['last'] * totalAmountToSell - (fee['cost'] if fee['currency'] == ts['baseCurrency'] else 0)
             gain = costSells - ts['costIn']
             gainOrig = gain
-            thisCur = ts['baseCurrency']
             if showProfitIn is not None:
-                if isinstance(showProfitIn,str):
-                    showProfitIn = [showProfitIn]
-                conversionPairs = [('%s/%s'%(ts['baseCurrency'],cur) in self.exchange.symbols) + 2*('%s/%s'%(cur,ts['baseCurrency']) in self.exchange.symbols) for cur in showProfitIn]
-                ind = next((i for i, x in enumerate(conversionPairs) if x), None)
-                if ind is not None:
-                    thisCur = showProfitIn[ind]
-                    if conversionPairs[ind] == 1:
-                        gain *= self.safeRun(lambda: self.exchange.fetchTicker('%s/%s'%(ts['baseCurrency'],thisCur)))['last']
-                    else:
-                        gain /= self.safeRun(lambda: self.exchange.fetchTicker('%s/%s'%(thisCur,ts['baseCurrency'])))['last']
+                gain,thisCur = self.convertAmount(gain,ts['baseCurrency'],showProfitIn)
             string += '\n*Estimated gain/loss when selling all now: * %s %s (%+.2f %%)\n'%(self.cost2Prec(ts['symbol'],gain),thisCur,gainOrig/(ts['costIn'])*100)
         return string
     
+
+    def createTradeHistoryEntry(self,ts):
+        gain = ts['costOut']-ts['costIn']
+        # try to convert gain amount into btc currency
+        gainBTC,curr = self.convertAmount(gain,ts['baseCurrency'],'BTC')
+        if curr != 'BTC':
+            gainBTC = None
+        if gainBTC:
+            # try to convert btc gain into usd currency
+            gainUSD,curr = self.convertAmount(gainBTC,'BTC','USD')
+            if curr != 'USD':
+                gainUSD,curr = self.convertAmount(gainBTC,'BTC','USDT')
+                if curr != 'USDT':
+                    gainUSD = None
+        else:
+            gainUSD = None
+        self.tradeSetHistory.append({'time':time.time(),'days':None if not 'createdAt' in ts else (time.time()-ts['createdAt'])/60/60/24 ,'symbol':ts['symbol'],'gain':gain,'gainRel':gain/(ts['costIn'])*100,'quote':ts['baseCurrency'],'gainBTC':gainBTC,'gainUSD':gainUSD})
+    
+    def getTradeHistory(self):
+        string = ''
+        for tsh in self.tradeSetHistory:
+            string += '%s:  %s\t%+7.1f%% ( %+.5f BTC | %+.2f USD)\n'%(datetime.datetime.utcfromtimestamp(tsh['time']).strftime('%Y-%m-%d'),tsh['symbol'],tsh['gainRel'],tsh['gainBTC'] if tsh['gainBTC'] else 'N/A',tsh['gainUSD'] if tsh['gainUSD'] else 'N/A')
+        if len(self.tradeSetHistory) > 0:
+            return '*Profit history on %s:\nAvg. relative gain: %+7.1f%%\nTotal profit in BTC: %+.5f\nTotal profit in USD: %+.2f\n\nDetailed Set Info:\n*'%(self.exchange.name,np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory]),sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]),sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory])) + string
+        else:
+            return '*No profit history on %s*'%self.exchange.name
+    
+    
+    def convertAmount(self,amount,currency,targetCurrency):
+        if isinstance(targetCurrency,str):
+            targetCurrency = [targetCurrency]
+        conversionPairs = [('%s/%s'%(currency,cur) in self.exchange.symbols) + 2*('%s/%s'%(cur,currency) in self.exchange.symbols) for cur in targetCurrency]
+        ind = next((i for i, x in enumerate(conversionPairs) if x), None)
+        if ind is not None:
+            thisCur = targetCurrency[ind]
+            if conversionPairs[ind] == 1:
+                amount *= self.safeRun(lambda: self.exchange.fetchTicker('%s/%s'%(currency,thisCur)))['last']
+            else:
+                amount /= self.safeRun(lambda: self.exchange.fetchTicker('%s/%s'%(thisCur,currency)))['last']
+            return (amount,thisCur)
+        else:
+            return (amount,currency)
+        
+        
     def deleteTradeSet(self,iTs,sellAll=False):
         self.waitForUpdate()
         if sellAll:
@@ -411,6 +456,7 @@ class tradeHandler:
             sold = True
             self.deactivateTradeSet(iTs,1)
         if sold:
+            self.createTradeHistoryEntry(self.tradeSets[iTs])
             self.tradeSets.pop(iTs)
         self.updating = False
     
@@ -898,9 +944,10 @@ class tradeHandler:
                             self.message('Sell order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
                 # delete Tradeset when all orders have been filled (but only if there were any to execute)
                 if ((orderExecuted == 1 and ts['SL'] is None) or orderExecuted == 2) and self.numSellLevels(iTs,'notfilled') == 0 and self.numBuyLevels(iTs,'notfilled') == 0:
-                    self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn']),ts['baseCurrency']))
+                    gain = self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn'])
+                    self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,gain,ts['baseCurrency']))
                     tradeSetsToDelete.append(iTs)
         for iTs in tradeSetsToDelete:
+            self.createTradeHistoryEntry(ts)
             self.tradeSets.pop(iTs) 
         self.updating = False
-            
