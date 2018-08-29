@@ -1,3 +1,14 @@
+[![GitHub](https://img.shields.io/github/tag/MarcelBeining/eazebot.svg?label=GitHub%20Release)](https://github.com/MarcelBeining/EazeBot/releases) 
+[![PyPi](https://badge.fury.io/py/eazebot.svg)](https://github.com/MarcelBeining/EazeBot/releases)
+![GitHub top language](https://img.shields.io/github/languages/top/MarcelBeining/eazebot.svg)
+![GitHub repo size in bytes](https://img.shields.io/github/repo-size/MarcelBeining/eazebot.svg)
+[![GPLv3 license](https://img.shields.io/badge/License-GPLv3-blue.svg)](http://perso.crans.org/besson/LICENSE.html)
+![GitHub language count](https://img.shields.io/github/languages/count/MarcelBeining/eazebot.svg)
+![GitHub last commit](https://img.shields.io/github/last-commit/MarcelBeining/eazebot.svg)
+[![GitHub issues](https://img.shields.io/github/issues/MarcelBeining/EazeBot.svg)](https://GitHub.com/MarcelBeining/EazeBot/issues/)
+
+
+
 # EazeBot
 <img src="https://github.com/MarcelBeining/EazeBot/blob/master/botLogo.png" width="250">
 
