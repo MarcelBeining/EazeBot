@@ -401,6 +401,8 @@ class tradeHandler:
             gainOrig = gain
             if showProfitIn is not None:
                 gain,thisCur = self.convertAmount(gain,ts['baseCurrency'],showProfitIn)
+            else:
+                thisCur = ts['baseCurrency']
             string += '\n*Estimated gain/loss when selling all now: * %s %s (%+.2f %%)\n'%(self.cost2Prec(ts['symbol'],gain),thisCur,gainOrig/(ts['costIn'])*100)
         return string
     
