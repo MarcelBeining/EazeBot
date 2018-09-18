@@ -407,29 +407,32 @@ class tradeHandler:
         return string
     
 
-    def createTradeHistoryEntry(self,ts):
-        gain = ts['costOut']-ts['costIn']
-        # try to convert gain amount into btc currency
-        gainBTC,curr = self.convertAmount(gain,ts['baseCurrency'],'BTC')
-        if curr != 'BTC':
-            gainBTC = None
-        if gainBTC:
-            # try to convert btc gain into usd currency
-            gainUSD,curr = self.convertAmount(gainBTC,'BTC','USD')
-            if curr != 'USD':
-                gainUSD,curr = self.convertAmount(gainBTC,'BTC','USDT')
-                if curr != 'USDT':
-                    gainUSD = None
-        else:
-            gainUSD = None
-        self.tradeSetHistory.append({'time':time.time(),'days':None if not 'createdAt' in ts else (time.time()-ts['createdAt'])/60/60/24 ,'symbol':ts['symbol'],'gain':gain,'gainRel':gain/(ts['costIn'])*100,'quote':ts['baseCurrency'],'gainBTC':gainBTC,'gainUSD':gainUSD})
+    def createTradeHistoryEntry(self,iTs):
+        # create a trade history entry if the trade set had any filled orders
+        ts = self.tradeSets[iTs]
+        if self.numBuyLevels(iTs,'filled') > 0 or self.numSellLevels(iTs,'filled') > 0:
+            gain = ts['costOut']-ts['costIn']
+            # try to convert gain amount into btc currency
+            gainBTC,curr = self.convertAmount(gain,ts['baseCurrency'],'BTC')
+            if curr != 'BTC':
+                gainBTC = None
+            if gainBTC:
+                # try to convert btc gain into usd currency
+                gainUSD,curr = self.convertAmount(gainBTC,'BTC','USD')
+                if curr != 'USD':
+                    gainUSD,curr = self.convertAmount(gainBTC,'BTC','USDT')
+                    if curr != 'USDT':
+                        gainUSD = None
+            else:
+                gainUSD = None
+            self.tradeSetHistory.append({'time':time.time(),'days':None if not 'createdAt' in ts else (time.time()-ts['createdAt'])/60/60/24 ,'symbol':ts['symbol'],'gain':gain,'gainRel':gain/(ts['costIn'])*100 if ts['costIn']>0 else None,'quote':ts['baseCurrency'],'gainBTC':gainBTC,'gainUSD':gainUSD})
     
     def getTradeHistory(self):
         string = ''
         for tsh in self.tradeSetHistory:
             string += '%s:  %s\t%+7.1f%% ( %+.5f BTC | %+.2f USD)\n'%(datetime.datetime.utcfromtimestamp(tsh['time']).strftime('%Y-%m-%d'),tsh['symbol'],tsh['gainRel'],tsh['gainBTC'] if tsh['gainBTC'] else 'N/A',tsh['gainUSD'] if tsh['gainUSD'] else 'N/A')
         if len(self.tradeSetHistory) > 0:
-            return '*Profit history on %s:\nAvg. relative gain: %+7.1f%%\nTotal profit in BTC: %+.5f\nTotal profit in USD: %+.2f\n\nDetailed Set Info:\n*'%(self.exchange.name,np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory]),sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]),sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory])) + string
+            return '*Profit history on %s:\nAvg. relative gain: %+7.1f%%\nTotal profit in BTC: %+.5f\nTotal profit in USD: %+.2f\n\nDetailed Set Info:\n*'%(self.exchange.name,np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory if tsh['gainRel'] is not None]),sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]),sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory])) + string
         else:
             return '*No profit history on %s*'%self.exchange.name
     
@@ -458,7 +461,7 @@ class tradeHandler:
             sold = True
             self.deactivateTradeSet(iTs,1)
         if sold:
-            self.createTradeHistoryEntry(self.tradeSets[iTs])
+            self.createTradeHistoryEntry(iTs)
             self.tradeSets.pop(iTs)
         self.updating = False
     
@@ -631,6 +634,7 @@ class tradeHandler:
                 
                 if ts['InTrades'][iTrade]['oid'] is not None and ts['InTrades'][iTrade]['oid'] != 'filled' :
                     self.cancelOrder(ts['InTrades'][iTrade]['oid'],ts['symbol'],'BUY')
+                    ts['InTrades'][iTrade]['oid'] = None
                 ts['InTrades'][iTrade].update({'amount': amount, 'actualAmount': boughtAmount, 'price': price})
                 
                 if wasactive:
@@ -691,6 +695,7 @@ class tradeHandler:
                 
                 if ts['OutTrades'][iTrade]['oid'] is not None and ts['OutTrades'][iTrade]['oid'] != 'filled' :
                     self.cancelOrder(ts['OutTrades'][iTrade]['oid'],ts['symbol'],'SELL')
+                    ts['OutTrades'][iTrade]['oid']
                 ts['OutTrades'][iTrade]['amount'] = amount
                 ts['OutTrades'][iTrade]['price'] = price
                 
@@ -794,7 +799,7 @@ class tradeHandler:
                 ts['OutTrades'].append({'oid':response['id'],'price': orderInfo['price'],'amount': orderInfo['amount']})
                 self.activateTradeSet(iTs,0)
         else:
-            self.message('No coins (or too low amount) to sell from this trade set. Thus stop-loss is omitted.','warning')
+            self.message('No coins (or too low amount) to sell from this trade set.','warning')
         return sold
                 
     def cancelSellOrders(self,iTs):
@@ -811,6 +816,7 @@ class tradeHandler:
                         self.tradeSets[iTs]['costOut'] += orderInfo['price']*orderInfo['filled']
                         self.tradeSets[iTs]['coinsAvail'] -= orderInfo['filled']                                
                     self.tradeSets[iTs]['coinsAvail'] += trade['amount']
+                    trade['oid'] = None
             if count > 0:
                 self.message('%d sell orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
         return True
@@ -828,6 +834,7 @@ class tradeHandler:
                         self.message('Partly filled buy order found during canceling. Updating balance')
                         self.tradeSets[iTs]['costIn'] += orderInfo['price']*orderInfo['filled']
                         self.tradeSets[iTs]['coinsAvail'] += orderInfo['filled']   
+                    trade['oid'] = None
             if count > 0:
                 self.message('%d buy orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
         return True
@@ -950,6 +957,6 @@ class tradeHandler:
                     self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,gain,ts['baseCurrency']))
                     tradeSetsToDelete.append(iTs)
         for iTs in tradeSetsToDelete:
-            self.createTradeHistoryEntry(ts)
+            self.createTradeHistoryEntry(iTs)
             self.tradeSets.pop(iTs) 
         self.updating = False

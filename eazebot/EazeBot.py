@@ -104,7 +104,7 @@ def broadcastMsg(bot,userId,msg,level='info'):
             pass            
         except:
             count += 1
-            logging.warning('Some connection (?) error occured')
+            logging.warning('Some connection (?) error occured when trying to send a telegram message. Retrying..')
             time.sleep(1)
             continue
     if count >= 5:
