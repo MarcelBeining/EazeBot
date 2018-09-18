@@ -115,7 +115,7 @@ class tradeHandler:
             raise ValueError('Type is not amount, price or cost')
         return (self.exchange.markets[symbol]['limits'][typ]['min'] is None or qty >= self.exchange.markets[symbol]['limits'][typ]['min']) and (self.exchange.markets[symbol]['limits'][typ]['max'] is None or qty <= self.exchange.markets[symbol]['limits'][typ]['max'])
         
-    def safeRun(self,func,printError=True):
+    def safeRun(self,func,printError=True,iTs=None):
         count = 0
         while True:
             try:
@@ -126,7 +126,7 @@ class tradeHandler:
                     self.exchange.load_time_difference()
                 if count >= 5:
                     self.updating = False
-                    self.message('Network exception occurred 5 times in a row on %s'%self.exchange.name)                
+                    self.message('Network exception occurred 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])))
                     raise(e)
                 else:
                     time.sleep(0.5)
@@ -135,7 +135,7 @@ class tradeHandler:
                 count += 1
                 if count >= 5:
                     self.updating = False
-                    self.message('Order not found error 5 times in a row on %s'%self.exchange.name)             
+                    self.message('Order not found error 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])))
                     raise(e)
                 else:
                     time.sleep(0.5)
