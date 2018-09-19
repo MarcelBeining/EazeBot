@@ -781,10 +781,7 @@ class tradeHandler:
                     price = self.safeRun(lambda :self.exchange.fetch_ticker(ts['symbol'])['last'])
                 response = self.safeRun(lambda: self.exchange.createLimitSellOrder (ts['symbol'], ts['coinsAvail'],price))
             time.sleep(5) # give exchange 5 sec for trading the order
-            try:
-                orderInfo = self.safeRun(lambda: self.exchange.fetchOrder (response['id'],ts['symbol']),0)
-            except ccxt.ExchangeError as e:
-                orderInfo = self.safeRun(lambda: self.exchange.fetchOrder (response['id'],ts['symbol'],{'type':'SELL'}))
+            orderInfo = self.fetchOrder(response['id'],ts['symbol'],'SELL')
                     
             if orderInfo['status']=='FILLED':
                 if orderInfo['type'] == 'market':
@@ -856,6 +853,8 @@ class tradeHandler:
     def fetchOrder(self,oid,symbol,typ):
         try:
             return self.safeRun(lambda: self.exchange.fetchOrder (oid,symbol),0)
+        except OrderNotFound as e:
+            raise(e)
         except ccxt.ExchangeError as e:
             return self.safeRun(lambda: self.exchange.fetchOrder (oid,symbol,{'type':typ}))  
                                     
