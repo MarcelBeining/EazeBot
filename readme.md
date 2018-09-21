@@ -41,13 +41,13 @@ We simplified installation of the bot on Windows: Simply download (right click, 
 ### Linux/Mac
 The simpliest and recommended way of installing EazeBot is using the pip install command:
 ````python
-python -m pip install eazebot
+sudo python3 -m pip install eazebot
 ````
 You then need to copy the configuration files to some folder. Here is an example to make a folder in your home directory and copy the files there:
 ````
-mkdir ~/eazebot
+sudo mkdir ~/eazebot
 cd ~/eazebot
-python -c "from eazebot.EazeBot import copyJSON; copyJSON()"
+sudo python3 -c "from eazebot.EazeBot import copyJSON; copyJSON()"
 ````
 
 
