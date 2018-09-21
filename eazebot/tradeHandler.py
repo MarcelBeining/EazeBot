@@ -285,11 +285,11 @@ class tradeHandler:
         self.initBuyOrders(iTs)
         return wasactive
     
-    def deactivateTradeSet(self,iTs,cancelOrders=False):
+    def deactivateTradeSet(self,iTs,cancelOrders=False,force=False):
         wasactive = self.tradeSets[iTs]['active']
         if cancelOrders:
-            self.cancelBuyOrders(iTs)
-            self.cancelSellOrders(iTs)
+            self.cancelBuyOrders(iTs,ignoreNotFound=force)
+            self.cancelSellOrders(iTs,ignoreNotFound=force)
         self.tradeSets[iTs]['active'] = False
         return wasactive
         
@@ -453,13 +453,13 @@ class tradeHandler:
             return (amount,currency)
         
         
-    def deleteTradeSet(self,iTs,sellAll=False):
+    def deleteTradeSet(self,iTs,sellAll=False,force=False):
         self.waitForUpdate()
         if sellAll:
             sold = self.sellAllNow(iTs)
         else:
             sold = True
-            self.deactivateTradeSet(iTs,1)
+            self.deactivateTradeSet(iTs,1,force)
         if sold:
             self.createTradeHistoryEntry(iTs)
             self.tradeSets.pop(iTs)
@@ -799,12 +799,18 @@ class tradeHandler:
             self.message('No coins (or too low amount) to sell from this trade set.','warning')
         return sold
                 
-    def cancelSellOrders(self,iTs):
+    def cancelSellOrders(self,iTs,ignoreNotFound=False):
         if iTs in self.tradeSets and self.numSellLevels(iTs) > 0:
             count = 0
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['OutTrades']))):
                 if trade['oid'] is not None and trade['oid'] != 'filled':
-                    self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL') 
+                    try:
+                        self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL') 
+                    except OrderNotFound as e:
+                        if ignoreNotFound:
+                                pass
+                        else:
+                            raise(e)
                     time.sleep(1)
                     count += 1
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL')
@@ -818,12 +824,18 @@ class tradeHandler:
                 self.message('%d sell orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
         return True
         
-    def cancelBuyOrders(self,iTs):
+    def cancelBuyOrders(self,iTs,ignoreNotFound=False):
         if iTs in self.tradeSets and self.numBuyLevels(iTs) > 0:
             count = 0
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['InTrades']))):
                 if trade['oid'] is not None and trade['oid'] != 'filled':
-                    self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY') 
+                    try:
+                        self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY') 
+                    except OrderNotFound as e:
+                        if ignoreNotFound:
+                            pass
+                        else:
+                            raise(e)
                     time.sleep(1)
                     count += 1
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY')
@@ -847,6 +859,8 @@ class tradeHandler:
     def cancelOrder(self,oid,symbol,typ):
         try:
             return self.safeRun(lambda: self.exchange.cancelOrder (oid,symbol),0)
+        except OrderNotFound as e:
+            raise(e)
         except ccxt.ExchangeError as e:
             return self.safeRun(lambda: self.exchange.cancelOrder (oid,symbol,{'type':typ}) )
         
