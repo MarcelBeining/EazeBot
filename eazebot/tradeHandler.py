@@ -285,11 +285,11 @@ class tradeHandler:
         self.initBuyOrders(iTs)
         return wasactive
     
-    def deactivateTradeSet(self,iTs,cancelOrders=False,force=False):
+    def deactivateTradeSet(self,iTs,cancelOrders=False):
         wasactive = self.tradeSets[iTs]['active']
         if cancelOrders:
-            self.cancelBuyOrders(iTs,ignoreNotFound=force)
-            self.cancelSellOrders(iTs,ignoreNotFound=force)
+            self.cancelBuyOrders(iTs)
+            self.cancelSellOrders(iTs)
         self.tradeSets[iTs]['active'] = False
         return wasactive
         
@@ -453,13 +453,13 @@ class tradeHandler:
             return (amount,currency)
         
         
-    def deleteTradeSet(self,iTs,sellAll=False,force=False):
+    def deleteTradeSet(self,iTs,sellAll=False):
         self.waitForUpdate()
         if sellAll:
             sold = self.sellAllNow(iTs)
         else:
             sold = True
-            self.deactivateTradeSet(iTs,1,force)
+            self.deactivateTradeSet(iTs,1)
         if sold:
             self.createTradeHistoryEntry(iTs)
             self.tradeSets.pop(iTs)
@@ -576,6 +576,9 @@ class tradeHandler:
             elif not self.checkQuantity(ts['symbol'],'price',buyPrice):
                 self.message('Adding buy level failed, price is not within the range, the exchange accepts')
                 return 0 
+            elif not self.checkQuantity(ts['symbol'],'cost',buyPrice*buyAmount):
+                self.message('Adding buy level failed, cost is not within the range, the exchange accepts')
+                return 0 
             elif self.getFreeBalance(ts['baseCurrency']) < buyAmount*buyPrice + fee['cost'] if fee['currency'] == ts['baseCurrency'] else 0:
                 self.message('Adding buy level failed, your balance of %s does not suffice to buy this amount%s!'%(ts['baseCurrency'],' and pay the trading fee (%s %s)'%(self.fee2Prec(ts['symbol'],fee['cost']),ts['baseCurrency']) if fee['currency'] == ts['baseCurrency'] else ''))
                 return 0 
@@ -601,7 +604,7 @@ class tradeHandler:
             ts = self.tradeSets[iTs]
             wasactive = self.deactivateTradeSet(iTs)
             if ts['InTrades'][iTrade]['oid'] is not None and ts['InTrades'][iTrade]['oid'] != 'filled' :
-                self.cancelOrder(ts['InTrades'][iTrade]['oid'],ts['symbol'],'BUY')
+                self.cancelBuyOrders(iTs,ts['InTrades'][iTrade]['oid'])
             ts['InTrades'].pop(iTrade)
             if wasactive:
                 self.activateTradeSet(iTs,0) 
@@ -623,6 +626,9 @@ class tradeHandler:
                 elif not self.checkQuantity(ts['symbol'],'price',price):
                     self.message('Changing buy level failed, price is not within the range, the exchange accepts')
                     return 0 
+                elif not self.checkQuantity(ts['symbol'],'cost',price*amount):
+                    self.message('Changing buy level failed, cost is not within the range, the exchange accepts')
+                    return 0 
                 elif self.getFreeBalance(ts['baseCurrency']) + ts['InTrades'][iTrade]['amount']*ts['InTrades'][iTrade]['price'] < amount*price + fee['cost'] if fee['currency'] == ts['baseCurrency'] else 0:
                     self.message('Changing buy level failed, your balance of %s does not suffice to buy this amount%s!'%(ts['baseCurrency'],' and pay the trading fee (%s %s)'%(self.fee2Prec(ts['symbol'],fee['cost']),ts['baseCurrency']) if fee['currency'] == ts['baseCurrency'] else ''))
                     return 0 
@@ -633,10 +639,13 @@ class tradeHandler:
                 wasactive = self.deactivateTradeSet(iTs)  
                 
                 if ts['InTrades'][iTrade]['oid'] is not None and ts['InTrades'][iTrade]['oid'] != 'filled' :
-                    self.cancelOrder(ts['InTrades'][iTrade]['oid'],ts['symbol'],'BUY')
+                    returnVal = self.cancelBuyOrders(iTs,ts['InTrades'][iTrade]['oid'])
                     ts['InTrades'][iTrade]['oid'] = None
+                if returnVal == 0.5 and self.getFreeBalance(ts['baseCurrency']) + ts['InTrades'][iTrade]['amount']*ts['InTrades'][iTrade]['price'] < amount*price + fee['cost'] if fee['currency'] == ts['baseCurrency'] else 0:
+                    self.message('Changing buy level failed, your balance of %s does not suffice to buy this amount%s!'%(ts['baseCurrency'],' and pay the trading fee (%s %s)'%(self.fee2Prec(ts['symbol'],fee['cost']),ts['baseCurrency']) if fee['currency'] == ts['baseCurrency'] else ''))
+                    return 0
                 ts['InTrades'][iTrade].update({'amount': amount, 'actualAmount': boughtAmount, 'price': price})
-                
+                    
                 if wasactive:
                     self.activateTradeSet(iTs,0)                
                 return 1
@@ -652,6 +661,9 @@ class tradeHandler:
             elif not self.checkQuantity(ts['symbol'],'price',sellPrice):
                 self.message('Adding sell level failed, price is not within the range, the exchange accepts')
                 return 0 
+            elif not self.checkQuantity(ts['symbol'],'cost',sellPrice*sellAmount):
+                self.message('Adding sell level failed, return is not within the range, the exchange accepts')
+                return 0 
             self.waitForUpdate()
             wasactive = self.deactivateTradeSet(iTs)  
             ts['OutTrades'].append({'oid': None, 'price': sellPrice, 'amount': sellAmount})
@@ -663,13 +675,12 @@ class tradeHandler:
             raise ValueError('Some input was no number')
 
     def deleteSellLevel(self,iTs,iTrade):   
-        
         if self.checkNum(iTrade):
             self.waitForUpdate()
             ts = self.tradeSets[iTs]
             wasactive = self.deactivateTradeSet(iTs)
             if ts['OutTrades'][iTrade]['oid'] is not None and ts['OutTrades'][iTrade]['oid'] != 'filled' :
-                self.cancelOrder(ts['OutTrades'][iTrade]['oid'],ts['symbol'],'SELL')
+                self.cancelSellOrders(iTs,ts['OutTrades'][iTrade]['oid'])
                 ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
             ts['OutTrades'].pop(iTrade)
             self.updating = False
@@ -691,11 +702,15 @@ class tradeHandler:
                 elif not self.checkQuantity(ts['symbol'],'price',price):
                     self.message('Changing sell level failed, price is not within the range, the exchange accepts')
                     return 0 
+                elif not self.checkQuantity(ts['symbol'],'cost',price*amount):
+                    self.message('Changing sell level failed, return is not within the range, the exchange accepts')
+                    return 0 
                 wasactive = self.deactivateTradeSet(iTs)  
                 
                 if ts['OutTrades'][iTrade]['oid'] is not None and ts['OutTrades'][iTrade]['oid'] != 'filled' :
-                    self.cancelOrder(ts['OutTrades'][iTrade]['oid'],ts['symbol'],'SELL')
-                    ts['OutTrades'][iTrade]['oid']
+                    self.cancelSellOrders(iTs,ts['OutTrades'][iTrade]['oid'])
+                    ts['OutTrades'][iTrade]['oid'] = None
+
                 ts['OutTrades'][iTrade]['amount'] = amount
                 ts['OutTrades'][iTrade]['price'] = price
                 
@@ -799,54 +814,52 @@ class tradeHandler:
             self.message('No coins (or too low amount) to sell from this trade set.','warning')
         return sold
                 
-    def cancelSellOrders(self,iTs,ignoreNotFound=False):
+    def cancelSellOrders(self,iTs,oid=None):
+        returnVal = 1
         if iTs in self.tradeSets and self.numSellLevels(iTs) > 0:
             count = 0
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['OutTrades']))):
-                if trade['oid'] is not None and trade['oid'] != 'filled':
+                if trade['oid'] is not None and trade['oid'] != 'filled' and (oid is None or trade['oid']==oid):
                     try:
                         self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL') 
                     except OrderNotFound as e:
-                        if ignoreNotFound:
-                                pass
-                        else:
-                            raise(e)
+                        pass
                     time.sleep(1)
                     count += 1
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL')
                     if orderInfo['filled'] > 0:
-                        self.message('Partly filled sell order found during canceling. Updating balance')
+                        self.message('(Partly?) filled sell order found during canceling. Updating balance')
                         self.tradeSets[iTs]['costOut'] += orderInfo['price']*orderInfo['filled']
-                        self.tradeSets[iTs]['coinsAvail'] -= orderInfo['filled']                                
+                        self.tradeSets[iTs]['coinsAvail'] -= orderInfo['filled']  
+                        returnVal = 0.5
                     self.tradeSets[iTs]['coinsAvail'] += trade['amount']
                     trade['oid'] = None
             if count > 0:
                 self.message('%d sell orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
-        return True
+        return returnVal
         
-    def cancelBuyOrders(self,iTs,ignoreNotFound=False):
+    def cancelBuyOrders(self,iTs,oid=None):
+        returnVal = 1
         if iTs in self.tradeSets and self.numBuyLevels(iTs) > 0:
             count = 0
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['InTrades']))):
-                if trade['oid'] is not None and trade['oid'] != 'filled':
+                if trade['oid'] is not None and trade['oid'] != 'filled' and (oid is None or trade['oid']==oid):
                     try:
                         self.cancelOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY') 
                     except OrderNotFound as e:
-                        if ignoreNotFound:
-                            pass
-                        else:
-                            raise(e)
+                        pass
                     time.sleep(1)
                     count += 1
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY')
                     if orderInfo['filled'] > 0:
-                        self.message('Partly filled buy order found during canceling. Updating balance')
+                        self.message('(Partly?) filled buy order found during canceling. Updating balance')
                         self.tradeSets[iTs]['costIn'] += orderInfo['price']*orderInfo['filled']
                         self.tradeSets[iTs]['coinsAvail'] += orderInfo['filled']   
+                        returnVal = 0.5
                     trade['oid'] = None
             if count > 0:
                 self.message('%d buy orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
-        return True
+        return returnVal
     
     def initBuyOrders(self,iTs):
         if self.tradeSets[iTs]['active']:
@@ -964,8 +977,8 @@ class tradeHandler:
                             ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
                             ts['OutTrades'][iTrade]['oid'] = None
                             self.message('Sell order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
-                # delete Tradeset when all orders have been filled (but only if there were any to execute)
-                if ((orderExecuted == 1 and ts['SL'] is None) or orderExecuted == 2) and self.numSellLevels(iTs,'notfilled') == 0 and self.numBuyLevels(iTs,'notfilled') == 0:
+                # delete Tradeset when all orders have been filled (but only if there were any to execute and if no significant coin amount is left)
+                if ((ts['SL'] is None and orderExecuted > 0) or (orderExecuted == 2 and (self.sumSellAmounts(iTs,order='filled')-self.sumBuyAmounts(iTs,order='filled'))/self.sumBuyAmounts(iTs,order='filled') < 0.01 )) and self.numSellLevels(iTs,'notfilled') == 0 and self.numBuyLevels(iTs,'notfilled') == 0:
                     gain = self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn'])
                     self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,gain,ts['baseCurrency']))
                     tradeSetsToDelete.append(iTs)

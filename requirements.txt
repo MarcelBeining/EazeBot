@@ -1,5 +1,5 @@
-ccxt >= 1.15.21
+ccxt >= 1.17.350
 dill
 numpy
-python-telegram-bot
+python-telegram-bot >= 11.1.0
 requests

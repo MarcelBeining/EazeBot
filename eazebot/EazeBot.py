@@ -804,7 +804,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                     elif command == '3':  # init trade set deletion
                         if 'ok' in args:
                             query.message.delete()
-                            ct.deleteTradeSet(uidTS,sellAll='yes' in args,force=True)
+                            ct.deleteTradeSet(uidTS,sellAll='yes' in args)
                             query.answer('Trade Set deleted')
                         elif 'yes' in args or 'no' in args:
                             query.answer('Ok, and are you really sure to delete this trade set?')
