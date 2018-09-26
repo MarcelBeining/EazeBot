@@ -5,3 +5,4 @@ data.bkp
 eazebot.egg-info/
 dist/
 build/
+eazebot/data.pickle.new

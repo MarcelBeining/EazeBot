@@ -853,6 +853,21 @@ def save_data(*arg):
         dill.dump(user_data, f)
     logging.info('User data autosaved')
         
+def convert_data(from_='linux',to_='win',filename='data.pickle'):
+    with open(filename, 'rb') as fi:
+        byteContent = fi.read()
+        with open('data.pickle.new', 'wb') as fo:
+            if 'linux' in from_ and 'win' in to_:
+                byteContent = byteContent.replace(b'cdill._dill', b'cdill.dill')
+            elif 'win' in from_ and 'linux' in to_:
+                byteContent = byteContent.replace(b'cdill.dill',b'cdill._dill')
+            if 'git' not in from_ and 'git' in to_:
+                byteContent = byteContent.replace(b'ceazebot.tradeHandler', b'ctradeHandler')
+            elif 'git' in from_ and 'git' not in to_:
+                byteContent = byteContent.replace(b'ctradeHandler',b'ceazebot.tradeHandler')
+            fo.write(byteContent)
+        
+        
 def load_data(filename='data.pickle'):
     # load latest user data
     if os.path.isfile(filename):
