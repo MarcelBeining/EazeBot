@@ -110,6 +110,14 @@ From time to time you should update EazeBot by
 You may copy, distribute and modify the software provided that modifications are described and licensed for free under LGPL-3. Derivatives works (including modifications or anything statically linked to the library) can only be redistributed under LGPL-3, but applications that use the library don't have to be.
 See the [LICENSE](LICENSE) and [LICENSE.LESSER](LICENSE.LESSER) file for details
 
+# Features to be added
+Depending on my time and/or putative incentives (donations), I plan to add the following features (any suggestions welcome):
+- add instant buy / sell
+- move profit into fiat after trade set finished
+- option to avoid flash crash SL triggering by checking e.g. after 5 min if SL is still reached.
+- add info to the trade set what the current gain/loss would be when price reaches SL
+- update the Wiki
+
 # Donations
 If you want to support our project or simply want to say thank you for the profit you made with this bot, you can either use send your 
 donation to one of the crypto addresses below, or use the built-in donation feature (Bot Info -> Donate button).
