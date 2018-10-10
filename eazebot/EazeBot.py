@@ -494,7 +494,7 @@ def doneCmd(bot,update,user_data):
 def checkForUpdates(bot,job):
     updater = job.context
     remoteVersion = getRemoteVersion()
-    if remoteVersion > thisVersion:
+    if remoteVersion != thisVersion and all([int(a) >= int(b) for a,b in zip(remoteVersion.split('.'),thisVersion.split('.'))]):
         for user in updater.dispatcher.user_data:
             if 'chatId' in updater.dispatcher.user_data[user]:
                 updater.dispatcher.user_data[user]['messages']['botInfo'].append(bot.send_message(updater.dispatcher.user_data[user]['chatId'],'There is a new version of EazeBot available on git/pip (v%s)! Consider updating!'%remoteVersion))
