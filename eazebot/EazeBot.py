@@ -449,7 +449,7 @@ def addExchanges(bot,update,user_data):
             # if no tradeHandler object has been created yet, create one, but also check for correct authentication
             if exch not in user_data['trade']:
                 userId = user_data['chatId']
-                user_data['trade'][exch] = tradeHandler(exch,**exchParams,messagerFct = lambda a,b='info': broadcastMsg(bot,userId,a,b))
+                user_data['trade'][exch] = tradeHandler(exch,**exchParams,messagerFct = lambda a,b='info': broadcastMsg(bot,userId,a,b),logger=rootLogger)
             else:
                 user_data['trade'][exch].updateKeys(**exchParams)
             if not user_data['trade'][exch].authenticated and len(user_data['trade'][exch].tradeSets) == 0:

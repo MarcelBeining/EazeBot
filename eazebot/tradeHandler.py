@@ -33,13 +33,14 @@ from ccxt.base.errors import (AuthenticationError,NetworkError,OrderNotFound,Inv
 
 class tradeHandler:
     
-    def __init__(self,exchName,key=None,secret=None,password=None,uid=None,messagerFct=None):
+    def __init__(self,exchName,key=None,secret=None,password=None,uid=None,messagerFct=None,logger=None):
         # use either the given messager function or define a simple print messager function which takes a level argument as second optional input
         if messagerFct:
             self.message = messagerFct
         else:
             self.message = lambda a,b='Info': print(b + ': ' + a)
-            
+        
+        self.logger = logger
         checkThese = ['cancelOrder','createLimitOrder','fetchBalance','fetchTicker']
         self.tradeSets = {}
         self.tradeSetHistory = []
@@ -113,7 +114,12 @@ class tradeHandler:
     def checkQuantity(self,symbol,typ,qty):
         if typ not in ['amount','price','cost']:
             raise ValueError('Type is not amount, price or cost')
-        return (self.exchange.markets[symbol]['limits'][typ]['min'] is None or qty >= self.exchange.markets[symbol]['limits'][typ]['min']) and (self.exchange.markets[symbol]['limits'][typ]['max'] is None or qty <= self.exchange.markets[symbol]['limits'][typ]['max'])
+        if typ in self.exchange.markets[symbol]['limits']:
+            return (self.exchange.markets[symbol]['limits'][typ]['min'] is None or qty >= self.exchange.markets[symbol]['limits'][typ]['min']) and (self.exchange.markets[symbol]['limits'][typ]['max'] is None or qty <= self.exchange.markets[symbol]['limits'][typ]['max'])
+        else:
+            if self.logger:
+                self.logger.warning('Exchange %s does not provide limits for %s'%(self.exchange.name,typ))
+            return True
         
     def safeRun(self,func,printError=True,iTs=None):
         count = 0
@@ -329,7 +335,8 @@ class tradeHandler:
             candleAbove = np.array(candleAbove)
 
         if not force and sum(buyAmounts) != sum(sellAmounts):
-            raise ValueError('Warning: It seems the buy and sell amount of %s is not the same. Is this correct?'%ts['coinCurrency'])
+            if self.logger:
+                self.logger.warning('It seems the buy and sell amount of %s is not the same. Is this correct?'%ts['coinCurrency'])
         if buyLevels.size > 0 and sellLevels.size > 0 and max(buyLevels) > min(sellLevels):
             raise ValueError('It seems at least one of your sell prices is lower than one of your buy, which does not make sense')
         if self.balance[ts['baseCurrency']]['free'] < sum(buyLevels*buyAmounts):
@@ -435,8 +442,7 @@ class tradeHandler:
             return '*Profit history on %s:\nAvg. relative gain: %+7.1f%%\nTotal profit in BTC: %+.5f\nTotal profit in USD: %+.2f\n\nDetailed Set Info:\n*'%(self.exchange.name,np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory if tsh['gainRel'] is not None]),sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]),sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory])) + string
         else:
             return '*No profit history on %s*'%self.exchange.name
-    
-    
+        
     def convertAmount(self,amount,currency,targetCurrency):
         if isinstance(targetCurrency,str):
             targetCurrency = [targetCurrency]
