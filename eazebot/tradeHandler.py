@@ -430,7 +430,7 @@ class tradeHandler:
     def getTradeHistory(self):
         string = ''
         for tsh in self.tradeSetHistory:
-            string += '%s:  %s\t%+7.1f%% ( %+.5f BTC | %+.2f USD)\n'%(datetime.datetime.utcfromtimestamp(tsh['time']).strftime('%Y-%m-%d'),tsh['symbol'],tsh['gainRel'],tsh['gainBTC'] if tsh['gainBTC'] else 'N/A',tsh['gainUSD'] if tsh['gainUSD'] else 'N/A')
+            string += '%s:  %s\t%+7.1f%% ( %s BTC | %s USD)\n'%(datetime.datetime.utcfromtimestamp(tsh['time']).strftime('%Y-%m-%d'),tsh['symbol'],tsh['gainRel'],'%+.5f'%tsh['gainBTC'] if tsh['gainBTC'] else 'N/A','%+.2f'%tsh['gainUSD'] if tsh['gainUSD'] else 'N/A')
         if len(self.tradeSetHistory) > 0:
             return '*Profit history on %s:\nAvg. relative gain: %+7.1f%%\nTotal profit in BTC: %+.5f\nTotal profit in USD: %+.2f\n\nDetailed Set Info:\n*'%(self.exchange.name,np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory if tsh['gainRel'] is not None]),sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]),sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory])) + string
         else:
@@ -940,6 +940,12 @@ class tradeHandler:
                     if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                         orderExecuted = 1
                         ts['InTrades'][iTrade]['oid'] = 'filled'
+                        
+                        # fetch trades for all orders because a limit order might also be filled at a lower val
+                        trades = self.exchange.fetchMyTrades(ts['symbol'])
+                        orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
+                        orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
+                        
                         ts['costIn'] += orderInfo['cost']
                         self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
                         ts['coinsAvail'] += trade['actualAmount']
@@ -967,10 +973,12 @@ class tradeHandler:
                         if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                             orderExecuted = 2
                             ts['OutTrades'][iTrade]['oid'] = 'filled'
-                            if orderInfo['type'] == 'market':
-                                trades = self.exchange.fetchMyTrades(ts['symbol'])
-                                orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
-                                orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
+#                            if orderInfo['type'] == 'market':
+                            # fetch trades for all orders because a limit order might also be filled at a higher val
+                            trades = self.exchange.fetchMyTrades(ts['symbol'])
+                            orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
+                            orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
+                            
                             ts['costOut'] += orderInfo['cost']
                             self.message('Sell level of %s %s reached on %s! Sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
                         elif orderInfo['status'] == 'canceled':
