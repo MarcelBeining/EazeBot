@@ -687,7 +687,6 @@ class tradeHandler:
             wasactive = self.deactivateTradeSet(iTs)
             if ts['OutTrades'][iTrade]['oid'] is not None and ts['OutTrades'][iTrade]['oid'] != 'filled' :
                 self.cancelSellOrders(iTs,ts['OutTrades'][iTrade]['oid'])
-                ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
             ts['OutTrades'].pop(iTrade)
             self.updating = False
             if wasactive:
