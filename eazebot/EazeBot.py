@@ -188,16 +188,24 @@ def buttonsEditTS(ct,uidTS,mode='full'):
             buttons.append([InlineKeyboardButton("Readd SellOrder from level #%d"%i,callback_data='2|%s|%s|sellReAdd%d|chosen'%(exch,uidTS,i))])
         buttons.append([InlineKeyboardButton("Delete Sell level #%d"%i,callback_data='2|%s|%s|SLD%d|chosen'%(exch,uidTS,i))])
     if mode == 'full':
-        if ct.numBuyLevels(uidTS,'notfilled') > 0:
-            buttons.append([InlineKeyboardButton("Set SL Break Even",callback_data='2|%s|%s|SLBE|chosen'%(exch,uidTS)),InlineKeyboardButton("Change SL",callback_data='2|%s|%s|SLC|chosen'%(exch,uidTS))])
-        else:  # only show trailing SL option if all buy orders are filled
-            buttons.append([InlineKeyboardButton("Set SL Break Even",callback_data='2|%s|%s|SLBE|chosen'%(exch,uidTS)),InlineKeyboardButton("Change SL",callback_data='2|%s|%s|SLC|chosen'%(exch,uidTS)),InlineKeyboardButton("Trailing SL",callback_data='2|%s|%s|TSL|chosen'%(exch,uidTS))])
+        buttons.append([InlineKeyboardButton("Set/Change SL",callback_data='2|%s|%s|SLM'%(exch,uidTS))])
     elif mode == 'init':
         buttons.append([InlineKeyboardButton("Add initial coins",callback_data='2|%s|%s|AIC|chosen'%(exch,uidTS)),InlineKeyboardButton("Add/change SL",callback_data='2|%s|%s|SLC|chosen'%(exch,uidTS))])
     buttons.append([InlineKeyboardButton("%s trade set"%('Deactivate' if ct.tradeSets[uidTS]['active'] else 'Activate'),callback_data='2|%s|%s|%s|chosen'%(exch,uidTS,'TSstop' if ct.tradeSets[uidTS]['active'] else 'TSgo')),InlineKeyboardButton("Delete trade set",callback_data='3|%s|%s|ok|no|chosen'%(exch,uidTS))])
     if mode == 'full':
         buttons.append([InlineKeyboardButton("Back",callback_data='2|%s|%s|back|chosen'%(exch,uidTS))])
     return buttons
+
+def buttonsSL(ct,uidTS):
+    exch = ct.exchange.name.lower()   
+
+    buttons = [[InlineKeyboardButton("Set SL Break Even",callback_data='2|%s|%s|SLBE|chosen'%(exch,uidTS))],[InlineKeyboardButton("Change/Delete SL",callback_data='2|%s|%s|SLC|chosen'%(exch,uidTS))],[InlineKeyboardButton("Set daily-close SL",callback_data='2|%s|%s|DCSL|chosen'%(exch,uidTS))]]
+    if ct.numBuyLevels(uidTS,'notfilled') == 0:  # only show trailing SL option if all buy orders are filled
+        buttons.append([InlineKeyboardButton("Set trailing SL",callback_data='2|%s|%s|TSL|chosen'%(exch,uidTS))])
+    buttons.append([InlineKeyboardButton("Back",callback_data='2|%s|%s|back|chosen'%(exch,uidTS))])
+    return buttons
+
+
 
 def deleteMessages(user_data,typ='all',onlyForget=False):
     if isinstance(typ,str):
@@ -537,7 +545,7 @@ def timingCallback(bot, update,user_data,query=None,response=None):
     if query is None:
         return 0
     query.message.delete()
-    if query.data == 'Yes':
+    if 'Yes' in query.data:
         query.answer('Please give the price above which the daily candle should close in order to initiate the buy!')
         return NUMBER
     else:
@@ -760,6 +768,11 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                             updateTStext(bot,update,user_data,uidTS,query)
                             query.answer('Trade set deactivated!')
                             
+                        elif 'SLM' in args:
+                            buttons = buttonsSL(ct,uidTS)
+                            query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+                            query.answer('Choose an option')                          
+                            
                         elif 'SLBE' in args:
                             ans = ct.setSLBreakEven(uidTS)
                             if ans:
@@ -767,8 +780,24 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                             else:
                                 query.answer('SL break even failed to set')
                             updateTStext(bot,update,user_data,uidTS,query)
+                        
+                        elif 'DCSL' in args:
+                            # set a daily-close SL
+                            if response is None:
+                                if 'yes' in args:
+                                    query.message.delete()
+                                    user_data['messages']['dialog'].append(bot.send_message(user_data['chatId'],'Please give the daily candle closing price below which a SL would be triggered'))
+                                    return NUMBER
+                                else:
+                                    user_data['lastFct'].append(lambda res : InlineButtonCallback(bot,update,user_data,query,res))
+                                    user_data['messages']['dialog'].append(bot.send_message(user_data['chatId'],'Do you want to set an SL, which is triggered when the daily candle closes below price X?',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='2|%s|%s|DCSL|yes'%(exch,uidTS)),InlineKeyboardButton("No", callback_data='2|%s|%s|cancel'%(exch,uidTS))], [InlineKeyboardButton("Cancel", callback_data='2|%s|%s|cancel'%(exch,uidTS))]])))
+                            else:
+                                ct.setDailyCloseSL(uidTS,response)
+                                deleteMessages(user_data,'dialog')
+                                updateTStext(bot,update,user_data,uidTS,query)
                             
                         elif 'TSL' in args:
+                            # set a trailing stop-loss
                             if response is None:
                                 query.answer()
                                 if 'abs' in args or 'rel' in args:

@@ -85,6 +85,8 @@ class tradeHandler:
             ts = state[iTs]
             if 'trailingSL' not in ts:
                 ts['trailingSL'] = [None,None]
+            if 'dailycloseSL' not in ts:
+                ts['dailycloseSL'] = None  
             for trade in ts['InTrades']:
                 if 'actualAmount' not in trade:
                     fee = self.exchange.calculateFee(ts['symbol'],'limit','buy',trade['amount'],trade['price'],'maker')
@@ -388,6 +390,8 @@ class tradeHandler:
             string += tmpstr
         if ts['SL'] is not None:
             string += '\n*Stop-loss* set at %s%s\n\n'%(self.price2Prec(ts['symbol'],ts['SL']),'' if ts['trailingSL'][0] is None else (' (trailing with offset %.5g)'%ts['trailingSL'][0] if ts['trailingSL'][1] == 'abs' else ' (trailing with offset %.2g %%)'%(ts['trailingSL'][0]*100) ))
+        elif ts['dailycloseSL'] is not None:
+            string += '\n*Stop-loss* set at daily close < %s\n\n'%(self.price2Prec(ts['symbol'],ts['dailycloseSL']))
         else:
             string += '\n*No stop-loss set.*\n\n'
         sumBuys = sum([val[0] for val in filledBuys])
@@ -741,11 +745,21 @@ class tradeHandler:
                 newSL = ticker['last'] * (1- value)     
             ts['trailingSL'] = [value,typ]          
             ts['SL'] = newSL
+            ts['dailycloseSL'] = None
         elif value is None:
             ts['trailingSL'] = [None,None]
         else:
             raise ValueError('Input was no number')
-            
+    
+    def setDailyCloseSL(self,iTs,value):
+        ts = self.tradeSets[iTs]
+        if self.checkNum(value):
+            ts['dailycloseSL'] = value
+            self.setTrailingSL(iTs,None) # deactivate trailing SL
+            ts['SL'] = None  # deactivate standard SL
+        else:
+            raise ValueError('Input was no number')    
+    
     def setSL(self,iTs,value):   
         if self.checkNum(value) or value is None:
             ts = self.tradeSets[iTs]
@@ -754,6 +768,7 @@ class tradeHandler:
                 self.message('Cannot set new SL as it is higher than the current market price')
                 return 0
             self.setTrailingSL(iTs,None) # deactivate trailing SL
+            ts['dailycloseSL'] = None # same for dailyclose SL
             self.tradeSets[iTs]['SL'] = value
             return 1
         else:
@@ -787,6 +802,7 @@ class tradeHandler:
         ts['InTrades'] = []
         ts['OutTrades'] = []
         ts['SL'] = None # necessary to not retrigger SL
+        ts['dailycloseSL'] = None # this one, too
         sold = True
                 
         if ts['coinsAvail'] > 0 and self.checkQuantity(ts['symbol'],'amount',ts['coinsAvail']):
@@ -913,23 +929,34 @@ class tradeHandler:
                 continue
             ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
             # check if stop loss is reached
-            if not dailyCheck and ts['SL'] is not None:
-                if ticker['last'] <= ts['SL']:
-                    self.message('Stop loss for pair %s has been triggered!'%ts['symbol'],'warning')
-                    # cancel all sell orders, create market sell order and save resulting amount of base currency
-                    self.updating = False
-                    sold = self.sellAllNow(iTs,price=ticker['last'])
-                    self.waitForUpdate()
-                    if sold:
-                        tradeSetsToDelete.append(iTs)
-                        continue
-                elif 'trailingSL' in ts and ts['trailingSL'][0] is not None:
-                    if ts['trailingSL'][1] == 'abs':
-                        newSL = ticker['last'] - ts['trailingSL'][0]
-                    else:
-                        newSL = ticker['last'] * (1- ts['trailingSL'][0])
-                    if newSL > ts['SL']:
-                        ts['SL'] = newSL
+            if not dailyCheck:
+                if ts['SL'] is not None:
+                    if ticker['last'] <= ts['SL']:
+                        self.message('Stop loss for pair %s has been triggered!'%ts['symbol'],'warning')
+                        # cancel all sell orders, create market sell order and save resulting amount of base currency
+                        self.updating = False
+                        sold = self.sellAllNow(iTs,price=ticker['last'])
+                        self.waitForUpdate()
+                        if sold:
+                            tradeSetsToDelete.append(iTs)
+                            continue
+                    elif 'trailingSL' in ts and ts['trailingSL'][0] is not None:
+                        if ts['trailingSL'][1] == 'abs':
+                            newSL = ticker['last'] - ts['trailingSL'][0]
+                        else:
+                            newSL = ticker['last'] * (1- ts['trailingSL'][0])
+                        if newSL > ts['SL']:
+                            ts['SL'] = newSL
+            elif ts['dailycloseSL'] is not None and ticker['last'] < ts['dailycloseSL']:
+                self.message('Daily candle closed below chosen SL of %s for pair %s! Selling now!'%(self.price2Prec(ts['symbol'],ts['dailycloseSL']),ts['symbol']),'warning')
+                # cancel all sell orders, create market sell order and save resulting amount of base currency
+                self.updating = False
+                sold = self.sellAllNow(iTs,price=ticker['last'])
+                self.waitForUpdate()
+                if sold:
+                    tradeSetsToDelete.append(iTs)
+                    continue                                    
+                                     
             orderExecuted = 0
             # go through buy trades 
             for iTrade,trade in enumerate(ts['InTrades']):
