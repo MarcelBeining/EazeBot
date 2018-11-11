@@ -198,13 +198,16 @@ def buttonsEditTS(ct,uidTS,mode='full'):
 
 def buttonsSL(ct,uidTS):
     exch = ct.exchange.name.lower()   
-
     buttons = [[InlineKeyboardButton("Set SL Break Even",callback_data='2|%s|%s|SLBE|chosen'%(exch,uidTS))],[InlineKeyboardButton("Change/Delete SL",callback_data='2|%s|%s|SLC|chosen'%(exch,uidTS))],[InlineKeyboardButton("Set daily-close SL",callback_data='2|%s|%s|DCSL|chosen'%(exch,uidTS))]]
     if ct.numBuyLevels(uidTS,'notfilled') == 0:  # only show trailing SL option if all buy orders are filled
         buttons.append([InlineKeyboardButton("Set trailing SL",callback_data='2|%s|%s|TSL|chosen'%(exch,uidTS))])
     buttons.append([InlineKeyboardButton("Back",callback_data='2|%s|%s|back|chosen'%(exch,uidTS))])
     return buttons
 
+def buttonsEditTSH(ct):
+    exch = ct.exchange.name.lower()   
+    ct.resetTradeHistory
+    return InlineKeyboardMarkup([[InlineKeyboardButton("Clear Trade History",callback_data='resetTSH|%s|XXX'%(exch))]])
 
 
 def deleteMessages(user_data,typ='all',onlyForget=False):
@@ -253,7 +256,7 @@ def printTradeHistory(bot,update,user_data):
     deleteMessages(user_data,'history') #%!!!
     for iex,ex in enumerate(user_data['trade']):
         ct = user_data['trade'][ex]
-        user_data['messages']['history'].append(bot.send_message(user_data['chatId'],ct.getTradeHistory(),parse_mode='markdown'))
+        user_data['messages']['history'].append(bot.send_message(user_data['chatId'],ct.getTradeHistory(),parse_mode='markdown',reply_markup = buttonsEditTSH(ct) ))
     return MAINMENU 
     
 def checkBalance(bot,update,user_data,exchange=None):
@@ -693,10 +696,23 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                 else:
                     buttons = [[InlineKeyboardButton("Donate BTC",callback_data='1|%s|%s|BTC'%('xxx','xxx')),InlineKeyboardButton("Donate ETH",callback_data='%s|%s|%d|ETH'%('xxx','xxx',1)),InlineKeyboardButton("Donate NEO",callback_data='1|%s|%s|NEO'%('xxx','xxx')),InlineKeyboardButton("Donate XLM",callback_data='1|%s|%s|XLM'%('xxx','xxx'))]] 
                     query.edit_message_text('Thank you very much for your intention to donate some crypto! Accepted coins are BTC, ETH and NEO.\nYou may either donate by sending coins manually to one of the addresses below, or more easily by letting the bot send coins (amount will be asked in a later step) from one of your exchanges by clicking the corresponding button below.\n\n*BTC address:*\n17SfuTsJ3xpbzgArgRrjYSjvmzegMRcU3L\n*ETH address:*\n0x2DdbDA69B27D36D0900970BCb8049546a9d621Ef\n*NEO address:*\nAaGRMPuwtGrudXR5s7F5n11cxK595hCWUg'  ,reply_markup=InlineKeyboardMarkup(buttons),parse_mode='markdown')
+            
             elif command == 'chooseExch':
                 query.answer('%s chosen'%exch)
                 query.message.delete()
                 return user_data['lastFct'].pop()(exch)
+            
+            elif command == 'resetTSH':
+                ct = user_data['trade'][exch]
+                if 'yes' in args:
+                    query.message.delete()
+                    ct.resetTradeHistory()
+                elif 'no' in args:
+                    query.edit_message_reply_markup(reply_markup=buttonsEditTSH(ct))
+                else:
+                    query.answer('Are you sure? This cannot be undone!')
+                    query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='resetTSH|%s|XXX|yes'%(exch)), InlineKeyboardButton("No", callback_data='resetTSH|%s|XXX|no'%(exch))]]))
+                    
             else:  # trade set commands
                 if exch not in user_data['trade'] or uidTS not in user_data['trade'][exch].tradeSets:
                     query.edit_message_reply_markup()
@@ -980,7 +996,6 @@ def startBot():
     updater.job_queue.run_daily(checkCandle, (dt.datetime.combine(dt.date(1900,5,5),dt.time(0,0,10)) + (dt.datetime.now()-dt.datetime.utcnow())).time(), context=updater)
     # start a job saving the user data each 5 minutes
     updater.job_queue.run_repeating(save_data, interval=5*60, first=75,context=updater)
-    
     updater.start_polling()
     updater.idle()
     save_data(updater)  # last data save when finishing

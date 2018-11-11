@@ -265,6 +265,8 @@ class tradeHandler:
         ts['initCoins'] = 0
         ts['initPrice'] = None
         ts['SL'] = None
+        ts['trailingSL'] = [None, None]
+        ts['dailycloseSL'] = None
         ts['active'] = False
         ts['virgin'] = True
         self.waitForUpdate()
@@ -446,7 +448,11 @@ class tradeHandler:
             return '*Profit history on %s:\nAvg. relative gain: %+7.1f%%\nTotal profit in BTC: %+.5f\nTotal profit in USD: %+.2f\n\nDetailed Set Info:\n*'%(self.exchange.name,np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory if tsh['gainRel'] is not None]),sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]),sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory])) + string
         else:
             return '*No profit history on %s*'%self.exchange.name
-        
+    
+    def resetTradeHistory(self):
+        self.tradeSetHistory = []
+        return 1
+    
     def convertAmount(self,amount,currency,targetCurrency):
         if isinstance(targetCurrency,str):
             targetCurrency = [targetCurrency]
@@ -947,7 +953,7 @@ class tradeHandler:
                             newSL = ticker['last'] * (1- ts['trailingSL'][0])
                         if newSL > ts['SL']:
                             ts['SL'] = newSL
-            elif ts['dailycloseSL'] is not None and ticker['last'] < ts['dailycloseSL']:
+            elif 'dailycloseSL' in ts and ts['dailycloseSL'] is not None and ticker['last'] < ts['dailycloseSL']:
                 self.message('Daily candle closed below chosen SL of %s for pair %s! Selling now!'%(self.price2Prec(ts['symbol'],ts['dailycloseSL']),ts['symbol']),'warning')
                 # cancel all sell orders, create market sell order and save resulting amount of base currency
                 self.updating = False
