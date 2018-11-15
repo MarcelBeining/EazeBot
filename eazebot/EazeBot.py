@@ -198,7 +198,7 @@ def buttonsEditTS(ct,uidTS,mode='full'):
 
 def buttonsSL(ct,uidTS):
     exch = ct.exchange.name.lower()   
-    buttons = [[InlineKeyboardButton("Set SL Break Even",callback_data='2|%s|%s|SLBE|chosen'%(exch,uidTS))],[InlineKeyboardButton("Change/Delete SL",callback_data='2|%s|%s|SLC|chosen'%(exch,uidTS))],[InlineKeyboardButton("Set daily-close SL",callback_data='2|%s|%s|DCSL|chosen'%(exch,uidTS))]]
+    buttons = [[InlineKeyboardButton("Set SL Break Even",callback_data='2|%s|%s|SLBE|chosen'%(exch,uidTS))],[InlineKeyboardButton("Change/Delete SL",callback_data='2|%s|%s|SLC|chosen'%(exch,uidTS))],[InlineKeyboardButton("Set daily-close SL",callback_data='2|%s|%s|DCSL|chosen'%(exch,uidTS))],[InlineKeyboardButton("Set weekly-close SL",callback_data='2|%s|%s|WCSL|chosen'%(exch,uidTS))]]
     if ct.numBuyLevels(uidTS,'notfilled') == 0:  # only show trailing SL option if all buy orders are filled
         buttons.append([InlineKeyboardButton("Set trailing SL",callback_data='2|%s|%s|TSL|chosen'%(exch,uidTS))])
     buttons.append([InlineKeyboardButton("Back",callback_data='2|%s|%s|back|chosen'%(exch,uidTS))])
@@ -532,14 +532,14 @@ def updateBalance(bot,job):
                 updater.dispatcher.user_data[user]['trade'][ex].updateBalance()
     logging.info('Finished updating balances...')
     
-def checkCandle(bot,job):
+def checkCandle(bot,job,which=1):
     updater = job.context
     logging.info('Checking candles for all trade sets...')
     for user in updater.dispatcher.user_data:
         if user in __config__['telegramUserId']:
             for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
                 # avoid to hit it during updating
-                updater.dispatcher.user_data[user]['trade'][ex].update(dailyCheck=1)
+                updater.dispatcher.user_data[user]['trade'][ex].update(specialCheck=which)
     logging.info('Finished checking candles for all trade sets...')
 
 def timingCallback(bot, update,user_data,query=None,response=None):
@@ -811,6 +811,21 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                                 ct.setDailyCloseSL(uidTS,response)
                                 deleteMessages(user_data,'dialog')
                                 updateTStext(bot,update,user_data,uidTS,query)
+                                
+                        elif 'WCSL' in args:
+                            # set a daily-close SL
+                            if response is None:
+                                if 'yes' in args:
+                                    query.message.delete()
+                                    user_data['messages']['dialog'].append(bot.send_message(user_data['chatId'],'Please give the weekly candle closing price below which a SL would be triggered'))
+                                    return NUMBER
+                                else:
+                                    user_data['lastFct'].append(lambda res : InlineButtonCallback(bot,update,user_data,query,res))
+                                    user_data['messages']['dialog'].append(bot.send_message(user_data['chatId'],'Do you want to set an SL, which is triggered when the weekly candle closes below price X?',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='2|%s|%s|WCSL|yes'%(exch,uidTS)),InlineKeyboardButton("No", callback_data='2|%s|%s|cancel'%(exch,uidTS))], [InlineKeyboardButton("Cancel", callback_data='2|%s|%s|cancel'%(exch,uidTS))]])))
+                            else:
+                                ct.setWeeklyCloseSL(uidTS,response)
+                                deleteMessages(user_data,'dialog')
+                                updateTStext(bot,update,user_data,uidTS,query)
                             
                         elif 'TSL' in args:
                             # set a trailing stop-loss
@@ -992,8 +1007,10 @@ def startBot():
     updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=60,context=updater)
     # start a job checking for updates once a  day
     updater.job_queue.run_repeating(checkForUpdates, interval=60*60*24, first=0,context=updater)
-    # start a job checking every day 10 sec after midnight (UTC time) if any 'candleAbove' buys need to be initiated
-    updater.job_queue.run_daily(checkCandle, (dt.datetime.combine(dt.date(1900,5,5),dt.time(0,0,10)) + (dt.datetime.now()-dt.datetime.utcnow())).time(), context=updater)
+    # start a job checking every day 10 sec after midnight (UTC time)
+    updater.job_queue.run_daily(lambda u,b: checkCandle(u,b,1), (dt.datetime.combine(dt.date(1900,5,5),dt.time(0,0,10)) + (dt.datetime.now()-dt.datetime.utcnow())).time(), context=updater,name='dailyCheck')
+    # start a job checking every week 10 sec after midnight (UTC time)
+    updater.job_queue.run_daily(lambda u,b: checkCandle(u,b,2), (dt.datetime.combine(dt.date(1900,5,5),dt.time(0,0,10)) + (dt.datetime.now()-dt.datetime.utcnow())).time(), days=tuple([0]),context=updater,name='weeklyCheck')
     # start a job saving the user data each 5 minutes
     updater.job_queue.run_repeating(save_data, interval=5*60, first=75,context=updater)
     updater.start_polling()
