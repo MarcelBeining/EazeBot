@@ -1017,7 +1017,7 @@ class tradeHandler:
                         trades = self.exchange.fetchMyTrades(ts['symbol'])
                         orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
                         orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
-                        
+                        ts['InTrades'][iTrade]['price'] = orderInfo['price']
                         ts['costIn'] += orderInfo['cost']
                         self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
                         ts['coinsAvail'] += trade['actualAmount']
@@ -1050,7 +1050,7 @@ class tradeHandler:
                             trades = self.exchange.fetchMyTrades(ts['symbol'])
                             orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
                             orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
-                            
+                            ts['OutTrades'][iTrade]['price'] = orderInfo['price']
                             ts['costOut'] += orderInfo['cost']
                             self.message('Sell level of %s %s reached on %s! Sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
                         elif orderInfo['status'] == 'canceled':

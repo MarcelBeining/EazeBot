@@ -483,14 +483,16 @@ def addExchanges(bot,update,user_data):
 
 def getRemoteVersion():
     remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/version.txt').json()['content'])
-    return re.search('(?<=version = )[0-9\.]+',str(remoteTxt)).group(0)
+    remoteVersion = re.search('(?<=version = )[0-9\.]+',str(remoteTxt)).group(0)
+    remoteVersionCommit = [val['commit']['url'] for val in requests.get('https://api.github.com/repos/MarcelBeining/EazeBot/tags').json() if val['name']=='EazeBot_%s'%remoteVersion ][0]
+    return (remoteVersion,requests.get(remoteVersionCommit).json()['commit']['message'])
         
 def botInfo(bot,update,user_data):
     deleteMessages(user_data,'botInfo')
     string = '<b>******** EazeBot (v%s) ********</b>\n<i>Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges</i>\n'%thisVersion
-    remoteVersion = getRemoteVersion()
-    if remoteVersion > thisVersion:
-        string += '\n<b>There is a new version of EazeBot available on git (v%s)!</b>\n'%remoteVersion
+    remoteVersion, versionMessage = getRemoteVersion()
+    if remoteVersion != thisVersion and all([int(a) >= int(b) for a,b in zip(remoteVersion.split('.'),thisVersion.split('.'))]):
+        string += '\n<b>There is a new version of EazeBot available on git (v%s) with these changes:\n%s\n</b>\n'%(remoteVersion,versionMessage)
     string+='\nReward my efforts on this bot by donating some cryptos!'
     user_data['messages']['botInfo'].append(bot.send_message(user_data['chatId'],string,parse_mode='html',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Donate',callback_data='1|xxx|xxx')]])))
     return MAINMENU
@@ -504,11 +506,11 @@ def doneCmd(bot,update,user_data):
 # job functions   
 def checkForUpdates(bot,job):
     updater = job.context
-    remoteVersion = getRemoteVersion()
+    remoteVersion, versionMessage = getRemoteVersion()
     if remoteVersion != thisVersion and all([int(a) >= int(b) for a,b in zip(remoteVersion.split('.'),thisVersion.split('.'))]):
         for user in updater.dispatcher.user_data:
             if 'chatId' in updater.dispatcher.user_data[user]:
-                updater.dispatcher.user_data[user]['messages']['botInfo'].append(bot.send_message(updater.dispatcher.user_data[user]['chatId'],'There is a new version of EazeBot available on git/pip (v%s)! Consider updating!'%remoteVersion))
+                updater.dispatcher.user_data[user]['messages']['botInfo'].append(bot.send_message(updater.dispatcher.user_data[user]['chatId'],'There is a new version of EazeBot available on git/pip (v%s) with these changes:\n%s\n\nConsider updating!'%(remoteVersion,versionMessage)))
 
 def updateTradeSets(bot,job):
     updater = job.context
