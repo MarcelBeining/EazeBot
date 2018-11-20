@@ -282,7 +282,7 @@ class tradeHandler:
         wasactive = ts['active']
         # sanity check of amounts to buy/sell
         if self.sumSellAmounts(iTs,'notinitiated') - (self.sumBuyAmounts(iTs,'notfilled')+ ts['coinsAvail']) > 0:
-            self.message('Cannot activate trade set because the total amount you want to sell exceeds the total amount you want to buy (%s %s after fee subtraction) or added as initial coins. Please adjust the trade set!'%(self.amount2Prec(ts['symbol'],self.sumBuyAmounts(iTs,'notfilled',1)),ts['coinCurrency']))
+            self.message('Cannot activate trade set because the total amount you (still) want to sell (%s %s) exceeds the total amount you want to buy (%s %s after fee subtraction) and the amount you already have in this trade set (%s %s). Please adjust the trade set!'%(self.amount2Prec(ts['symbol'],self.sumSellAmounts(iTs,'notinitiated',1)),ts['coinCurrency'],self.amount2Prec(ts['symbol'],self.sumBuyAmounts(iTs,'notfilled',1)),ts['coinCurrency'],self.amount2Prec(ts['symbol'],ts['coinsAvail']),ts['coinCurrency']))
             return wasactive
         elif self.minBuyPrice(iTs,order='notfilled') is not None and ts['SL'] is not None and ts['SL'] >= self.minBuyPrice(iTs,order='notfilled'):
             self.message('Cannot activate trade set because the current stop loss price is higher than the lowest non-filled buy order price, which means this buy order could never be reached. Please adjust the trade set!')
@@ -1009,21 +1009,33 @@ class tradeHandler:
                         self.message('Daily candle of %s above %s triggering buy level #%d on %s!'%(ts['symbol'],self.price2Prec(ts['symbol'],trade['candleAbove']),iTrade,self.exchange.name))
                 elif trade['oid'] is not None:
                     orderInfo = self.fetchOrder(trade['oid'],ts['symbol'],'BUY')
+                    # fetch trades for all orders because a limit order might also be filled at a lower val
+                    trades = self.exchange.fetchMyTrades(ts['symbol'])
+                    orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
+                    orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
                     if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                         orderExecuted = 1
                         ts['InTrades'][iTrade]['oid'] = 'filled'
                         
-                        # fetch trades for all orders because a limit order might also be filled at a lower val
-                        trades = self.exchange.fetchMyTrades(ts['symbol'])
-                        orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
-                        orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
                         ts['InTrades'][iTrade]['price'] = orderInfo['price']
                         ts['costIn'] += orderInfo['cost']
                         self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
                         ts['coinsAvail'] += trade['actualAmount']
                     elif orderInfo['status'] == 'canceled':
-                        ts['InTrades'][iTrade]['oid'] = None
-                        self.message('Buy order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,list(self.tradeSets.keys()).index(iTs),self.exchange.name))
+                        if 'reason' in orderInfo['info']:
+                            reason = orderInfo['info']['reason']
+                        else:
+                            reason = 'N/A'
+                        if orderInfo['cost'] > 0:
+                            ts['InTrades'][iTrade]['oid'] = 'filled'
+                            ts['InTrades'][iTrade]['price'] = orderInfo['price']
+                            ts['costIn'] += orderInfo['cost']  
+                            orderInfo['amount'] = sum([tr['amount'] for tr in trades if tr['order'] == orderInfo['id']])
+                            ts['coinsAvail'] += orderInfo['amount']
+                            self.message('Buy order (level %d of trade set %d on %s) was canceled by exchange or someone else (reason: %s) but already partly filled! Treating order as closed now and updating trade set info.'%(iTrade,list(self.tradeSets.keys()).index(iTs),self.exchange.name))
+                        else:
+                            ts['InTrades'][iTrade]['oid'] = None
+                            self.message('Buy order (level %d of trade set %d on %s) was canceled by exchange or someone else (reason:%s)! Will be reinitialized during next update.'%(iTrade,list(self.tradeSets.keys()).index(iTs),self.exchange.name,reason))
                 else:
                     self.initBuyOrders(iTs)                                
                     time.sleep(1)
@@ -1042,23 +1054,35 @@ class tradeHandler:
                         continue
                     elif trade['oid'] is not None:
                         orderInfo = self.fetchOrder(trade['oid'],ts['symbol'],'SELL')
+                        # fetch trades for all orders because a limit order might also be filled at a higher val
+                        trades = self.exchange.fetchMyTrades(ts['symbol'])
+                        orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
+                        orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
                         if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                             orderExecuted = 2
                             ts['OutTrades'][iTrade]['oid'] = 'filled'
 #                            if orderInfo['type'] == 'market':
-                            # fetch trades for all orders because a limit order might also be filled at a higher val
-                            trades = self.exchange.fetchMyTrades(ts['symbol'])
-                            orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
-                            orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
+                            
                             ts['OutTrades'][iTrade]['price'] = orderInfo['price']
                             ts['costOut'] += orderInfo['cost']
                             self.message('Sell level of %s %s reached on %s! Sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
                         elif orderInfo['status'] == 'canceled':
-                            ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
-                            ts['OutTrades'][iTrade]['oid'] = None
-                            self.message('Sell order (level %d of trade set %d on %s) was canceled manually by someone! Will be reinitialized during next update.'%(iTrade,iTs,self.exchange.name))
+                            if 'reason' in orderInfo['info']:
+                                reason = orderInfo['info']['reason']
+                            else:
+                                reason = 'N/A'
+                            if orderInfo['cost'] > 0:
+                                ts['OutTrades'][iTrade]['oid'] = 'filled'
+                                ts['OutTrades'][iTrade]['price'] = orderInfo['price']
+                                ts['costOut'] += orderInfo['cost']    
+                                orderInfo['amount'] = sum([tr['amount'] for tr in trades if tr['order'] == orderInfo['id']])
+                                ts['coinsAvail'] +=  ts['OutTrades'][iTrade]['amount']-orderInfo['amount']
+                                self.message('Sell order (level %d of trade set %d on %s) was canceled by exchange or someone else (reason: %s) but already partly filled! Treating order as closed now and updating trade set info.'%(iTrade,list(self.tradeSets.keys()).index(iTs),self.exchange.name))
+                            else:
+                                ts['OutTrades'][iTrade]['oid'] = None
+                                self.message('Sell order (level %d of trade set %d on %s) was canceled by exchange or someone else (reason:%s)! Will be reinitialized during next update.'%(iTrade,list(self.tradeSets.keys()).index(iTs),self.exchange.name,reason))
                 # delete Tradeset when all orders have been filled (but only if there were any to execute and if no significant coin amount is left)
-                if ((ts['SL'] is None and orderExecuted > 0) or (orderExecuted == 2 and (self.sumSellAmounts(iTs,order='filled')-self.sumBuyAmounts(iTs,order='filled'))/self.sumBuyAmounts(iTs,order='filled') < 0.01 )) and self.numSellLevels(iTs,'notfilled') == 0 and self.numBuyLevels(iTs,'notfilled') == 0:
+                if ((ts['SL'] is None and orderExecuted > 0) or (orderExecuted == 2 and (self.sumBuyAmounts(iTs,order='filled')+ts['initCoins']-self.sumSellAmounts(iTs,order='filled'))/(ts['initCoins']+self.sumBuyAmounts(iTs,order='filled')) < 0.01 )) and self.numSellLevels(iTs,'notfilled') == 0 and self.numBuyLevels(iTs,'notfilled') == 0:
                     gain = self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn'])
                     self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,gain,ts['baseCurrency']))
                     tradeSetsToDelete.append(iTs)

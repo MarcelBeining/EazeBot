@@ -915,10 +915,10 @@ def save_data(*arg):
         dill.dump(user_data, f)
     logging.info('User data autosaved')
         
-def convert_data(from_='linux',to_='win',filename='data.pickle'):
+def convert_data(from_='linux',to_='win',filename='data.pickle',filenameout='data.pickle.new'):
     with open(filename, 'rb') as fi:
         byteContent = fi.read()
-        with open('data.pickle.new', 'wb') as fo:
+        with open(filenameout, 'wb') as fo:
             if 'linux' in from_ and 'win' in to_:
                 byteContent = byteContent.replace(b'cdill._dill', b'cdill.dill')
             elif 'win' in from_ and 'linux' in to_:
@@ -999,7 +999,7 @@ def startBot():
         if user in updater.dispatcher.user_data and len(updater.dispatcher.user_data[user]) > 0:
             time.sleep(2) # wait because of possibility of temporary exchange lockout
             addExchanges(updater.bot,None,updater.dispatcher.user_data[user])
-            
+    
     for user in __config__['telegramUserId']:
         try:
             updater.bot.send_message(user,'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
