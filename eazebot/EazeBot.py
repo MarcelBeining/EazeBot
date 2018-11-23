@@ -333,11 +333,12 @@ def askAmount(user_data,exch,uidTS,direction,botOrQuery):
         # free balance is coins available in trade set minus coins that will be sold plus coins that will be bought
         bal = ts['coinsAvail'] - ct.sumSellAmounts(uidTS,'notinitiated') + ct.sumBuyAmounts(uidTS,'notfilled',subtractFee = True)
         if user_data['whichCurrency']==0:
+            bal = ct.amount2Prec(ts['symbol'],bal)
             cname = coin
             action = 'sell'
             balText = 'available %s [fee subtracted] is'%coin
         else:
-            bal *= user_data['tempTradeSet'][0]
+            bal = ct.cost2Prec(ts['symbol'],bal*user_data['tempTradeSet'][0])
             cname = currency
             action = 'receive'
             balText = 'return from available %s [fee subtracted] would be'%coin
@@ -345,17 +346,19 @@ def askAmount(user_data,exch,uidTS,direction,botOrQuery):
         # free balance is free currency minus cost for coins that will be bought
         bal = ct.getFreeBalance(currency) - ct.sumBuyCosts(uidTS,'notinitiated')
         if user_data['whichCurrency']==0:
-            bal /= user_data['tempTradeSet'][0]
+            bal = ct.amount2Prec(ts['symbol'],bal/user_data['tempTradeSet'][0])
             cname = coin
             action = 'buy'
             balText = 'possible buy amount from your remaining free balance is'
         else:
+            bal = ct.cost2Prec(ts['symbol'],bal)
             cname = currency
             action = 'use'
             balText = 'remaining free balance is'
     else:
         raise ValueError('Unknown direction specification')
-    text = "What amount of %s do you want to %s (%s ~%.5g)?"%(cname,action,balText,bal)
+    
+    text = "What amount of %s do you want to %s (%s ~%s)?"%(cname,action,balText,bal)
     if isinstance(botOrQuery,bot.Bot):
         user_data['messages']['dialog'].append(botOrQuery.send_message(user_data['chatId'],text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency|%s|%s|%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount|cancel')]])))
     else:

@@ -29,7 +29,7 @@ import datetime
 import random
 import string
 import sys, os
-from ccxt.base.errors import (AuthenticationError,NetworkError,OrderNotFound,InvalidNonce)
+from ccxt.base.errors import (AuthenticationError,NetworkError,OrderNotFound,InvalidNonce,ExchangeError)
 
 class tradeHandler:
     
@@ -170,7 +170,11 @@ class tradeHandler:
                     self.message('%s seems to be down.'%self.exchange.name)   
                 raise(e)
             except Exception as e:
-                if count < 4 and ('unknown error' in str(e).lower() or 'connection' in str(e).lower()):
+                if count < 4 and isinstance(e,ExchangeError) and "symbol" in str(e).lower():
+                    self.safeRun(self.exchange.loadMarkets)
+                    count += 1
+                    continue
+                elif count < 4 and ('unknown error' in str(e).lower() or 'connection' in str(e).lower()):
                     count += 1
                     time.sleep(0.5)
                     continue
@@ -449,7 +453,7 @@ class tradeHandler:
     def getTradeHistory(self):
         string = ''
         for tsh in self.tradeSetHistory:
-            string += '%s:  %s\t%+7.1f%% ( %s BTC | %s USD)\n'%(datetime.datetime.utcfromtimestamp(tsh['time']).strftime('%Y-%m-%d'),tsh['symbol'],tsh['gainRel'],'%+.5f'%tsh['gainBTC'] if tsh['gainBTC'] else 'N/A','%+.2f'%tsh['gainUSD'] if tsh['gainUSD'] else 'N/A')
+            string += '%s:  %s\t%s%% ( %s BTC | %s USD)\n'%(datetime.datetime.utcfromtimestamp(tsh['time']).strftime('%Y-%m-%d'),tsh['symbol'],'%+7.1f'%tsh['gainRel'] if tsh['gainRel'] else 'N/A','%+.5f'%tsh['gainBTC'] if tsh['gainBTC'] else 'N/A','%+.2f'%tsh['gainUSD'] if tsh['gainUSD'] else 'N/A')
         if len(self.tradeSetHistory) > 0:
             return '*Profit history on %s:\nAvg. relative gain: %+7.1f%%\nTotal profit in BTC: %+.5f\nTotal profit in USD: %+.2f\n\nDetailed Set Info:\n*'%(self.exchange.name,np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory if tsh['gainRel'] is not None]),sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]),sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory])) + string
         else:
