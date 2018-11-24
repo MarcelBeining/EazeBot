@@ -855,7 +855,7 @@ class tradeHandler:
             orderInfo = self.fetchOrder(response['id'],ts['symbol'],'SELL')
                     
             if orderInfo['status']=='FILLED':
-                if orderInfo['type'] == 'market':
+                if orderInfo['type'] == 'market' and self.exchange.has['fetchMyTrades'] != False:
                     trades = self.exchange.fetchMyTrades(ts['symbol'])
                     orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
                     orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
@@ -1014,9 +1014,10 @@ class tradeHandler:
                 elif trade['oid'] is not None:
                     orderInfo = self.fetchOrder(trade['oid'],ts['symbol'],'BUY')
                     # fetch trades for all orders because a limit order might also be filled at a lower val
-                    trades = self.exchange.fetchMyTrades(ts['symbol'])
-                    orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
-                    orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
+                    if self.exchange.has['fetchMyTrades'] != False:
+                        trades = self.exchange.fetchMyTrades(ts['symbol'])
+                        orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
+                        orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
                     if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                         orderExecuted = 1
                         ts['InTrades'][iTrade]['oid'] = 'filled'
@@ -1059,9 +1060,10 @@ class tradeHandler:
                     elif trade['oid'] is not None:
                         orderInfo = self.fetchOrder(trade['oid'],ts['symbol'],'SELL')
                         # fetch trades for all orders because a limit order might also be filled at a higher val
-                        trades = self.exchange.fetchMyTrades(ts['symbol'])
-                        orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
-                        orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
+                        if self.exchange.has['fetchMyTrades'] != False:
+                            trades = self.exchange.fetchMyTrades(ts['symbol'])
+                            orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
+                            orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
                         if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                             orderExecuted = 2
                             ts['OutTrades'][iTrade]['oid'] = 'filled'
