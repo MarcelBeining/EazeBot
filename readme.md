@@ -6,7 +6,7 @@
 ![GitHub language count](https://img.shields.io/github/languages/count/MarcelBeining/eazebot.svg)
 ![GitHub last commit](https://img.shields.io/github/last-commit/MarcelBeining/eazebot.svg)
 [![GitHub issues](https://img.shields.io/github/issues/MarcelBeining/EazeBot.svg)](https://GitHub.com/MarcelBeining/EazeBot/issues/)
-
+[![Beerpay](https://beerpay.io/MarcelBeining/EazeBot/badge.svg?style=beer-square)](https://beerpay.io/MarcelBeining/EazeBot)
 
 
 # EazeBot
@@ -129,9 +129,8 @@ donation to one of the crypto addresses below, or use the built-in donation feat
 | Neo | `AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg` |
 | XLM |`GCP2KKXERN4MRBPEKPA2PGMEC573NBNVSU5KNU5V2RHE46Y7ZDNRNUCM`|
 
-**Thank you very much!**
 
-## Support on Beerpay
-Hey dude! Help me out for a couple of :beers:!
-
+New! Also accepting payments via beerpay :beers:!
 [![Beerpay](https://beerpay.io/MarcelBeining/EazeBot/badge.svg?style=beer-square)](https://beerpay.io/MarcelBeining/EazeBot)  [![Beerpay](https://beerpay.io/MarcelBeining/EazeBot/make-wish.svg?style=flat-square)](https://beerpay.io/MarcelBeining/EazeBot?focus=wish)
+
+**Thank you very much!**
