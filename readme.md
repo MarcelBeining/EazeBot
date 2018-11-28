@@ -130,3 +130,8 @@ donation to one of the crypto addresses below, or use the built-in donation feat
 | XLM |`GCP2KKXERN4MRBPEKPA2PGMEC573NBNVSU5KNU5V2RHE46Y7ZDNRNUCM`|
 
 **Thank you very much!**
+
+## Support on Beerpay
+Hey dude! Help me out for a couple of :beers:!
+
+[![Beerpay](https://beerpay.io/MarcelBeining/EazeBot/badge.svg?style=beer-square)](https://beerpay.io/MarcelBeining/EazeBot)  [![Beerpay](https://beerpay.io/MarcelBeining/EazeBot/make-wish.svg?style=flat-square)](https://beerpay.io/MarcelBeining/EazeBot?focus=wish)
