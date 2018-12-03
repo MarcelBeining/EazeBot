@@ -928,8 +928,10 @@ def convert_data(from_='linux',to_='win',filename='data.pickle',filenameout='dat
                 byteContent = byteContent.replace(b'cdill.dill',b'cdill._dill')
             if 'git' not in from_ and 'git' in to_:
                 byteContent = byteContent.replace(b'ceazebot.tradeHandler', b'ctradeHandler')
+                byteContent = byteContent.replace(b'ceazebot.EazeBot', b'cEazeBot')
             elif 'git' in from_ and 'git' not in to_:
-                byteContent = byteContent.replace(b'ctradeHandler',b'ceazebot.tradeHandler')
+                byteContent = byteContent.replace(b'ctradeHandler', b'ceazebot.tradeHandler')
+                byteContent = byteContent.replace(b'cEazeBot', b'ceazebot.EazeBot')
             fo.write(byteContent)
         
         
@@ -1008,6 +1010,7 @@ def startBot():
             updater.bot.send_message(user,'Bot was restarted.\n Please press /start to continue.',reply_markup=ReplyKeyboardMarkup([['/start']]),one_time_keyboard=True)
         except:
             pass
+    
     # start a job updating the trade sets each interval
     updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=60,context=updater)
     # start a job checking for updates once a  day

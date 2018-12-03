@@ -303,11 +303,12 @@ class tradeHandler:
         self.initBuyOrders(iTs)
         return wasactive
     
-    def deactivateTradeSet(self,iTs,cancelOrders=False):
+    def deactivateTradeSet(self,iTs,cancelOrders=0):
+        # cancelOrders can be 0 (not), 1 (cancel), 2 (cancel and delete open orders)
         wasactive = self.tradeSets[iTs]['active']
         if cancelOrders:
-            self.cancelBuyOrders(iTs)
-            self.cancelSellOrders(iTs)
+            self.cancelBuyOrders(iTs,deleteOpenOrders=cancelOrders==2)
+            self.cancelSellOrders(iTs,deleteOpenOrders=cancelOrders==2)
         self.tradeSets[iTs]['active'] = False
         return wasactive
         
@@ -832,10 +833,8 @@ class tradeHandler:
                 return 1
 
     def sellAllNow(self,iTs,price=None):
-        self.deactivateTradeSet(iTs,1)
+        self.deactivateTradeSet(iTs,2)
         ts = self.tradeSets[iTs]
-        ts['InTrades'] = []
-        ts['OutTrades'] = []
         ts['SL'] = None # necessary to not retrigger SL
         ts['dailycloseSL'] = None # this one, too
         sold = True
@@ -870,7 +869,7 @@ class tradeHandler:
             self.message('No coins (or too low amount) to sell from this trade set.','warning')
         return sold
                 
-    def cancelSellOrders(self,iTs,oid=None):
+    def cancelSellOrders(self,iTs,oid=None,deleteOpenOrders=False):
         returnVal = 1
         if iTs in self.tradeSets and self.numSellLevels(iTs) > 0:
             count = 0
@@ -883,18 +882,22 @@ class tradeHandler:
                     time.sleep(1)
                     count += 1
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'SELL')
+                    self.tradeSets[iTs]['coinsAvail'] += trade['amount']
+                    trade['oid'] = None
                     if orderInfo['filled'] > 0:
                         self.message('(Partly?) filled sell order found during canceling. Updating balance')
                         self.tradeSets[iTs]['costOut'] += orderInfo['price']*orderInfo['filled']
                         self.tradeSets[iTs]['coinsAvail'] -= orderInfo['filled']  
+                        trade['oid'] = 'filled'
+                        trade['amount'] = orderInfo['filled']
                         returnVal = 0.5
-                    self.tradeSets[iTs]['coinsAvail'] += trade['amount']
-                    trade['oid'] = None
+                    elif deleteOpenOrders:
+                        self.tradeSets[iTs]['OutTrades'].pop(iTrade)
             if count > 0:
                 self.message('%d sell orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
         return returnVal
         
-    def cancelBuyOrders(self,iTs,oid=None):
+    def cancelBuyOrders(self,iTs,oid=None,deleteOpenOrders=False):
         returnVal = 1
         if iTs in self.tradeSets and self.numBuyLevels(iTs) > 0:
             count = 0
@@ -907,12 +910,14 @@ class tradeHandler:
                     time.sleep(1)
                     count += 1
                     orderInfo = self.fetchOrder(trade['oid'],self.tradeSets[iTs]['symbol'],'BUY')
+                    trade['oid'] = None
                     if orderInfo['filled'] > 0:
                         self.message('(Partly?) filled buy order found during canceling. Updating balance')
                         self.tradeSets[iTs]['costIn'] += orderInfo['price']*orderInfo['filled']
                         self.tradeSets[iTs]['coinsAvail'] += orderInfo['filled']   
                         returnVal = 0.5
-                    trade['oid'] = None
+                    elif deleteOpenOrders:
+                        self.tradeSets[iTs]['InTrades'].pop(iTrade)
             if count > 0:
                 self.message('%d buy orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
         return returnVal
