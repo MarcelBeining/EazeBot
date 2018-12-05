@@ -23,6 +23,7 @@
 import ccxt
 import re
 from json import JSONDecodeError
+from inspect import getsourcefile, getsourcelines
 import numpy as np
 import time
 import datetime
@@ -136,7 +137,7 @@ class tradeHandler:
                     self.exchange.load_time_difference()
                 if count >= 5:
                     self.updating = False
-                    self.message('Network exception occurred 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])))
+                    self.message('Network exception occurred 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])),'Error')
                     raise(e)
                 else:
                     time.sleep(0.5)
@@ -145,7 +146,7 @@ class tradeHandler:
                 count += 1
                 if count >= 5:
                     self.updating = False
-                    self.message('Order not found error 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])))
+                    self.message('Order not found error 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])),'Error')
                     raise(e)
                 else:
                     time.sleep(0.5)
@@ -180,12 +181,14 @@ class tradeHandler:
                     continue
                 else:
                     self.updating = False
-                    string = ''
+                    string = 'Exchange %s\n'%self.exchange.name
                     if count >= 5:
                         string += 'Network exception occurred 5 times in a row! Last error was:\n'
                     exc_type, exc_obj, exc_tb = sys.exc_info()
-                    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                    string += '%s in %s at line %s: %s'%(exc_type, fname, exc_tb.tb_lineno,str(e))
+                    #fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                    lines = getsourcelines(func)
+                    string += '%s in %s from %s at line %d: %s'%(exc_type, lines[0][0],os.path.basename(getsourcefile(func)),lines[1],str(e))
+
                     if printError:
                         self.message(string,'Error')
                     raise(e)
