@@ -120,7 +120,7 @@ class tradeHandler:
         if typ not in ['amount','price','cost']:
             raise ValueError('Type is not amount, price or cost')
         if typ in self.exchange.markets[symbol]['limits']:
-            return (self.exchange.markets[symbol]['limits'][typ]['min'] is None or qty >= self.exchange.markets[symbol]['limits'][typ]['min']) and (self.exchange.markets[symbol]['limits'][typ]['max'] is None or qty <= self.exchange.markets[symbol]['limits'][typ]['max'])
+            return (self.exchange.markets[symbol]['limits'][typ]['min'] is None or qty >= self.exchange.markets[symbol]['limits'][typ]['min']) and (self.exchange.markets[symbol]['limits'][typ]['max'] is None or self.exchange.markets[symbol]['limits'][typ]['max'] == 0 or qty <= self.exchange.markets[symbol]['limits'][typ]['max'])
         else:
             if self.logger:
                 self.logger.warning('Exchange %s does not provide limits for %s'%(self.exchange.name,typ))
