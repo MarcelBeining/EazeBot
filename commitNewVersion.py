@@ -52,4 +52,5 @@ commitMessage = commitMessage.encode('utf-8').decode('unicode_escape')
 commitType = ['New edition','Major','Minor'][answer-1]
 git.commit('-m "%s changes: %s"'%(commitType,commitMessage))
 git.execute('git tag -a "%s" -m ""'%('EazeBot_%s'%thisVersion))
+git.push()
 git.push('--tags')

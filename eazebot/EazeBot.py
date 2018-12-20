@@ -248,8 +248,10 @@ def printTradeStatus(bot,update,user_data,onlyThisTs=None):
             except Exception as e:
                 logging.error(str(e))
                 pass
-    if count == 0:
-        user_data['messages']['status'].append(bot.send_message(user_data['chatId'],'No Trade sets found'))
+        if count == 0:
+            user_data['messages']['status'].append(bot.send_message(user_data['chatId'],'No Trade sets found on %s'%ex))
+    if len(user_data['trade']) == 0:
+        user_data['messages']['status'].append(bot.send_message(user_data['chatId'],'No exchange found to check trade sets'))
     return MAINMENU 
 
 def printTradeHistory(bot,update,user_data):
