@@ -632,13 +632,12 @@ class tradeHandler:
             ts['InTrades'].append({'oid': None, 'price': buyPrice, 'amount': buyAmount, 'actualAmount': boughtAmount, 'candleAbove': candleAbove})
             if wasactive:
                 self.activateTradeSet(iTs,0)   
-            ts.updating = False
+            ts['updating'] = False
             return  self.numBuyLevels(iTs)-1
         else:
             raise ValueError('Some input was no number')
     
     def deleteBuyLevel(self,iTs,iTrade): 
-        
         if self.checkNum(iTrade):
             self.waitForUpdate(iTs)
             ts = self.tradeSets[iTs]
@@ -648,7 +647,7 @@ class tradeHandler:
             ts['InTrades'].pop(iTrade)
             if wasactive:
                 self.activateTradeSet(iTs,0) 
-            self.tradeSets[iTs]['updating'] = False
+            ts['updating'] = False
         else:
             raise ValueError('Some input was no number')
             
@@ -709,7 +708,7 @@ class tradeHandler:
             ts['OutTrades'].append({'oid': None, 'price': sellPrice, 'amount': sellAmount})
             if wasactive:
                 self.activateTradeSet(iTs,0)  
-            ts.updating = False
+            ts['updating'] = False
             return  self.numSellLevels(iTs)-1
         else:
             raise ValueError('Some input was no number')
@@ -722,7 +721,7 @@ class tradeHandler:
             if ts['OutTrades'][iTrade]['oid'] is not None and ts['OutTrades'][iTrade]['oid'] != 'filled' :
                 self.cancelSellOrders(iTs,ts['OutTrades'][iTrade]['oid'])
             ts['OutTrades'].pop(iTrade)
-            ts.updating = False
+            ts['updating'] = False
             if wasactive:
                 self.activateTradeSet(iTs,0) 
         else:
@@ -989,7 +988,7 @@ class tradeHandler:
                         if ticker['last'] <= ts['SL']:
                             self.message('Stop loss for pair %s has been triggered!'%ts['symbol'],'warning')
                             # cancel all sell orders, create market sell order and save resulting amount of base currency
-                            ts.updating = False
+                            ts['updating'] = False
                             sold = self.sellAllNow(iTs,price=ticker['last'])
                             self.waitForUpdate(iTs)
                             if sold:
@@ -1005,7 +1004,7 @@ class tradeHandler:
                 elif specialCheck == 1 and 'dailycloseSL' in ts and ts['dailycloseSL'] is not None and ticker['last'] < ts['dailycloseSL']:
                     self.message('Daily candle closed below chosen SL of %s for pair %s! Selling now!'%(self.price2Prec(ts['symbol'],ts['dailycloseSL']),ts['symbol']),'warning')
                     # cancel all sell orders, create market sell order and save resulting amount of base currency
-                    ts.updating = False
+                    ts['updating'] = False
                     sold = self.sellAllNow(iTs,price=ticker['last'])
                     self.waitForUpdate(iTs)
                     if sold:
@@ -1014,7 +1013,7 @@ class tradeHandler:
                 elif specialCheck == 2 and 'weeklycloseSL' in ts and ts['weeklycloseSL'] is not None and ticker['last'] < ts['weeklycloseSL']:
                     self.message('Weekly candle closed below chosen SL of %s for pair %s! Selling now!'%(self.price2Prec(ts['symbol'],ts['weeklycloseSL']),ts['symbol']),'warning')
                     # cancel all sell orders, create market sell order and save resulting amount of base currency
-                    ts.updating = False
+                    ts['updating'] = False
                     sold = self.sellAllNow(iTs,price=ticker['last'])
                     self.waitForUpdate(iTs)
                     if sold:
@@ -1112,7 +1111,7 @@ class tradeHandler:
                         gain = self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn'])
                         self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,gain,ts['baseCurrency']))
                         tradeSetsToDelete.append(iTs)
-                    ts.updating = False
+                    ts['updating'] = False
         except Exception as e:
             # makes sure that the tradeSet deletion takes place even if some error occurred in another trade
             pass
