@@ -51,7 +51,7 @@ MAINMENU,SETTINGS,SYMBOL,NUMBER,TIMING,INFO = range(6)
 logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
 rootLogger = logging.getLogger()
 rootLogger.handlers = []  # delete old handlers in case bot is restarted but not python kernel
-rootLogger.setLevel('INFO')
+rootLogger.setLevel('INFO') #DEBUG
 fileHandler = logging.handlers.RotatingFileHandler("{0}/{1}.log".format(os.getcwd(), logFileName),maxBytes=1000000, backupCount=5)
 fileHandler.setFormatter(logFormatter)
 rootLogger.addHandler(fileHandler)
@@ -94,21 +94,22 @@ def copyJSON(folderName=os.getcwd(),force=0):
 def broadcastMsg(bot,userId,msg,level='info'):
     # put msg into log with userId
     getattr(rootLogger,level.lower())('User %d: %s'%(userId,msg))
-    # return msg to user
-    count = 0
-    while count < 5:
-        try:
-            bot.send_message(chat_id=userId, text=level + ': ' + msg, parse_mode='markdown')
-            break
-        except TypeError as e:
-            pass            
-        except:
-            count += 1
-            logging.warning('Some connection (?) error occured when trying to send a telegram message. Retrying..')
-            time.sleep(1)
-            continue
-    if count >= 5:
-        logging.error('Could not send message to bot')
+    if __config__['debug'] or level.lower() != 'debug':
+        # return msg to user
+        count = 0
+        while count < 5:
+            try:
+                bot.send_message(chat_id=userId, text=level + ': ' + msg, parse_mode='markdown')
+                break
+            except TypeError as e:
+                pass            
+            except:
+                count += 1
+                logging.warning('Some connection (?) error occured when trying to send a telegram message. Retrying..')
+                time.sleep(1)
+                continue
+        if count >= 5:
+            logging.error('Could not send message to bot')
 
 def noncomprende(bot, update,what):
     if what == 'unknownCmd':
@@ -968,6 +969,10 @@ def startBot():
         __config__['minBalanceInBTC'] = 0.001
     if isinstance(__config__['minBalanceInBTC'],str):
         __config__['minBalanceInBTC'] = float(__config__['minBalanceInBTC'])
+    if 'debug' not in __config__:
+        __config__['debug'] = False
+    if isinstance(__config__['debug'],str):
+        __config__['debug'] = bool(int(__config__['debug']))
     
     #%% define the handlers to communicate with user
     conv_handler = ConversationHandler(
