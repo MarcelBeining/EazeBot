@@ -140,7 +140,7 @@ class tradeHandler:
                     self.exchange.load_time_difference()
                 if count >= 5:
                     if iTs:
-                        self.tradeSets[iTs]['updating'] = False
+                        self.unlockTradeSet(iTs)
                     self.message('Network exception occurred 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])),'Error')
                     raise(e)
                 else:
@@ -150,7 +150,7 @@ class tradeHandler:
                 count += 1
                 if count >= 5:
                     if iTs:
-                        self.tradeSets[iTs]['updating'] = False
+                        self.unlockTradeSet(iTs)
                     self.message('Order not found error 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])),'Error')
                     raise(e)
                 else:
@@ -160,7 +160,7 @@ class tradeHandler:
                 count += 1
                 if count >= 5:
                     if iTs:
-                        self.tradeSets[iTs]['updating'] = False
+                        self.unlockTradeSet(iTs)
                     raise(e)
                 else:
                     time.sleep(0.5)
@@ -174,7 +174,7 @@ class tradeHandler:
                 continue
             except JSONDecodeError as e:
                 if iTs:
-                    self.tradeSets[iTs]['updating'] = False
+                    self.unlockTradeSet(iTs)
                 if 'Expecting value' in str(e):
                     self.message('%s seems to be down.'%self.exchange.name)   
                 raise(e)
@@ -189,7 +189,7 @@ class tradeHandler:
                     continue
                 else:
                     if iTs:
-                        self.tradeSets[iTs]['updating'] = False
+                        self.unlockTradeSet(iTs)
                     string = 'Exchange %s\n'%self.exchange.name
                     if count >= 5:
                         string += 'Network exception occurred 5 times in a row! Last error was:\n'
@@ -203,7 +203,7 @@ class tradeHandler:
                     raise(e)
         
 
-    def waitForUpdate(self,iTs):
+    def lockTradeSet(self,iTs):
         # avoids two processes changing a tradeset at the same time
         count = 0
         mystamp = time.time()
@@ -220,6 +220,9 @@ class tradeHandler:
                 break
         self.tradeSets[iTs]['updating'] = True
         self.tradeSets[iTs]['waiting'].remove(mystamp)
+    
+    def unlockTradeSet(self,iTs):
+        self.tradeSets[iTs]['updating'] = False
         
     def updateBalance(self):
         # reloads the exchange market and private balance and, if successul, sets the exchange as authenticated
@@ -266,30 +269,19 @@ class tradeHandler:
     
     def initTradeSet(self,symbol):
         self.updateBalance()
-        ts = {}
-        ts['symbol'] = symbol
-        ts['InTrades'] = []
+        
         iTs = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
         # redo if uid already reserved
         while iTs in self.tradeSets:
             iTs = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
-        ts['createdAt'] = time.time()
-        ts['OutTrades'] = []
-        ts['baseCurrency'] = re.search("(?<=/).*", symbol).group(0)
-        ts['coinCurrency'] = re.search(".*(?=/)", symbol).group(0)
-        ts['costIn'] = 0
-        ts['costOut'] = 0
-        ts['coinsAvail'] = 0
-        ts['initCoins'] = 0
-        ts['initPrice'] = None
-        ts['SL'] = None
-        ts['trailingSL'] = [None, None]
-        ts['dailycloseSL'] = None
-        ts['weeklycloseSL'] = None
-        ts['active'] = False
-        ts['virgin'] = True
-        ts['updating'] = False
-        ts['waiting'] = []
+        
+        ts = {'symbol': symbol,'InTrades': [],'createdAt': time.time(), \
+              'OutTrades': [], 'baseCurrency': re.search("(?<=/).*", symbol).group(0), \
+              'coinCurrency': re.search(".*(?=/)", symbol).group(0), 'costIn': 0, \
+              'costOut': 0, 'coinsAvail': 0, 'initCoins': 0, 'initPrice': None, \
+              'SL': None, 'trailingSL': [None, None], 'dailycloseSL': None, \
+              'weeklycloseSL': None, 'active': False, 'virgin': True, 'updating': False, \
+              'waiting':  []}
         self.tradeSets[iTs] = ts
         return ts, iTs
         
@@ -493,7 +485,7 @@ class tradeHandler:
         
         
     def deleteTradeSet(self,iTs,sellAll=False):
-        self.waitForUpdate(iTs)
+        self.lockTradeSet(iTs)
         if sellAll:
             sold = self.sellAllNow(iTs)
         else:
@@ -503,7 +495,7 @@ class tradeHandler:
             self.createTradeHistoryEntry(iTs)
             self.tradeSets.pop(iTs)
         else:
-            self.tradeSets[iTs]['updating'] = False
+            self.unlockTradeSet(iTs)
     
     def addInitCoins(self,iTs,initCoins=0,initPrice=None):
         if self.checkNum(initCoins,initPrice) or (initPrice is None and self.checkNum(initCoins)):
@@ -514,7 +506,7 @@ class tradeHandler:
             if self.getFreeBalance(ts['coinCurrency']) < initCoins:
                 self.message('Adding initial balance failed: %s %s requested but only %s %s are free!'%(self.amount2Prec(ts['symbol'],initCoins),ts['coinCurrency'],self.amount2Prec(ts['symbol'],self.getFreeBalance(ts['coinCurrency'])),ts['coinCurrency']),'error')
                 return 0
-            self.waitForUpdate(iTs)
+            self.lockTradeSet(iTs)
             
             if ts['coinsAvail'] > 0 and ts['initPrice'] is not None:
                 # remove old cost again
@@ -525,7 +517,7 @@ class tradeHandler:
             ts['initPrice'] = initPrice
             if initPrice is not None:
                 ts['costIn'] += (initCoins*initPrice)
-            self.tradeSets[iTs]['updating'] = False
+            self.unlockTradeSet(iTs)
             return 1
         else:
             raise ValueError('Some input was no number')
@@ -627,19 +619,19 @@ class tradeHandler:
                 boughtAmount = buyAmount - (fee['cost'] if (self.exchange.name.lower() != 'binance' or self.getFreeBalance('BNB') < 0.5) else 0) # this is a hack, as fees on binance are deduced from BNB if this is activated and there is enough BNB, however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay the fee for the trade and thus the fee is not subtracted from the traded coin
             else:
                 boughtAmount = buyAmount
-            self.waitForUpdate(iTs)
+            self.lockTradeSet(iTs)
             wasactive = self.deactivateTradeSet(iTs)  
             ts['InTrades'].append({'oid': None, 'price': buyPrice, 'amount': buyAmount, 'actualAmount': boughtAmount, 'candleAbove': candleAbove})
             if wasactive:
                 self.activateTradeSet(iTs,0)   
-            ts['updating'] = False
+            self.unlockTradeSet(iTs)
             return  self.numBuyLevels(iTs)-1
         else:
             raise ValueError('Some input was no number')
     
     def deleteBuyLevel(self,iTs,iTrade): 
         if self.checkNum(iTrade):
-            self.waitForUpdate(iTs)
+            self.lockTradeSet(iTs)
             ts = self.tradeSets[iTs]
             wasactive = self.deactivateTradeSet(iTs)
             if ts['InTrades'][iTrade]['oid'] is not None and ts['InTrades'][iTrade]['oid'] != 'filled' :
@@ -647,7 +639,7 @@ class tradeHandler:
             ts['InTrades'].pop(iTrade)
             if wasactive:
                 self.activateTradeSet(iTs,0) 
-            ts['updating'] = False
+            self.unlockTradeSet(iTs)
         else:
             raise ValueError('Some input was no number')
             
@@ -703,25 +695,25 @@ class tradeHandler:
             elif not self.checkQuantity(ts['symbol'],'cost',sellPrice*sellAmount):
                 self.message('Adding sell level failed, return is not within the range, the exchange accepts')
                 return 0 
-            self.waitForUpdate(iTs)
+            self.lockTradeSet(iTs)
             wasactive = self.deactivateTradeSet(iTs)  
             ts['OutTrades'].append({'oid': None, 'price': sellPrice, 'amount': sellAmount})
             if wasactive:
                 self.activateTradeSet(iTs,0)  
-            ts['updating'] = False
+            self.unlockTradeSet(iTs)
             return  self.numSellLevels(iTs)-1
         else:
             raise ValueError('Some input was no number')
 
     def deleteSellLevel(self,iTs,iTrade):   
         if self.checkNum(iTrade):
-            self.waitForUpdate(iTs)
+            self.lockTradeSet(iTs)
             ts = self.tradeSets[iTs]
             wasactive = self.deactivateTradeSet(iTs)
             if ts['OutTrades'][iTrade]['oid'] is not None and ts['OutTrades'][iTrade]['oid'] != 'filled' :
                 self.cancelSellOrders(iTs,ts['OutTrades'][iTrade]['oid'])
             ts['OutTrades'].pop(iTrade)
-            ts['updating'] = False
+            self.unlockTradeSet(iTs)
             if wasactive:
                 self.activateTradeSet(iTs,0) 
         else:
@@ -977,10 +969,10 @@ class tradeHandler:
         tradeSetsToDelete = []
         try:
             for iTs in self.tradeSets:
-                self.waitForUpdate(iTs)
                 ts = self.tradeSets[iTs]
                 if not ts['active']:
                     continue
+                self.lockTradeSet(iTs)
                 ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
                 # check if stop loss is reached
                 if not specialCheck:
@@ -988,9 +980,7 @@ class tradeHandler:
                         if ticker['last'] <= ts['SL']:
                             self.message('Stop loss for pair %s has been triggered!'%ts['symbol'],'warning')
                             # cancel all sell orders, create market sell order and save resulting amount of base currency
-                            ts['updating'] = False
                             sold = self.sellAllNow(iTs,price=ticker['last'])
-                            self.waitForUpdate(iTs)
                             if sold:
                                 tradeSetsToDelete.append(iTs)
                                 continue
@@ -1004,18 +994,14 @@ class tradeHandler:
                 elif specialCheck == 1 and 'dailycloseSL' in ts and ts['dailycloseSL'] is not None and ticker['last'] < ts['dailycloseSL']:
                     self.message('Daily candle closed below chosen SL of %s for pair %s! Selling now!'%(self.price2Prec(ts['symbol'],ts['dailycloseSL']),ts['symbol']),'warning')
                     # cancel all sell orders, create market sell order and save resulting amount of base currency
-                    ts['updating'] = False
                     sold = self.sellAllNow(iTs,price=ticker['last'])
-                    self.waitForUpdate(iTs)
                     if sold:
                         tradeSetsToDelete.append(iTs)
                         continue                                    
                 elif specialCheck == 2 and 'weeklycloseSL' in ts and ts['weeklycloseSL'] is not None and ticker['last'] < ts['weeklycloseSL']:
                     self.message('Weekly candle closed below chosen SL of %s for pair %s! Selling now!'%(self.price2Prec(ts['symbol'],ts['weeklycloseSL']),ts['symbol']),'warning')
                     # cancel all sell orders, create market sell order and save resulting amount of base currency
-                    ts['updating'] = False
                     sold = self.sellAllNow(iTs,price=ticker['last'])
-                    self.waitForUpdate(iTs)
                     if sold:
                         tradeSetsToDelete.append(iTs)
                         continue
@@ -1085,9 +1071,7 @@ class tradeHandler:
                                 orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
                             if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                                 orderExecuted = 2
-                                ts['OutTrades'][iTrade]['oid'] = 'filled'
-    #                            if orderInfo['type'] == 'market':
-                                
+                                ts['OutTrades'][iTrade]['oid'] = 'filled'                               
                                 ts['OutTrades'][iTrade]['price'] = orderInfo['price']
                                 ts['costOut'] += orderInfo['cost']
                                 self.message('Sell level of %s %s reached on %s! Sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
@@ -1111,9 +1095,10 @@ class tradeHandler:
                         gain = self.cost2Prec(ts['symbol'],ts['costOut']-ts['costIn'])
                         self.message('Trading set %s on %s completed! Total gain: %s %s'%(ts['symbol'],self.exchange.name,gain,ts['baseCurrency']))
                         tradeSetsToDelete.append(iTs)
-                    ts['updating'] = False
+            self.unlockTradeSet(iTs)
         except Exception as e:
             # makes sure that the tradeSet deletion takes place even if some error occurred in another trade
+            self.unlockTradeSet(iTs)
             pass
                 
         for iTs in tradeSetsToDelete:
