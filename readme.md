@@ -127,7 +127,7 @@ donation to one of the crypto addresses below, or use the built-in donation feat
 | Bitcoin      | `17SfuTsJ3xpbzgArgRrjYSjvmzegMRcU3L` |
 | ETH      | `0xa86711B0a368E4ed3B01a48E79844f6941Af579f`| 
 | Neo | `AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg` |
-| XLM |`GCP2KKXERN4MRBPEKPA2PGMEC573NBNVSU5KNU5V2RHE46Y7ZDNRNUCM`|
+| XLM |`GBJEFEFUAUVTWL5UYK3NTWW7J5J3SMH4XB7SYDZRWWEON5S5YHPI2LAR`|
 
 
 New! Also accepting payments via beerpay :beers:!
