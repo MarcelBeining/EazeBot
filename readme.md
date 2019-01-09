@@ -124,8 +124,8 @@ donation to one of the crypto addresses below, or use the built-in donation feat
 
 | Currency        | Address           | 
 | ------------- |:-------------:|
-| Bitcoin      | `17SfuTsJ3xpbzgArgRrjYSjvmzegMRcU3L` |
-| ETH      | `0xa86711B0a368E4ed3B01a48E79844f6941Af579f`| 
+| Bitcoin      | `3AP2u8wMwdSFJWCXNhUbfbV1xirqshfqg6` |
+| ETH      | `0xE0451300D96090c1F274708Bc00d791017D7a5F3`| 
 | Neo | `AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg` |
 | XLM |`GBJEFEFUAUVTWL5UYK3NTWW7J5J3SMH4XB7SYDZRWWEON5S5YHPI2LAR`|
 
