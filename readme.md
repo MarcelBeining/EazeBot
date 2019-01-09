@@ -131,6 +131,8 @@ donation to one of the crypto addresses below, or use the built-in donation feat
 
 
 New! Also accepting payments via beerpay :beers:!
-[![Beerpay](https://beerpay.io/MarcelBeining/EazeBot/badge.svg?style=beer-square)](https://beerpay.io/MarcelBeining/EazeBot)  [![Beerpay](https://beerpay.io/MarcelBeining/EazeBot/make-wish.svg?style=flat-square)](https://beerpay.io/MarcelBeining/EazeBot?focus=wish)
+[![Beerpay](https://beerpay.io/MarcelBeining/EazeBot/badge.svg?style=beer-square)](https://beerpay.io/MarcelBeining/EazeBot) 
+
+Want a new feature to be implemented to EazeBot? [![Beerpay](https://beerpay.io/MarcelBeining/EazeBot/make-wish.svg?style=flat-square)](https://beerpay.io/MarcelBeining/EazeBot?focus=wish)
 
 **Thank you very much!**
