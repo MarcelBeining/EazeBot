@@ -673,13 +673,13 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                     else:
                         if response is not None:
                             if args[0] == 'BTC':
-                                address = '17SfuTsJ3xpbzgArgRrjYSjvmzegMRcU3L'
+                                address = '3AP2u8wMwdSFJWCXNhUbfbV1xirqshfqg6'
                             elif args[0] == 'ETH':
-                                address = '0xa86711B0a368E4ed3B01a48E79844f6941Af579f'
+                                address = '0xE0451300D96090c1F274708Bc00d791017D7a5F3'
                             elif args[0] == 'NEO':
                                 address = 'AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg' 
                             elif args[0] == 'XLM':
-                                address = 'GCP2KKXERN4MRBPEKPA2PGMEC573NBNVSU5KNU5V2RHE46Y7ZDNRNUCM'
+                                address = 'GBJEFEFUAUVTWL5UYK3NTWW7J5J3SMH4XB7SYDZRWWEON5S5YHPI2LAR'
                             try:
                                 if response > 0:
                                     user_data['trade'][exch].exchange.withdraw(args[0], response, address)

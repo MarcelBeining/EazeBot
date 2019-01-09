@@ -57,6 +57,7 @@ class tradeHandler:
 
         self.updating = False
         self.waiting = []
+        self.down = False
         self.authenticated = False
         if key:
             self.updateKeys(key,secret,password,uid)
@@ -130,8 +131,10 @@ class tradeHandler:
         
     def safeRun(self,func,printError=True,iTs=None):
         count = 0
+        wasdown = self.down
         while True:
             try:
+                self.down = False
                 return func()
             except NetworkError as e:
                 count += 1
@@ -140,7 +143,12 @@ class tradeHandler:
                 if count >= 5:
                     if iTs:
                         self.unlockTradeSet(iTs)
-                    self.message('Network exception occurred 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])),'Error')
+                    if 'Cloudflare' in str(e):
+                        self.down = True
+                        if printError:
+                             self.message('Cloudflare problem with exchange %s. Exchange is treated as down.'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs))),'Error')   
+                    elif printError:
+                        self.message('Network exception occurred 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])),'Error')
                     raise(e)
                 else:
                     time.sleep(0.5)
@@ -150,7 +158,8 @@ class tradeHandler:
                 if count >= 5:
                     if iTs:
                         self.unlockTradeSet(iTs)
-                    self.message('Order not found error 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])),'Error')
+                    if printError:
+                        self.message('Order not found error 5 times in a row on %s%s'%(self.exchange.name,'' if iTs is None else ' for tradeSet %d (%s)'%(list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol'])),'Error')
                     raise(e)
                 else:
                     time.sleep(0.5)
@@ -175,7 +184,9 @@ class tradeHandler:
                 if iTs:
                     self.unlockTradeSet(iTs)
                 if 'Expecting value' in str(e):
-                    self.message('%s seems to be down.'%self.exchange.name)   
+                    self.down = True
+                    if printError:
+                        self.message('%s seems to be down.'%self.exchange.name)   
                 raise(e)
             except Exception as e:
                 if count < 4 and isinstance(e,ExchangeError) and "symbol" in str(e).lower():
@@ -200,6 +211,9 @@ class tradeHandler:
                     if printError:
                         self.message(string,'Error')
                     raise(e)
+            finally:
+                if wasdown and not self.down:
+                    self.message('Exchange %s seems back to work!'%self.exchange.name)
         
 
     def lockTradeSet(self,iTs):
@@ -224,6 +238,7 @@ class tradeHandler:
         self.tradeSets[iTs]['updating'] = False
         
     def updateBalance(self):
+        self.updateDownState(True)
         # reloads the exchange market and private balance and, if successul, sets the exchange as authenticated
         self.safeRun(self.exchange.loadMarkets) 
         self.balance = self.safeRun(self.exchange.fetch_balance)
@@ -261,9 +276,9 @@ class tradeHandler:
                     print('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name)
             else:
                 try:
-                    self.message('An error occured at exchange %s. The following error occurred:\n%s'%(self.exchange.name,str(e)),'error')
+                    self.message('The following error occured at exchange %s:\n%s'%(self.exchange.name,str(e)),'error')
                 except:
-                    print('An error occured at exchange %s. The following error occurred:\n%s'%(self.exchange.name,str(e)))
+                    print('The following error occured at exchange %s:\n%s'%(self.exchange.name,str(e)))
           
     
     def initTradeSet(self,symbol):
@@ -285,6 +300,7 @@ class tradeHandler:
         return ts, iTs
         
     def activateTradeSet(self,iTs,verbose=True):
+        self.updateDownState(True)
         ts = self.tradeSets[iTs]
         wasactive = ts['active']
         # sanity check of amounts to buy/sell
@@ -307,6 +323,7 @@ class tradeHandler:
         return wasactive
     
     def deactivateTradeSet(self,iTs,cancelOrders=0):
+        self.updateDownState(True)
         # cancelOrders can be 0 (not), 1 (cancel), 2 (cancel and delete open orders)
         wasactive = self.tradeSets[iTs]['active']
         if cancelOrders:
@@ -316,6 +333,7 @@ class tradeHandler:
         return wasactive
         
     def newTradeSet(self,symbol,buyLevels=[],buyAmounts=[],sellLevels=[],sellAmounts=[],sl=None,candleAbove=[],initCoins=0,initPrice=None,force=False):
+        self.updateDownState(True)
         if symbol not in self.exchange.symbols:
             raise NameError('Trading pair %s not found on %s'%(symbol,self.exchange.name))
         if not self.checkNum(buyAmounts) or not self.checkNum(buyLevels):
@@ -375,7 +393,7 @@ class tradeHandler:
         
     def getTradeSetInfo(self,iTs,showProfitIn=None):
         ts = self.tradeSets[iTs]
-        string = '*%srade set #%d on %s [%s]:*\n'%('T' if ts['active'] else 'INACTIVE t',list(self.tradeSets.keys()).index(iTs),self.exchange.name,ts['symbol'])
+        string = '*%srade set #%d on %s%s [%s]:*\n'%('T' if ts['active'] else 'INACTIVE t',list(self.tradeSets.keys()).index(iTs),self.exchange.name,' (DOWN !!!) ' if self.down else '',ts['symbol'])
         filledBuys = []
         filledSells = []
         for iTrade,trade in enumerate(ts['InTrades']):
@@ -435,6 +453,7 @@ class tradeHandler:
     
 
     def createTradeHistoryEntry(self,iTs):
+        self.updateDownState(True)
         # create a trade history entry if the trade set had any filled orders
         ts = self.tradeSets[iTs]
         if self.numBuyLevels(iTs,'filled') > 0 or self.numSellLevels(iTs,'filled') > 0:
@@ -468,6 +487,7 @@ class tradeHandler:
         return 1
     
     def convertAmount(self,amount,currency,targetCurrency):
+        self.updateDownState(True)
         if isinstance(targetCurrency,str):
             targetCurrency = [targetCurrency]
         conversionPairs = [('%s/%s'%(currency,cur) in self.exchange.symbols) + 2*('%s/%s'%(cur,currency) in self.exchange.symbols) for cur in targetCurrency]
@@ -484,6 +504,7 @@ class tradeHandler:
         
         
     def deleteTradeSet(self,iTs,sellAll=False):
+        self.updateDownState(True)
         self.lockTradeSet(iTs)
         if sellAll:
             sold = self.sellAllNow(iTs)
@@ -598,6 +619,7 @@ class tradeHandler:
             
     
     def addBuyLevel(self,iTs,buyPrice,buyAmount,candleAbove=None):
+        self.updateDownState(True)
         ts = self.tradeSets[iTs]
         if self.checkNum(buyPrice,buyAmount,candleAbove) or (candleAbove is None and self.checkNum(buyPrice,buyAmount)):
             fee = self.exchange.calculateFee(ts['symbol'],'limit','buy',buyAmount,buyPrice,'maker')
@@ -628,7 +650,8 @@ class tradeHandler:
         else:
             raise ValueError('Some input was no number')
     
-    def deleteBuyLevel(self,iTs,iTrade): 
+    def deleteBuyLevel(self,iTs,iTrade):
+        self.updateDownState(True)
         if self.checkNum(iTrade):
             self.lockTradeSet(iTs)
             ts = self.tradeSets[iTs]
@@ -642,7 +665,8 @@ class tradeHandler:
         else:
             raise ValueError('Some input was no number')
             
-    def setBuyLevel(self,iTs,iTrade,price,amount):   
+    def setBuyLevel(self,iTs,iTrade,price,amount): 
+        self.updateDownState(True)
         if self.checkNum(iTrade,price,amount):
             ts = self.tradeSets[iTs]
             if ts['InTrades'][iTrade]['oid'] == 'filled':
@@ -683,6 +707,7 @@ class tradeHandler:
             raise ValueError('Some input was no number')
     
     def addSellLevel(self,iTs,sellPrice,sellAmount):
+        self.updateDownState(True)
         ts = self.tradeSets[iTs]
         if self.checkNum(sellPrice,sellAmount):
             if not self.checkQuantity(ts['symbol'],'amount',sellAmount):
@@ -704,7 +729,8 @@ class tradeHandler:
         else:
             raise ValueError('Some input was no number')
 
-    def deleteSellLevel(self,iTs,iTrade):   
+    def deleteSellLevel(self,iTs,iTrade):
+        self.updateDownState(True)
         if self.checkNum(iTrade):
             self.lockTradeSet(iTs)
             ts = self.tradeSets[iTs]
@@ -718,7 +744,8 @@ class tradeHandler:
         else:
             raise ValueError('Some input was no number')
     
-    def setSellLevel(self,iTs,iTrade,price,amount):   
+    def setSellLevel(self,iTs,iTrade,price,amount):  
+        self.updateDownState(True)
         if self.checkNum(iTrade,price,amount):
             ts = self.tradeSets[iTs]
             if ts['OutTrades'][iTrade]['oid'] == 'filled':
@@ -749,7 +776,8 @@ class tradeHandler:
         else:
             raise ValueError('Some input was no number')
             
-    def setTrailingSL(self,iTs,value,typ='abs'):   
+    def setTrailingSL(self,iTs,value,typ='abs'): 
+        self.updateDownState(True)
         ts = self.tradeSets[iTs]
         if self.checkNum(value):
             if self.numBuyLevels(iTs,'notfilled') > 0:
@@ -814,7 +842,8 @@ class tradeHandler:
         else:
             raise ValueError('Input was no number')
         
-    def setSLBreakEven(self,iTs):   
+    def setSLBreakEven(self,iTs): 
+        self.updateDownState(True)
         ts = self.tradeSets[iTs]         
         if ts['initCoins'] > 0 and ts['initPrice'] is None:
             self.message('Break even SL cannot be set as you this trade set contains %s that you obtained beforehand and no buy price information was given.'%ts['coinCurrency'])
@@ -836,6 +865,7 @@ class tradeHandler:
                 return 1
 
     def sellAllNow(self,iTs,price=None):
+        self.updateDownState(True)
         self.deactivateTradeSet(iTs,2)
         ts = self.tradeSets[iTs]
         ts['SL'] = None # necessary to not retrigger SL
@@ -873,6 +903,7 @@ class tradeHandler:
         return sold
                 
     def cancelSellOrders(self,iTs,oid=None,deleteOpenOrders=False):
+        self.updateDownState(True)
         returnVal = 1
         if iTs in self.tradeSets and self.numSellLevels(iTs) > 0:
             count = 0
@@ -904,6 +935,7 @@ class tradeHandler:
         return returnVal
         
     def cancelBuyOrders(self,iTs,oid=None,deleteOpenOrders=False):
+        self.updateDownState(True)
         returnVal = 1
         if iTs in self.tradeSets and self.numBuyLevels(iTs) > 0:
             count = 0
@@ -930,6 +962,7 @@ class tradeHandler:
         return returnVal
     
     def initBuyOrders(self,iTs):
+        self.updateDownState(True)
         if self.tradeSets[iTs]['active']:
             # initialize buy orders
             for iTrade,trade in enumerate(self.tradeSets[iTs]['InTrades']):
@@ -938,6 +971,7 @@ class tradeHandler:
                     self.tradeSets[iTs]['InTrades'][iTrade]['oid'] = response['id']
     
     def cancelOrder(self,oid,iTs,typ):
+        self.updateDownState(True)
         symbol = self.tradeSets[iTs]['symbol']
         try:
             return self.safeRun(lambda: self.exchange.cancelOrder (oid,symbol),0)
@@ -956,21 +990,34 @@ class tradeHandler:
             raise(e)
         except ccxt.ExchangeError as e:
             return self.safeRun(lambda: self.exchange.fetchOrder (oid,symbol,{'type':typ}), iTs=iTs)  
-                                    
+        
+    def updateDownState(self,raiseError = False):
+        if self.down:
+            self.safeRun(self.exchange.loadMarkets, printError = False)
+            if raiseError:
+                raise ccxt.ExchangeError('Exchange is down!')
+            return self.down
+        else:
+            return False
+        
     def update(self,specialCheck=0):
         # goes through all trade sets and checks/updates the buy/sell/stop loss orders
         # daily check is for checking if a candle closed above a certain value
-        try:
-            self.updateBalance()
-        except AuthenticationError as e:#
-            self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
+        if self.updateDownState():
+            # check if exchange is still down, if yes, return
             return
-        except ccxt.ExchangeError as e:#
-            if 'key' in str(e).lower():
+        else: 
+            try:
+                self.updateBalance()
+            except AuthenticationError as e:#
                 self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
-            else:
-                self.message('Some error occured at exchange %s. Maybe it is down.'%self.exchange.name,'error')
-            return
+                return
+            except ccxt.ExchangeError as e:#
+                if 'key' in str(e).lower():
+                    self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
+                else:
+                    self.message('Some error occured at exchange %s. Maybe it is down.'%self.exchange.name,'error')
+                return
         
         tradeSetsToDelete = []
         try:
