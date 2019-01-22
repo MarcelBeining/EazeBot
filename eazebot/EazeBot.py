@@ -488,17 +488,21 @@ def addExchanges(bot,update,user_data):
         bot.send_message(user_data['chatId'],'Old exchanges %s with no tradeSets removed'%authenticatedExchanges)
 
 def getRemoteVersion():
+    try:
+        pypiVersion = re.search('(?<=p class\="release__version">\n)((.*\n){1})',requests.get('https://pypi.org/project/eazebot/').text,re.M).group(0).strip()
+    except:
+        pypiVersion = ''
     remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/version.txt').json()['content'])
     remoteVersion = re.search('(?<=version = )[0-9\.]+',str(remoteTxt)).group(0)
     remoteVersionCommit = [val['commit']['url'] for val in requests.get('https://api.github.com/repos/MarcelBeining/EazeBot/tags').json() if val['name']=='EazeBot_%s'%remoteVersion ][0]
-    return (remoteVersion,requests.get(remoteVersionCommit).json()['commit']['message'])
+    return (remoteVersion,requests.get(remoteVersionCommit).json()['commit']['message'],pypiVersion==remoteVersion)
         
 def botInfo(bot,update,user_data):
     deleteMessages(user_data,'botInfo')
     string = '<b>******** EazeBot (v%s) ********</b>\n<i>Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges</i>\n'%thisVersion
-    remoteVersion, versionMessage = getRemoteVersion()
+    remoteVersion, versionMessage, onPyPi = getRemoteVersion()
     if remoteVersion != thisVersion and all([int(a) >= int(b) for a,b in zip(remoteVersion.split('.'),thisVersion.split('.'))]):
-        string += '\n<b>There is a new version of EazeBot available on git (v%s) with these changes:\n%s\n</b>\n'%(remoteVersion,versionMessage)
+        string += '\n<b>There is a new version of EazeBot available on git (v%s) %s with these changes:\n%s\n</b>\n'%(remoteVersion,'and PyPi' if onPyPi else '(not yet on PyPi)',versionMessage)
     string+='\nReward my efforts on this bot by donating some cryptos!'
     user_data['messages']['botInfo'].append(bot.send_message(user_data['chatId'],string,parse_mode='html',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Donate',callback_data='1|xxx|xxx')]])))
     return MAINMENU
