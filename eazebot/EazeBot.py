@@ -630,9 +630,9 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                     else:
                         if response is not None:
                             if args[0] == 'BTC':
-                                address = '17SfuTsJ3xpbzgArgRrjYSjvmzegMRcU3L'
+                                address = '3DXXv2uty74Hbdu1hF2FeqYHnkPDKFhjAR'
                             elif args[0] == 'ETH':
-                                address = '0xa86711B0a368E4ed3B01a48E79844f6941Af579f'
+                                address = '0xE0451300D96090c1F274708Bc00d791017D7a5F3'
                             elif args[0] == 'NEO':
                                 address = 'AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg'  
                             try:
