@@ -945,6 +945,10 @@ def convert_data(from_='linux',to_='win',filename='data.pickle',filenameout='dat
 def load_data(filename='data.pickle'):
     # load latest user data
     if os.path.isfile(filename):
+        if os.path.getmtime(filename) < time.time() - 60*60*24*14:
+            answer = input('WARNING! The tradeSet data you want to load is older than 2 weeks! Are you sure you want to load it? (y/n): ')
+            if answer != 'y':
+                os.rename('data.pickle', 'data.old')
         try:
             with open(filename, 'rb') as f:
                 logging.info('Loading user data')
