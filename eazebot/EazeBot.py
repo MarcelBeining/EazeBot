@@ -164,7 +164,7 @@ def startCmd(bot, update,user_data):
         user_data.update({'lastFct':[],'whichCurrency':0,'tempTradeSet':[None,None,None],'messages':{'status':[],'dialog':[],'botInfo':[],'settings':[],'history':[]}})
     else:
         washere = ''
-        user_data.update({'chatId':update.message.chat_id,'exchanges':{},'trade':{},'settings':{'fiat':[],'showProfitIn':None},'lastFct':[],'whichCurrency':0,'tempTradeSet':[None,None,None],'messages':{'status':[],'dialog':[],'botInfo':[],'settings':[]}})
+        user_data.update({'chatId':update.message.chat_id,'exchanges':{},'trade':{},'settings':{'fiat':[],'showProfitIn':None},'lastFct':[],'whichCurrency':0,'tempTradeSet':[None,None,None],'messages':{'status':[],'dialog':[],'botInfo':[],'settings':[],'history':[]}})
     deleteMessages(user_data)
     bot.send_message(user_data['chatId'],
         "Welcome %s%s to the EazeBot! You are in the main menu."%(washere,update.message.from_user.first_name),
@@ -218,7 +218,7 @@ def deleteMessages(user_data,typ='all',onlyForget=False):
         elif not isinstance(typ,list):
             typ = [typ]
     for t in typ:
-        if not onlyForget:
+        if not onlyForget and t in user_data['messages']:
             for msg in user_data['messages'][t]:
                 try:
                     msg.delete()
@@ -925,6 +925,23 @@ def save_data(*arg):
         dill.dump(user_data, f)
     logging.info('User data autosaved')
         
+def backup_data(*arg):
+    if len(arg) == 1:
+        updater = arg[0]
+    else:
+        bot,job = arg
+        updater = job.context
+        
+    user_data = deepcopy(updater.dispatcher.user_data)
+    clean_data(user_data)
+    # write user data
+    if not os.path.isdir('backup'):
+        os.makedir('backup')
+    with open(os.path.join('backup',time.strftime('%Y_%m_%d_data.pickle')), 'wb') as f:
+        dill.dump(user_data, f)
+    logging.info('User data backuped')   
+    
+    
 def convert_data(from_='linux',to_='win',filename='data.pickle',filenameout='data.pickle.new'):
     with open(filename, 'rb') as fi:
         byteContent = fi.read()
@@ -981,7 +998,9 @@ def startBot():
         __config__['debug'] = False
     if isinstance(__config__['debug'],str):
         __config__['debug'] = bool(int(__config__['debug']))
-    
+    if 'extraBackupInterval' not in __config__:
+        __config__['extraBackupInterval'] = 7
+        
     #%% define the handlers to communicate with user
     conv_handler = ConversationHandler(
             entry_points=[CommandHandler('start', startCmd,pass_user_data=True)],
@@ -1036,6 +1055,8 @@ def startBot():
     updater.job_queue.run_daily(lambda u,b: checkCandle(u,b,2), (dt.datetime.combine(dt.date(1900,5,5),dt.time(0,0,10)) + (dt.datetime.now()-dt.datetime.utcnow())).time(), days=tuple([0]),context=updater,name='weeklyCheck')
     # start a job saving the user data each 5 minutes
     updater.job_queue.run_repeating(save_data, interval=5*60, first=75,context=updater)
+    updater.job_queue.run_repeating(save_data, interval=60*60*24*__config__['extraBackupInterval'], context=updater)
+    backup_data
     updater.start_polling()
     updater.idle()
     save_data(updater)  # last data save when finishing
