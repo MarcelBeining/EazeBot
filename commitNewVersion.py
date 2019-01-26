@@ -38,7 +38,18 @@ repo = Repo(pathname)
 assert repo.bare == False
 #repo.index.add([os.path.join('eazebot','tradeHandler.py')],force=False)  
 git = repo.git
-git.add('*.py')
+with open('.gitignore','r') as fh:
+    ignore = fh.read().splitlines()
+ignore = "(" + ")|(".join([val.replace('.','\.').replace('*','.*') for val in ignore]) + ")"
+
+skipThis = ['.git']
+for file in os.listdir():
+    if file in skipThis:
+        continue
+    if os.path.isdir(file):
+        file += '/'
+    if not re.match(ignore, file):
+        git.add(file)
 git.add('eazebot/*.py')
 git.add('eazebot/version.txt')
 print(git.status())
