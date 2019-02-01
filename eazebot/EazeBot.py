@@ -28,12 +28,8 @@ import re
 import time
 import datetime as dt
 import json
-import dill
 import requests
 import base64
-from copy import deepcopy
-from shutil import copy2
-from collections import defaultdict
 import os
 from telegram import (ReplyKeyboardMarkup,InlineKeyboardMarkup,InlineKeyboardButton,bot)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
@@ -42,8 +38,10 @@ from telegram.error import BadRequest
 
 if __name__ == '__main__' or os.path.isfile('tradeHandler.py'):
     from tradeHandler import tradeHandler
+    from auxiliaries import clean_data , load_data, save_data, backup_data
 else:
     from eazebot.tradeHandler import tradeHandler
+    from eazebot.auxiliaries import  clean_data , load_data, save_data, backup_data
 
 logFileName = 'telegramEazeBot'
 MAINMENU,SETTINGS,SYMBOL,NUMBER,TIMING,INFO = range(6)
@@ -77,20 +75,7 @@ __config__ = {}
 job_queue = []
 
 ## define  helper functions
-def copyJSON(folderName=os.getcwd(),force=0):
-    if force == 0 and os.path.isfile(os.path.join(folderName,'botConfig.json')):
-        logging.warning('botConfig.json already exists in\n%s\nUse copyJSON(targetfolder,force=1) or copyJSON(force=1) to overwrite both (!) JSONs'%folderName)
-    else:
-        copy2(os.path.join(os.path.dirname(__file__),'botConfig.json'),folderName)
-    if force == 0 and os.path.isfile(os.path.join(folderName,'APIs.json')):
-        logging.warning('APIs.json already exists in\n%s\nUse copyJSON(targetfolder,force=1) or copyJSON(force=1) to overwrite both (!) JSONs'%folderName)
-    else:  
-        copy2(os.path.join(os.path.dirname(__file__),'APIs.json'),folderName)
-    copy2(os.path.join(os.path.dirname(__file__),'startBotScript.py'),folderName)
-    copy2(os.path.join(os.path.dirname(__file__),'startBot.bat'),folderName)
-    copy2(os.path.join(os.path.dirname(__file__),'updateBot.bat'),folderName)
-    logging.info('botConfig.json and APIs.json successfully copied to\n%s\nPlease open and configure these files before running the bot'%folderName)
-        
+
 def broadcastMsg(bot,userId,msg,level='info'):
     # put msg into log with userId
     getattr(rootLogger,level.lower())('User %d: %s'%(userId,msg))
@@ -516,11 +501,11 @@ def doneCmd(bot,update,user_data):
 # job functions   
 def checkForUpdates(bot,job):
     updater = job.context
-    remoteVersion, versionMessage = getRemoteVersion()
+    remoteVersion, versionMessage, onPyPi = getRemoteVersion()
     if remoteVersion != thisVersion and all([int(a) >= int(b) for a,b in zip(remoteVersion.split('.'),thisVersion.split('.'))]):
         for user in updater.dispatcher.user_data:
             if 'chatId' in updater.dispatcher.user_data[user]:
-                updater.dispatcher.user_data[user]['messages']['botInfo'].append(bot.send_message(updater.dispatcher.user_data[user]['chatId'],'There is a new version of EazeBot available on git/pip (v%s) with these changes:\n%s\n\nConsider updating!'%(remoteVersion,versionMessage)))
+                updater.dispatcher.user_data[user]['messages']['botInfo'].append(bot.send_message(updater.dispatcher.user_data[user]['chatId'],'There is a new version of EazeBot available on git (v%s) %s with these changes:\n%s'%(remoteVersion,'and PyPi' if onPyPi else '(not yet on PyPi)',versionMessage)))
 
 def updateTradeSets(bot,job):
     updater = job.context
@@ -886,96 +871,6 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                             query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3|%s|%s|yes'%(exch,uidTS)),InlineKeyboardButton("No", callback_data='3|%s|%s|no'%(exch,uidTS))]]))
     return MAINMENU
 
-def clean_data(user_data):
-    delThese = []
-    for user in user_data:
-        # discard unknown users
-        if not (user in __config__['telegramUserId'] and 'trade' in user_data[user]):
-            delThese.append(user)
-        else: # discard cached messages
-            if 'messages' in user_data[user]:
-                deleteMessages(user_data[user],'all',True)
-    for k in delThese:
-        user_data.pop(k, None)
-    return user_data
-
-def save_data(*arg):
-    if len(arg) == 1:
-        updater = arg[0]
-    else:
-        bot,job = arg
-        updater = job.context
-    # remove backup
-    try:
-        os.remove('data.bkp') 
-    except:
-        logging.warning('No backup file found')
-        pass
-    # rename last save to backup
-    try:
-        os.rename('data.pickle', 'data.bkp')
-        logging.info('Created user data autosave backup')
-    except:
-        logging.warning('Could not rename last saved data to backup')
-        pass
-    user_data = deepcopy(updater.dispatcher.user_data)
-    clean_data(user_data)
-    # write user data
-    with open('data.pickle', 'wb') as f:
-        dill.dump(user_data, f)
-    logging.info('User data autosaved')
-        
-def backup_data(*arg):
-    if len(arg) == 1:
-        updater = arg[0]
-    else:
-        bot,job = arg
-        updater = job.context
-        
-    user_data = deepcopy(updater.dispatcher.user_data)
-    clean_data(user_data)
-    # write user data
-    if not os.path.isdir('backup'):
-        os.makedir('backup')
-    with open(os.path.join('backup',time.strftime('%Y_%m_%d_data.pickle')), 'wb') as f:
-        dill.dump(user_data, f)
-    logging.info('User data backuped')   
-    
-    
-def convert_data(from_='linux',to_='win',filename='data.pickle',filenameout='data.pickle.new'):
-    with open(filename, 'rb') as fi:
-        byteContent = fi.read()
-        with open(filenameout, 'wb') as fo:
-            if 'linux' in from_ and 'win' in to_:
-                byteContent = byteContent.replace(b'cdill._dill', b'cdill.dill')
-            elif 'win' in from_ and 'linux' in to_:
-                byteContent = byteContent.replace(b'cdill.dill',b'cdill._dill')
-            if 'git' not in from_ and 'git' in to_:
-                byteContent = byteContent.replace(b'ceazebot.tradeHandler', b'ctradeHandler')
-                byteContent = byteContent.replace(b'ceazebot.EazeBot', b'cEazeBot')
-            elif 'git' in from_ and 'git' not in to_:
-                byteContent = byteContent.replace(b'ctradeHandler', b'ceazebot.tradeHandler')
-                byteContent = byteContent.replace(b'cEazeBot', b'ceazebot.EazeBot')
-            fo.write(byteContent)
-        
-        
-def load_data(filename='data.pickle'):
-    # load latest user data
-    if os.path.isfile(filename):
-        if os.path.getmtime(filename) < time.time() - 60*60*24*14:
-            answer = input('WARNING! The tradeSet data you want to load is older than 2 weeks! Are you sure you want to load it? (y/n): ')
-            if answer != 'y':
-                os.rename('data.pickle', 'data.old')
-        try:
-            with open(filename, 'rb') as f:
-                logging.info('Loading user data')
-                return dill.load(f)
-        except Exception as e:
-            raise(e)
-    else:
-        logging.error('No autosave file found')
-        return defaultdict(dict)    
-    
 def startBot():
     print('\n\n******** Welcome to EazeBot (v%s) ********\nFree python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges\n\n'%thisVersion)
     global __config__
@@ -1054,7 +949,8 @@ def startBot():
     # start a job checking every week 10 sec after midnight (UTC time)
     updater.job_queue.run_daily(lambda u,b: checkCandle(u,b,2), (dt.datetime.combine(dt.date(1900,5,5),dt.time(0,0,10)) + (dt.datetime.now()-dt.datetime.utcnow())).time(), days=tuple([0]),context=updater,name='weeklyCheck')
     # start a job saving the user data each 5 minutes
-    updater.job_queue.run_repeating(save_data, interval=5*60, first=75,context=updater)
+    updater.job_queue.run_repeating(save_data, interval=5*60, context=updater)
+    # start a job making backup of the user data each x days
     updater.job_queue.run_repeating(save_data, interval=60*60*24*__config__['extraBackupInterval'], context=updater)
     backup_data
     updater.start_polling()
