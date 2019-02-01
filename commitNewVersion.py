@@ -1,9 +1,23 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Dec  3 11:13:39 2018
-This function semi-automatically creates a new version and commit
-@author: beiningm
-"""
+#!/usr/bin/env python
+#
+# EazeBot Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges.
+# Copyright (C) 2019
+# Marcel Beining <marcel.beining@gmail.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser Public License for more details.
+#
+# You should have received a copy of the GNU Lesser Public License
+# along with this program.  If not, see [http://www.gnu.org/licenses/].
+
 from git import Repo
 import sys,os,re
 
@@ -11,9 +25,9 @@ import sys,os,re
 pathname = os.path.dirname(sys.argv[0]).replace('/','\\')
 
 # get the current version
-with open(os.path.join(pathname,'eazebot','version.txt')) as fh:
+with open(os.path.join(pathname,'eazebot','__init__.py')) as fh:
     versiontext = str(fh.read())
-    thisVersionOld = re.search('(?<=version = )[0-9\.]+',versiontext).group(0)
+    thisVersionOld = re.search('(?<=__version__ = \')[0-9\.]+',versiontext).group(0)
 thisVersion = thisVersionOld
 
 # ask if this is a minor, major, or new edition change and update the version variable accordingly
@@ -29,30 +43,73 @@ if re.match('^[1-3]{1}$',answer) is not None:
         thisVersion[1] = 0
 thisVersion = '.'.join([str(val) for val in thisVersion])
 
-# update version number in version.txt accordingly
-with open(os.path.join(pathname,'eazebot','version.txt'),'w') as fh:
+# update version number accordingly
+with open(os.path.join(pathname,'eazebot','__init__.py'),'w') as fh:
     fh.write(versiontext.replace(thisVersionOld,thisVersion))
 
-# initialize Repo object, add all relevant files (py and version.txt) and print the git status
+with open(os.path.join(pathname,'licenseTemplate'),'r') as fh:
+    licenseTxt = str(fh.read())
+with open(os.path.join(pathname,'eazebot','version.txt'),'w') as fh:
+    fh.write(licenseTxt+'version = %s'%thisVersion)
+
+# initialize Repo object, add all relevant files and print the git status
 repo = Repo(pathname)
 assert repo.bare == False
-#repo.index.add([os.path.join('eazebot','tradeHandler.py')],force=False)  
+
 git = repo.git
 with open('.gitignore','r') as fh:
     ignore = fh.read().splitlines()
+if '' in ignore:
+    ignore.remove('')
+ignore += [val[:-1] for val in ignore if val[-1]=='/']
 ignore = "(" + ")|(".join([val.replace('.','\.').replace('*','.*') for val in ignore]) + ")"
 
-skipThis = ['.git']
-for file in os.listdir():
-    if file in skipThis:
-        continue
-    if os.path.isdir(file):
-        file += '/'
-    if not re.match(ignore, file):
-        git.add(file)
-git.add('eazebot/*.py')
-git.add('eazebot/version.txt')
+# function to add all files in the folder and subfolders except for .git, all ignored 
+# files and modified config files
+def addFiles(path='.'):
+    for file in os.listdir(path):
+        absFile = os.path.join(path,file)
+        if file in ['.git']:
+            continue
+        elif not re.match(ignore, file):
+            if os.path.isdir(absFile):
+                if len(os.listdir(absFile)) > 0:
+                    addFiles(absFile)
+                else:
+                    print('Warning, empty folder "%s" ignored.'%absFile)
+            if 'APIs.json' in file:
+                with open(absFile) as fh:
+                    if '"apiKeyBinance": "YOURBINANCEKEY"' not in str(fh.read()):
+                        continue
+            elif 'botConfig.json' in file:
+                with open(absFile) as fh:
+                    if '"telegramAPI": "YOURBOTTOKEN"' not in str(fh.read()):
+                        continue
+            print(file)
+            git.add(absFile)
+
+# add modified files
+p = re.compile('modified:\s+(\S+)\n')
+modifiedFiles = re.findall(p,git.status())
+for file in modifiedFiles:
+    if 'APIs.json' in file:
+        with open(file) as fh:
+            if '"apiKeyBinance": "YOURBINANCEKEY"' not in str(fh.read()):
+                continue
+    elif 'botConfig.json' in file:
+        with open(file) as fh:
+            if '"telegramAPI": "YOURBOTTOKEN"' not in str(fh.read()):
+                continue
+    print('Adding: '+file)
+    git.add(file)
+
+# also add deleted files
+p = re.compile('deleted:\s+(\S+)\n')
+deletedFiles = re.findall(p,git.status())
+for file in deletedFiles:
+    git.rm(file)
 print(git.status())
+
 
 # get commit message and unescape backslashes
 print('What message do you want to add to the commit?')

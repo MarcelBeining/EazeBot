@@ -3,7 +3,7 @@
 #
 # EazeBot
 # Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges.
-# Copyright (C) 2018
+# Copyright (C) 2019
 # Marcel Beining <marcel.beining@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -57,10 +57,8 @@ consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 rootLogger.addHandler(consoleHandler)
 
-
-with open(os.path.join(os.path.dirname(__file__),'version.txt')) as fh:
-    thisVersion = re.search('(?<=version = )[0-9\.]+',str(fh.read())).group(0)
-
+with open(os.path.join(os.path.dirname(__file__),'__init__.py')) as fh:
+    thisVersion = re.search('(?<=__version__ = \')[0-9\.]+',str(fh.read())).group(0)
 #%% init menues
 mainMenu = [['Status of Trade Sets', 'New Trade Set','Trade History'],['Check Balance','Bot Info'],['Add/update exchanges (APIs.json)','Settings']]
 markupMainMenu = ReplyKeyboardMarkup(mainMenu)#, one_time_keyboard=True)
@@ -438,6 +436,9 @@ def addExchanges(bot,update,user_data):
     hasUid = [re.search('(?<=^apiUid).*',val).group(0) for val in keys if re.search('(?<=^apiUid).*',val,re.IGNORECASE) is not None ]
     hasPassword = [re.search('(?<=^apiPassword).*',val).group(0) for val in keys if re.search('(?<=^apiPassword).*',val,re.IGNORECASE) is not None ]
     availableExchanges = set(hasKey).intersection(set(hasSecret))
+    availableExchangesLow = set()
+    for a in availableExchanges:
+        availableExchangesLow.add(a.lower())
     if len(availableExchanges) > 0:
         logging.info('Found exchanges %s with keys %s, secrets %s, uids %s, password %s'%(availableExchanges,hasKey,hasSecret,hasUid,hasPassword))
         authenticatedExchanges = []
@@ -455,6 +456,7 @@ def addExchanges(bot,update,user_data):
             else:
                 user_data['trade'][exch].updateKeys(**exchParams)
             if not user_data['trade'][exch].authenticated and len(user_data['trade'][exch].tradeSets) == 0:
+                logging.warning('Authentication failed for %s'%exch)
                 user_data['trade'].pop(exch)
             else:
                 authenticatedExchanges.append(a)
@@ -463,7 +465,7 @@ def addExchanges(bot,update,user_data):
         bot.send_message(user_data['chatId'],'No exchange found to add')    
 #        if update is not None:
 #            return MAINMENU
-    oldExchanges = set(ct.exchange.name for _,ct in user_data['trade'].items()) - availableExchanges
+    oldExchanges = set(ct.exchange.name.lower() for _,ct in user_data['trade'].items()) - availableExchangesLow
     removedExchanges = []
     for exch in oldExchanges:
         if len(user_data['trade'][exch].tradeSets) == 0:
@@ -477,8 +479,8 @@ def getRemoteVersion():
         pypiVersion = re.search('(?<=p class\="release__version">\n)((.*\n){1})',requests.get('https://pypi.org/project/eazebot/').text,re.M).group(0).strip()
     except:
         pypiVersion = ''
-    remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/version.txt').json()['content'])
-    remoteVersion = re.search('(?<=version = )[0-9\.]+',str(remoteTxt)).group(0)
+    remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/__init__.py').json()['content'])
+    remoteVersion = re.search('(?<=__version__ = \')[0-9\.]+',str(remoteTxt)).group(0)
     remoteVersionCommit = [val['commit']['url'] for val in requests.get('https://api.github.com/repos/MarcelBeining/EazeBot/tags').json() if val['name']=='EazeBot_%s'%remoteVersion ][0]
     return (remoteVersion,requests.get(remoteVersionCommit).json()['commit']['message'],pypiVersion==remoteVersion)
         

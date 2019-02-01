@@ -1,8 +1,9 @@
 __pycache__/
-data.pickle
-data.bkp
+*.pickle
+*.bkp
+*.pickle.new
 *.log*
 eazebot.egg-info/
 dist/
 build/
-eazebot/data.pickle.new
+

@@ -3,7 +3,7 @@
 #
 # EazeBot
 # Free python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges.
-# Copyright (C) 2018
+# Copyright (C) 2019
 # Marcel Beining <marcel.beining@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
