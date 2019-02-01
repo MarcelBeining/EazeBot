@@ -480,7 +480,7 @@ def getRemoteVersion():
     except:
         pypiVersion = ''
     remoteTxt = base64.b64decode(requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/__init__.py').json()['content'])
-    remoteVersion = re.search('(?<=__version__ = \')[0-9\.]+',str(remoteTxt)).group(0)
+    remoteVersion = re.search('(?<=__version__ = \\\\\')[0-9\.]+',str(remoteTxt)).group(0)
     remoteVersionCommit = [val['commit']['url'] for val in requests.get('https://api.github.com/repos/MarcelBeining/EazeBot/tags').json() if val['name']=='EazeBot_%s'%remoteVersion ][0]
     return (remoteVersion,requests.get(remoteVersionCommit).json()['commit']['message'],pypiVersion==remoteVersion)
         
