@@ -26,11 +26,11 @@ def copyJSON(folderName=os.getcwd(),force=0):
     copy2(os.path.join(os.path.dirname(__file__),'updateBot.bat'),folderName)
     print('botConfig.json and APIs.json successfully copied to\n%s\nPlease open and configure these files before running the bot'%folderName)
 
-def clean_data(user_data):
+def clean_data(user_data, allowed_users = None):
     delThese = []
     for user in user_data:
         # discard unknown users
-        if not (user in __config__['telegramUserId'] and 'trade' in user_data[user]):
+        if not ((allowed_users is None or user in allowed_users) and 'trade' in user_data[user]):
             delThese.append(user)
         else: # discard cached messages
             if 'messages' in user_data[user]:
@@ -43,10 +43,10 @@ def clean_data(user_data):
 
 def save_data(*arg):
     if len(arg) == 1:
-        updater = arg[0]
+        user_data = deepcopy(arg[0])
     else:
         bot,job = arg
-        updater = job.context
+        user_data = deepcopy(job.context.dispatcher.user_data)
     # remove backup
     try:
         os.remove('data.bkp') 
@@ -60,7 +60,6 @@ def save_data(*arg):
     except:
         logging.warning('Could not rename last saved data to backup')
         pass
-    user_data = deepcopy(updater.dispatcher.user_data)
     clean_data(user_data)
     # write user data
     with open('data.pickle', 'wb') as f:
@@ -69,12 +68,11 @@ def save_data(*arg):
         
 def backup_data(*arg):
     if len(arg) == 1:
-        updater = arg[0]
+        user_data = deepcopy(arg[0])
     else:
         bot,job = arg
-        updater = job.context
+        user_data = deepcopy(job.context.dispatcher.user_data)
         
-    user_data = deepcopy(updater.dispatcher.user_data)
     clean_data(user_data)
     # write user data
     if not os.path.isdir('backup'):

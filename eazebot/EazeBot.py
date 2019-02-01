@@ -927,7 +927,7 @@ def startBot():
     job_queue = updater.job_queue
     updater.dispatcher.add_handler(conv_handler)
     updater.dispatcher.add_handler(unknown_handler)
-    updater.dispatcher.user_data = clean_data(load_data())
+    updater.dispatcher.user_data = clean_data(load_data(), __config__['telegramUserId'])
     
     for user in __config__['telegramUserId']:
         if user in updater.dispatcher.user_data and len(updater.dispatcher.user_data[user]) > 0:
@@ -951,11 +951,11 @@ def startBot():
     # start a job saving the user data each 5 minutes
     updater.job_queue.run_repeating(save_data, interval=5*60, context=updater)
     # start a job making backup of the user data each x days
-    updater.job_queue.run_repeating(save_data, interval=60*60*24*__config__['extraBackupInterval'], context=updater)
-    backup_data
+    updater.job_queue.run_repeating(backup_data, interval=60*60*24*__config__['extraBackupInterval'], context=updater)
+    
     updater.start_polling()
     updater.idle()
-    save_data(updater)  # last data save when finishing
+    save_data(updater.dispatcher.user_data)  # last data save when finishing
 
 # execute main if running as script
 if __name__ == '__main__':
