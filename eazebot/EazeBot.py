@@ -348,9 +348,9 @@ def askAmount(user_data,exch,uidTS,direction,botOrQuery):
     
     text = "What amount of %s do you want to %s (%s ~%s)?"%(cname,action,balText,bal)
     if isinstance(botOrQuery,bot.Bot):
-        user_data['messages']['dialog'].append(botOrQuery.send_message(user_data['chatId'],text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency|%s|%s|%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount|cancel')]])))
+        user_data['messages']['dialog'].append(botOrQuery.send_message(user_data['chatId'],text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Choose max amount", callback_data='maxAmount|%s'%bal)], [InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency|%s|%s|%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount|cancel')]])))
     else:
-        botOrQuery.edit_message_text(text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency|%s|%s|%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount|cancel')]]))
+        botOrQuery.edit_message_text(text,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Choose max amount", callback_data='maxAmount|%s'%bal)], [InlineKeyboardButton("Toggle currency", callback_data='toggleCurrency|%s|%s|%s'%(exch,uidTS,direction))],[InlineKeyboardButton("Cancel", callback_data='askAmount|cancel')]]))
         botOrQuery.answer('Currency switched')
     
 def addInitBalance(bot,user_data,exch,uidTS,inputType=None,response=None,fct = None):
@@ -620,13 +620,19 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                         else:
                             user_data['settings']['showProfitIn'] = None
                 showSettings(bot, update,user_data,query)
+        elif command == 'maxAmount':
+            if len(user_data['lastFct']) > 0:
+                query.answer('Max amount chosen')
+                return user_data['lastFct'].pop()(float(args.pop(0)))
+            else:
+                query.answer('An error occured, please type in the number')
+                return NUMBER
         else:
             exch = args.pop(0)
             uidTS = args.pop(0)
             if command == 'toggleCurrency':
                 user_data['whichCurrency'] = (user_data['whichCurrency']+1)%2
                 return askAmount(user_data,exch,uidTS,args[0],query)
-            
             elif command == 'showSymbols':
                 syms = [val for val in user_data['trade'][exch].exchange.symbols if not '.d' in val]
                 buttons = list()

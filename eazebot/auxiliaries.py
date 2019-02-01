@@ -36,7 +36,7 @@ def clean_data(user_data, allowed_users = None):
             if 'messages' in user_data[user]:
                 typ = list(user_data[user]['messages'].keys())
                 for t in typ:
-                    user_data['messages'][t] = []
+                    user_data[user]['messages'][t] = []
     for k in delThese:
         user_data.pop(k, None)
     return user_data
