@@ -173,9 +173,10 @@ def buttonsEditTS(ct,uidTS,mode='full'):
         buttons.append([InlineKeyboardButton("Delete Sell level #%d"%i,callback_data='2|%s|%s|SLD%d|chosen'%(exch,uidTS,i))])
     if mode == 'full':
         buttons.append([InlineKeyboardButton("Set/Change SL",callback_data='2|%s|%s|SLM'%(exch,uidTS))])
+        buttons.append([InlineKeyboardButton("%s trade set"%('Deactivate' if ct.tradeSets[uidTS]['active'] else 'Activate'),callback_data='2|%s|%s|%s|chosen'%(exch,uidTS,'TSstop' if ct.tradeSets[uidTS]['active'] else 'TSgo')),InlineKeyboardButton("Delete trade set",callback_data='3|%s|%s'%(exch,uidTS))])
     elif mode == 'init':
         buttons.append([InlineKeyboardButton("Add initial coins",callback_data='2|%s|%s|AIC|chosen'%(exch,uidTS)),InlineKeyboardButton("Add/change SL",callback_data='2|%s|%s|SLC|chosen'%(exch,uidTS))])
-    buttons.append([InlineKeyboardButton("%s trade set"%('Deactivate' if ct.tradeSets[uidTS]['active'] else 'Activate'),callback_data='2|%s|%s|%s|chosen'%(exch,uidTS,'TSstop' if ct.tradeSets[uidTS]['active'] else 'TSgo')),InlineKeyboardButton("Delete trade set",callback_data='3|%s|%s|ok|no|chosen'%(exch,uidTS))])
+        buttons.append([InlineKeyboardButton("Activate trade set",callback_data='2|%s|%s|TSgo|chosen'%(exch,uidTS)),InlineKeyboardButton("Delete trade set",callback_data='3|%s|%s|ok|no|chosen'%(exch,uidTS))])
     if mode == 'full':
         buttons.append([InlineKeyboardButton("Back",callback_data='2|%s|%s|back|chosen'%(exch,uidTS))])
     return buttons
@@ -953,9 +954,9 @@ def startBot():
     # start a job checking for updates once a  day
     updater.job_queue.run_repeating(checkForUpdates, interval=60*60*24, first=0,context=updater)
     # start a job checking every day 10 sec after midnight (UTC time)
-    updater.job_queue.run_daily(lambda u,b: checkCandle(u,b,1), (dt.datetime.combine(dt.date(1900,5,5),dt.time(0,0,10)) + (dt.datetime.now()-dt.datetime.utcnow())).time(), context=updater,name='dailyCheck')
+    updater.job_queue.run_daily(lambda u,b: checkCandle(u,b,1), (dt.datetime(1900,5,5,0,0,10) + (dt.datetime.now()-dt.datetime.utcnow())).time(), context=updater,name='dailyCheck')
     # start a job checking every week 10 sec after midnight (UTC time)
-    updater.job_queue.run_daily(lambda u,b: checkCandle(u,b,2), (dt.datetime.combine(dt.date(1900,5,5),dt.time(0,0,10)) + (dt.datetime.now()-dt.datetime.utcnow())).time(), days=tuple([0]),context=updater,name='weeklyCheck')
+    updater.job_queue.run_daily(lambda u,b: checkCandle(u,b,2), (dt.datetime(1900,5,5,0,0,10) + (dt.datetime.now()-dt.datetime.utcnow())).time(), days=tuple([0]),context=updater,name='weeklyCheck')
     # start a job saving the user data each 5 minutes
     updater.job_queue.run_repeating(save_data, interval=5*60, context=updater)
     # start a job making backup of the user data each x days
