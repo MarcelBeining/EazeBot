@@ -327,8 +327,8 @@ class tradeHandler:
         # cancelOrders can be 0 (not), 1 (cancel), 2 (cancel and delete open orders)
         wasactive = self.tradeSets[iTs]['active']
         if cancelOrders:
-            self.cancelBuyOrders(iTs,deleteOpenOrders=cancelOrders==2)
-            self.cancelSellOrders(iTs,deleteOpenOrders=cancelOrders==2)
+            self.cancelBuyOrders(iTs,deleteOrders=cancelOrders==2)
+            self.cancelSellOrders(iTs,deleteOrders=cancelOrders==2)
         self.tradeSets[iTs]['active'] = False
         return wasactive
         
@@ -803,6 +803,9 @@ class tradeHandler:
     def setWeeklyCloseSL(self,iTs,value):
         ts = self.tradeSets[iTs]
         if self.checkNum(value):
+            ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
+            if ticker['last'] <= value:
+                self.message('Weekly-close SL is set but be aware that it is higher than the current market price!','Warning')
             ts['weeklycloseSL'] = value
             self.setDailyCloseSL(iTs,None)
             self.setTrailingSL(iTs,None) # deactivate trailing SL
@@ -815,6 +818,9 @@ class tradeHandler:
     def setDailyCloseSL(self,iTs,value):
         ts = self.tradeSets[iTs]
         if self.checkNum(value):
+            ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
+            if ticker['last'] <= value:
+                self.message('Daily-close SL is set but be aware that it is higher than the current market price!','Warning')
             ts['dailycloseSL'] = value
             self.setWeeklyCloseSL(iTs,None)
             self.setTrailingSL(iTs,None) # deactivate trailing SL
@@ -902,60 +908,66 @@ class tradeHandler:
             self.message('No coins (or too low amount) to sell from this trade set.','warning')
         return sold
                 
-    def cancelSellOrders(self,iTs,oid=None,deleteOpenOrders=False):
+    def cancelSellOrders(self,iTs,oid=None,deleteOrders=False):
         self.updateDownState(True)
         returnVal = 1
         if iTs in self.tradeSets and self.numSellLevels(iTs) > 0:
             count = 0
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['OutTrades']))):
-                if trade['oid'] is not None and trade['oid'] != 'filled' and (oid is None or trade['oid']==oid):
-                    try:
-                        self.cancelOrder(trade['oid'],iTs,'SELL') 
-                    except OrderNotFound as e:
-                        pass
-                    except Exception as e:
-                        self.unlockTradeSet(iTs)
-                        raise(e)
-                    time.sleep(1)
-                    count += 1
-                    orderInfo = self.fetchOrder(trade['oid'],iTs,'SELL')
-                    self.tradeSets[iTs]['coinsAvail'] += trade['amount']
-                    trade['oid'] = None
-                    if orderInfo['filled'] > 0:
-                        self.message('(Partly?) filled sell order found during canceling. Updating balance')
-                        self.tradeSets[iTs]['costOut'] += orderInfo['price']*orderInfo['filled']
-                        self.tradeSets[iTs]['coinsAvail'] -= orderInfo['filled']  
-                        trade['oid'] = 'filled'
-                        trade['amount'] = orderInfo['filled']
-                        returnVal = 0.5
-                    elif deleteOpenOrders:
-                        self.tradeSets[iTs]['OutTrades'].pop(iTrade)
+                if (oid is None or trade['oid']==oid):
+                    if trade['oid'] is not None and trade['oid'] != 'filled':
+                        try:
+                            self.cancelOrder(trade['oid'],iTs,'SELL') 
+                        except OrderNotFound as e:
+                            pass
+                        except Exception as e:
+                            self.unlockTradeSet(iTs)
+                            raise(e)
+                        time.sleep(1)
+                        count += 1
+                        orderInfo = self.fetchOrder(trade['oid'],iTs,'SELL')
+                        self.tradeSets[iTs]['coinsAvail'] += trade['amount']
+                        trade['oid'] = None
+                        if orderInfo['filled'] > 0:
+                            self.message('(Partly?) filled sell order found during canceling. Updating balance')
+                            self.tradeSets[iTs]['costOut'] += orderInfo['price']*orderInfo['filled']
+                            self.tradeSets[iTs]['coinsAvail'] -= orderInfo['filled']  
+                            trade['oid'] = 'filled'
+                            trade['amount'] = orderInfo['filled']
+                            returnVal = 0.5
+                        elif deleteOrders:
+                            self.tradeSets[iTs]['OutTrades'].pop(iTrade)
+                    elif deleteOrders:
+                            self.tradeSets[iTs]['OutTrades'].pop(iTrade)
             if count > 0:
                 self.message('%d sell orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
         return returnVal
         
-    def cancelBuyOrders(self,iTs,oid=None,deleteOpenOrders=False):
+    def cancelBuyOrders(self,iTs,oid=None,deleteOrders=False):
         self.updateDownState(True)
         returnVal = 1
         if iTs in self.tradeSets and self.numBuyLevels(iTs) > 0:
             count = 0
             for iTrade,trade in reversed(list(enumerate(self.tradeSets[iTs]['InTrades']))):
-                if trade['oid'] is not None and trade['oid'] != 'filled' and (oid is None or trade['oid']==oid):
-                    try:
-                        self.cancelOrder(trade['oid'],iTs,'BUY') 
-                    except OrderNotFound as e:
-                        pass
-                        
-                    time.sleep(1)
-                    count += 1
-                    orderInfo = self.fetchOrder(trade['oid'],iTs,'BUY')
-                    trade['oid'] = None
-                    if orderInfo['filled'] > 0:
-                        self.message('(Partly?) filled buy order found during canceling. Updating balance')
-                        self.tradeSets[iTs]['costIn'] += orderInfo['price']*orderInfo['filled']
-                        self.tradeSets[iTs]['coinsAvail'] += orderInfo['filled']   
-                        returnVal = 0.5
-                    elif deleteOpenOrders:
+                if (oid is None or trade['oid']==oid):
+                    if trade['oid'] is not None and trade['oid'] != 'filled':
+                        try:
+                            self.cancelOrder(trade['oid'],iTs,'BUY') 
+                        except OrderNotFound as e:
+                            pass
+                            
+                        time.sleep(1)
+                        count += 1
+                        orderInfo = self.fetchOrder(trade['oid'],iTs,'BUY')
+                        trade['oid'] = None
+                        if orderInfo['filled'] > 0:
+                            self.message('(Partly?) filled buy order found during canceling. Updating balance')
+                            self.tradeSets[iTs]['costIn'] += orderInfo['price']*orderInfo['filled']
+                            self.tradeSets[iTs]['coinsAvail'] += orderInfo['filled']   
+                            returnVal = 0.5
+                        elif deleteOrders:
+                            self.tradeSets[iTs]['InTrades'].pop(iTrade)
+                    elif deleteOrders:
                         self.tradeSets[iTs]['InTrades'].pop(iTrade)
             if count > 0:
                 self.message('%d buy orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
