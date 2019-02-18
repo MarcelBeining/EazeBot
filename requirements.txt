@@ -1,4 +1,4 @@
-ccxt >= 1.18.192
+ccxt >= 1.18.247
 dill
 numpy
 python-telegram-bot >= 11.1.0

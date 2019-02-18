@@ -1028,6 +1028,7 @@ class tradeHandler:
                 if 'key' in str(e).lower():
                     self.message('Failed to authenticate at exchange %s. Please check your keys'%self.exchange.name,'error')
                 else:
+                    self.down = True
                     self.message('Some error occured at exchange %s. Maybe it is down.'%self.exchange.name,'error')
                 return
         

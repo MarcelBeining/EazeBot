@@ -30,6 +30,15 @@ with open(os.path.join(pathname,'eazebot','__init__.py')) as fh:
     thisVersionOld = re.search('(?<=__version__ = \')[0-9\.]+',versiontext).group(0)
 thisVersion = thisVersionOld
 
+from ccxt import __version__ as ccxtVersion
+with open(os.path.join(pathname,'requirements.txt')) as fh:
+    requirementsTxt = str(fh.read())
+    
+ccxtTxtVersion = re.search('(?<=ccxt \>\= )[0-9\.]+',requirementsTxt).group(0)
+if ccxtVersion > ccxtTxtVersion:
+    with open(os.path.join(pathname,'requirements.txt'),'w') as fh:
+        fh.write(requirementsTxt.replace(ccxtTxtVersion,ccxtVersion))
+    
 # ask if this is a minor, major, or new edition change and update the version variable accordingly
 print('What type of new version? (1.2.3)?:')
 answer = input()
