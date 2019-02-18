@@ -45,6 +45,8 @@ class tradeHandler:
         checkThese = ['cancelOrder','createLimitOrder','fetchBalance','fetchTicker']
         self.tradeSets = {}
         self.tradeSetHistory = []
+        if exchName == 'kucoin':
+            exchName.replace('kucoin','kucoin2')
         self.exchange = getattr (ccxt, exchName) ({'enableRateLimit': True,'options': { 'adjustForTimeDifference': True }}) # 'nonce': ccxt.Exchange.milliseconds,
         if key:
             self.exchange.apiKey = key
