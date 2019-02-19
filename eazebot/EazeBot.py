@@ -950,7 +950,7 @@ def startBot():
             pass
     
     # start a job updating the trade sets each interval
-    updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=60,context=updater)
+    updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=5,context=updater)
     # start a job checking for updates once a  day
     updater.job_queue.run_repeating(checkForUpdates, interval=60*60*24, first=0,context=updater)
     # start a job checking every day 10 sec after midnight (UTC time)
