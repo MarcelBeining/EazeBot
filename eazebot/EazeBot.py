@@ -257,6 +257,7 @@ def checkBalance(bot,update,user_data,exchange=None):
             func = lambda sym: ct.safeRun(lambda : ct.exchange.fetchTicker(sym))
         coins = list(ct.balance['total'].keys())
         string = '*Balance on %s (>%g BTC):*\n'%(exchange,__config__['minBalanceInBTC'])
+        noCheckCoins = []
         for c in coins:
             BTCpair = '%s/BTC'%c
             BTCpair2 = 'BTC/%s'%c
@@ -267,11 +268,29 @@ def checkBalance(bot,update,user_data,exchange=None):
                     string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec(BTCpair2,ct.balance['total'][c]), ct.cost2Prec(BTCpair2,ct.balance['free'][c]))
                 elif BTCpair in ct.exchange.symbols and ct.exchange.markets[BTCpair]['active'] and func(BTCpair)['last']*ct.balance['total'][c] > __config__['minBalanceInBTC']:
                     string += '*%s:* %s _(free: %s)_\n'%(c, ct.amount2Prec(BTCpair,ct.balance['total'][c]), ct.amount2Prec(BTCpair,ct.balance['free'][c]))
-                else:
+                elif not (BTCpair2 in ct.exchange.symbols and ct.exchange.markets[BTCpair2]['active']) and not (BTCpair in ct.exchange.symbols and ct.exchange.markets[BTCpair]['active']):
                     # handles cases where BTCpair and BTCpair2 do not exist or are not active
-                    string += '*%s:* %0.4f _(free: %0.4f)_\n'%(c, ct.balance['total'][c], ct.balance['free'][c])
-                
-        bot.send_message(user_data['chatId'],string,parse_mode='markdown')
+                    if __config__['minBalanceInBTC'] == 0:
+                        string += '*%s:* %0.4f _(free: %0.4f)_\n'%(c, ct.balance['total'][c], ct.balance['free'][c])
+                    else:
+                        noCheckCoins.append(c)
+        if len(noCheckCoins) > 0:
+            string += '\nYou have some coins (%s) which do not have a (currently) active BTC trading pair, and could thus not be filtered.\n'%(', '.join(noCheckCoins))
+        try:
+            bot.send_message(user_data['chatId'],string,parse_mode='markdown')
+        except BadRequest as e:
+            # handle too many coins making message to long by splitting it up
+            if 'too long' in str(e):
+                stringList = string.splitlines()
+                counter = 0
+                steps = 10
+                while counter < len(stringList):
+                    string = '\n'.join(stringList[counter:min([len(stringList),counter+steps])])
+                    bot.send_message(user_data['chatId'],string,parse_mode='markdown')
+                    counter += steps
+            else:
+                raise(e)
+
     else:
         deleteMessages(user_data,'dialog')
         user_data['lastFct'].append(lambda res: checkBalance(bot,update,user_data,res))
