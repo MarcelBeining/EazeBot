@@ -675,8 +675,13 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                 buttons.append([InlineKeyboardButton('Cancel',callback_data='xxx|cancel')])
                 try:
                     query.edit_message_text('Choose a pair...',reply_markup=InlineKeyboardMarkup(buttons))
-                except BadRequest as e:
-                    query.edit_message_text('Too many pairs to make buttons, you have to type the pair. Here is a list of all pairs:\n'+string[0:-2],reply_markup=[])
+                except BadRequest:
+                    try:
+                        query.edit_message_text('Too many pairs to make buttons, you have to type the pair. Here is a list of all pairs:\n'+string[0:-2],reply_markup=[])
+                        return SYMBOL
+                    except BadRequest:
+                        query.edit_message_text('Too many pairs to make buttons, you have to type the pair manually.\n',reply_markup=[])
+                        return SYMBOL
                 
             elif command == 'chooseSymbol' :
                 query.message.delete()
