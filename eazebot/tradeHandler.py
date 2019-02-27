@@ -309,6 +309,10 @@ class tradeHandler:
         self.updateDownState(True)
         ts = self.tradeSets[iTs]
         wasactive = ts['active']
+        # check if symbol is active
+        if not self.exchange.markets[ts['symbol']]['active']:
+            self.message('Cannot activate trade set because %s was deactivated for trading by the exchange!'%ts['symbol'],'error')
+            return wasactive
         # sanity check of amounts to buy/sell
         if self.sumSellAmounts(iTs,'notinitiated') - (self.sumBuyAmounts(iTs,'notfilled')+ ts['coinsAvail']) > 0:
             self.message('Cannot activate trade set because the total amount you (still) want to sell (%s %s) exceeds the total amount you want to buy (%s %s after fee subtraction) and the amount you already have in this trade set (%s %s). Please adjust the trade set!'%(self.amount2Prec(ts['symbol'],self.sumSellAmounts(iTs,'notinitiated',1)),ts['coinCurrency'],self.amount2Prec(ts['symbol'],self.sumBuyAmounts(iTs,'notfilled',1)),ts['coinCurrency'],self.amount2Prec(ts['symbol'],ts['coinsAvail']),ts['coinCurrency']))
@@ -442,19 +446,22 @@ class tradeHandler:
             string += '*Filled buy orders (fee subtracted):* %s %s for an average price of %s\n'%(self.amount2Prec(ts['symbol'],sumBuys),ts['coinCurrency'],self.cost2Prec(ts['symbol'],sum([val[0]*val[1]/sumBuys if sumBuys > 0 else None for val in filledBuys])))
         if sumSells>0:
             string += '*Filled sell orders:* %s %s for an average price of %s\n'%(self.amount2Prec(ts['symbol'],sumSells),ts['coinCurrency'],self.cost2Prec(ts['symbol'],sum([val[0]*val[1]/sumSells if sumSells > 0 else None for val in filledSells])))
-        ticker = self.safeRun(lambda: self.exchange.fetchTicker(ts['symbol']))
-        string += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n'%tuple([self.price2Prec(ts['symbol'],val) for val in [ticker['last'],ticker['high'],ticker['low']]])
-        if (ts['initCoins'] == 0 or ts['initPrice'] is not None) and ts['costIn'] > 0 and (sumBuys>0 or ts['initCoins'] > 0):
-            totalAmountToSell = ts['coinsAvail'] + self.sumSellAmounts(iTs,'open')
-            fee = self.calculateFee(ts['symbol'],'market','sell',totalAmountToSell,ticker['last'] ,'taker')
-            costSells = ts['costOut'] +   ticker['last'] * totalAmountToSell - (fee['cost'] if fee['currency'] == ts['baseCurrency'] else 0)
-            gain = costSells - ts['costIn']
-            gainOrig = gain
-            if showProfitIn is not None:
-                gain,thisCur = self.convertAmount(gain,ts['baseCurrency'],showProfitIn)
-            else:
-                thisCur = ts['baseCurrency']
-            string += '\n*Estimated gain/loss when selling all now: * %s %s (%+.2f %%)\n'%(self.cost2Prec(ts['symbol'],gain),thisCur,gainOrig/(ts['costIn'])*100)
+        if self.exchange.markets[ts['symbol']]['active']:
+            ticker = self.safeRun(lambda: self.exchange.fetchTicker(ts['symbol']))
+            string += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n'%tuple([self.price2Prec(ts['symbol'],val) for val in [ticker['last'],ticker['high'],ticker['low']]])
+            if (ts['initCoins'] == 0 or ts['initPrice'] is not None) and ts['costIn'] > 0 and (sumBuys>0 or ts['initCoins'] > 0):
+                totalAmountToSell = ts['coinsAvail'] + self.sumSellAmounts(iTs,'open')
+                fee = self.calculateFee(ts['symbol'],'market','sell',totalAmountToSell,ticker['last'] ,'taker')
+                costSells = ts['costOut'] +   ticker['last'] * totalAmountToSell - (fee['cost'] if fee['currency'] == ts['baseCurrency'] else 0)
+                gain = costSells - ts['costIn']
+                gainOrig = gain
+                if showProfitIn is not None:
+                    gain,thisCur = self.convertAmount(gain,ts['baseCurrency'],showProfitIn)
+                else:
+                    thisCur = ts['baseCurrency']
+                string += '\n*Estimated gain/loss when selling all now: * %s %s (%+.2f %%)\n'%(self.cost2Prec(ts['symbol'],gain),thisCur,gainOrig/(ts['costIn'])*100)
+        else:
+            string += '\n*Warning: Symbol %s is currently deactivated for trading by the exchange!*\n'%ts['symbol']
         return string
     
 
@@ -496,7 +503,8 @@ class tradeHandler:
         self.updateDownState(True)
         if isinstance(targetCurrency,str):
             targetCurrency = [targetCurrency]
-        conversionPairs = [('%s/%s'%(currency,cur) in self.exchange.symbols) + 2*('%s/%s'%(cur,currency) in self.exchange.symbols) for cur in targetCurrency]
+            
+        conversionPairs = [('%s/%s'%(currency,cur) in self.exchange.symbols and self.exchange.markets['%s/%s'%(currency,cur)]['active']) + 2*('%s/%s'%(cur,currency) in self.exchange.symbols and self.exchange.markets['%s/%s'%(cur,currency)]['active']) for cur in targetCurrency]
         ind = next((i for i, x in enumerate(conversionPairs) if x), None)
         if ind is not None:
             thisCur = targetCurrency[ind]
@@ -788,7 +796,7 @@ class tradeHandler:
         if self.checkNum(value):
             if self.numBuyLevels(iTs,'notfilled') > 0:
                 raise Exception('Trailing SL cannot be set as there are non-filled buy orders still')
-            ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
+            ticker = self.safeRun(lambda: self.exchange.fetchTicker(ts['symbol']))
             if typ == 'abs':
                 if value >= ticker['last'] or value <= 0:
                     raise ValueError('absolute trailing stop-loss offset is not between 0 and current price')
@@ -809,7 +817,7 @@ class tradeHandler:
     def setWeeklyCloseSL(self,iTs,value):
         ts = self.tradeSets[iTs]
         if self.checkNum(value):
-            ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
+            ticker = self.safeRun(lambda: self.exchange.fetchTicker(ts['symbol']))
             if ticker['last'] <= value:
                 self.message('Weekly-close SL is set but be aware that it is higher than the current market price!','Warning')
             ts['weeklycloseSL'] = value
@@ -824,7 +832,7 @@ class tradeHandler:
     def setDailyCloseSL(self,iTs,value):
         ts = self.tradeSets[iTs]
         if self.checkNum(value):
-            ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
+            ticker = self.safeRun(lambda: self.exchange.fetchTicker(ts['symbol']))
             if ticker['last'] <= value:
                 self.message('Daily-close SL is set but be aware that it is higher than the current market price!','Warning')
             ts['dailycloseSL'] = value
@@ -839,7 +847,7 @@ class tradeHandler:
     def setSL(self,iTs,value):   
         if self.checkNum(value):
             ts = self.tradeSets[iTs]
-            ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']))
+            ticker = self.safeRun(lambda: self.exchange.fetchTicker(ts['symbol']))
             if ticker['last'] <= value:
                 self.message('Cannot set new SL as it is higher than the current market price')
                 return 0
@@ -868,7 +876,7 @@ class tradeHandler:
             return 0
         else:
             breakEvenPrice = (ts['costIn']-ts['costOut'])/((1-self.exchange.fees['trading']['taker'])*(ts['coinsAvail']+sum([trade['amount'] for trade in ts['OutTrades'] if trade['oid'] != 'filled' and trade['oid'] is not None])))
-            ticker = self.safeRun(lambda :self.exchange.fetch_ticker(ts['symbol']))
+            ticker = self.safeRun(lambda :self.exchange.fetchTicker(ts['symbol']))
             if ticker['last'] < breakEvenPrice:
                 self.message('Break even SL of %s cannot be set as the current market price is lower (%s)!'%tuple([self.price2Prec(ts['symbol'],val) for val in [breakEvenPrice,ticker['last']]]))
                 return 0
@@ -893,7 +901,7 @@ class tradeHandler:
                     response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail'],params),iTs=iTs)
             else:
                 if price is None:
-                    price = self.safeRun(lambda :self.exchange.fetch_ticker(ts['symbol'])['last'], iTs=iTs)
+                    price = self.safeRun(lambda :self.exchange.fetchTicker(ts['symbol'])['last'], iTs=iTs)
                 response = self.safeRun(lambda: self.exchange.createLimitSellOrder (ts['symbol'], ts['coinsAvail'],price),iTs=iTs)
             time.sleep(5) # give exchange 5 sec for trading the order
             orderInfo = self.fetchOrder(response['id'],iTs,'SELL')
@@ -1046,7 +1054,7 @@ class tradeHandler:
                     if not ts['active']:
                         continue
                     self.lockTradeSet(iTs)
-                    ticker = self.safeRun(lambda: self.exchange.fetch_ticker(ts['symbol']), iTs=iTs)
+                    ticker = self.safeRun(lambda: self.exchange.fetchTicker(ts['symbol']), iTs=iTs)
                     # check if stop loss is reached
                     if not specialCheck:
                         if ts['SL'] is not None:

@@ -263,10 +263,13 @@ def checkBalance(bot,update,user_data,exchange=None):
             if ct.balance['total'][c] > 0:
                 if c == 'BTC' and ct.balance['total'][c] > __config__['minBalanceInBTC']:
                     string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec('ETH/BTC',ct.balance['total'][c]), ct.cost2Prec('ETH/BTC',ct.balance['free'][c]))
-                elif BTCpair2 in ct.exchange.symbols and ct.balance['total'][c]/func(BTCpair2)['last'] > __config__['minBalanceInBTC'] :
+                elif BTCpair2 in ct.exchange.symbols and ct.exchange.markets[BTCpair2]['active'] and ct.balance['total'][c]/func(BTCpair2)['last'] > __config__['minBalanceInBTC'] :
                     string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec(BTCpair2,ct.balance['total'][c]), ct.cost2Prec(BTCpair2,ct.balance['free'][c]))
-                elif BTCpair in ct.exchange.symbols and func(BTCpair)['last']*ct.balance['total'][c] > __config__['minBalanceInBTC']:
+                elif BTCpair in ct.exchange.symbols and ct.exchange.markets[BTCpair]['active'] and func(BTCpair)['last']*ct.balance['total'][c] > __config__['minBalanceInBTC']:
                     string += '*%s:* %s _(free: %s)_\n'%(c, ct.amount2Prec(BTCpair,ct.balance['total'][c]), ct.amount2Prec(BTCpair,ct.balance['free'][c]))
+                else:
+                    # handles cases where BTCpair and BTCpair2 do not exist or are not active
+                    string += '*%s:* %0.4f _(free: %0.4f)_\n'%(c, ct.balance['total'][c], ct.balance['free'][c])
                 
         bot.send_message(user_data['chatId'],string,parse_mode='markdown')
     else:
