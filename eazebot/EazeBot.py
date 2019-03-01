@@ -907,7 +907,7 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                             query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Yes", callback_data='3|%s|%s|yes'%(exch,uidTS)),InlineKeyboardButton("No", callback_data='3|%s|%s|no'%(exch,uidTS))]]))
     return MAINMENU
 
-def startBot():
+def startBot(debug=False):
     print('\n\n******** Welcome to EazeBot (v%s) ********\nFree python/telegram bot for easy execution and surveillance of crypto trading plans on multiple exchanges\n\n'%thisVersion)
     global __config__
     global job_queue
@@ -988,10 +988,12 @@ def startBot():
     updater.job_queue.run_repeating(save_data, interval=5*60, context=updater)
     # start a job making backup of the user data each x days
     updater.job_queue.run_repeating(backup_data, interval=60*60*24*__config__['extraBackupInterval'], context=updater)
-    
-    updater.start_polling()
-    updater.idle()
-    save_data(updater.dispatcher.user_data)  # last data save when finishing
+    if not debug:
+        updater.start_polling()
+        updater.idle()
+        save_data(updater.dispatcher.user_data)  # last data save when finishing
+    else:
+        return updater
 
 # execute main if running as script
 if __name__ == '__main__':

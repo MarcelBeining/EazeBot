@@ -901,8 +901,8 @@ class tradeHandler:
                     response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail'],params),iTs=iTs)
             else:
                 if price is None:
-                    price = self.safeRun(lambda :self.exchange.fetchTicker(ts['symbol'])['last'], iTs=iTs)
-                response = self.safeRun(lambda: self.exchange.createLimitSellOrder (ts['symbol'], ts['coinsAvail'],price),iTs=iTs)
+                    price = self.safeRun(lambda :self.exchange.fetch_ticker(ts['symbol'])['last'], iTs=iTs)
+                response = self.safeRun(lambda: self.exchange.createLimitSellOrder (ts['symbol'], ts['coinsAvail'],price*0.995),iTs=iTs)
             time.sleep(5) # give exchange 5 sec for trading the order
             orderInfo = self.fetchOrder(response['id'],iTs,'SELL')
                     
