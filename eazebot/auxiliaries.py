@@ -11,6 +11,7 @@ from copy import deepcopy
 from shutil import copy2
 from collections import defaultdict
 import time
+import importlib
 
 def copyJSON(folderName=os.getcwd(),force=0):
     if force == 0 and os.path.isfile(os.path.join(folderName,'botConfig.json')):
@@ -109,6 +110,17 @@ def load_data(filename='data.pickle'):
         try:
             with open(filename, 'rb') as f:
                 logging.info('Loading user data')
+                try:
+                    return dill.load(f)
+                except ModuleNotFoundError:
+                    if os.name == 'nt':
+                        to = 'win'
+                    else:
+                        to = 'linux'
+                    if importlib.util.find_spec("eazebot") is None:
+                        to += 'git'
+            convert_data(from_='linux',to_=to,filename='data.pickle',filenameout='data.pickle')
+            with open(filename, 'rb') as f:
                 return dill.load(f)
         except Exception as e:
             raise(e)

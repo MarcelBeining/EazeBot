@@ -30,7 +30,7 @@ import datetime
 import random
 import string
 import sys, os
-from ccxt.base.errors import (AuthenticationError,NetworkError,OrderNotFound,InvalidNonce,ExchangeError)
+from ccxt.base.errors import (AuthenticationError,NetworkError,OrderNotFound,InvalidNonce,ExchangeError,InsufficientFunds)
 
 class tradeHandler:
     
@@ -315,10 +315,10 @@ class tradeHandler:
             return wasactive
         # sanity check of amounts to buy/sell
         if self.sumSellAmounts(iTs,'notinitiated') - (self.sumBuyAmounts(iTs,'notfilled')+ ts['coinsAvail']) > 0:
-            self.message('Cannot activate trade set because the total amount you (still) want to sell (%s %s) exceeds the total amount you want to buy (%s %s after fee subtraction) and the amount you already have in this trade set (%s %s). Please adjust the trade set!'%(self.amount2Prec(ts['symbol'],self.sumSellAmounts(iTs,'notinitiated',1)),ts['coinCurrency'],self.amount2Prec(ts['symbol'],self.sumBuyAmounts(iTs,'notfilled',1)),ts['coinCurrency'],self.amount2Prec(ts['symbol'],ts['coinsAvail']),ts['coinCurrency']))
+            self.message('Cannot activate trade set because the total amount you (still) want to sell (%s %s) exceeds the total amount you want to buy (%s %s after fee subtraction) and the amount you already have in this trade set (%s %s). Please adjust the trade set!'%(self.amount2Prec(ts['symbol'],self.sumSellAmounts(iTs,'notinitiated',1)),ts['coinCurrency'],self.amount2Prec(ts['symbol'],self.sumBuyAmounts(iTs,'notfilled',1)),ts['coinCurrency'],self.amount2Prec(ts['symbol'],ts['coinsAvail']),ts['coinCurrency']), 'error')
             return wasactive
         elif self.minBuyPrice(iTs,order='notfilled') is not None and ts['SL'] is not None and ts['SL'] >= self.minBuyPrice(iTs,order='notfilled'):
-            self.message('Cannot activate trade set because the current stop loss price is higher than the lowest non-filled buy order price, which means this buy order could never be reached. Please adjust the trade set!')
+            self.message('Cannot activate trade set because the current stop loss price is higher than the lowest non-filled buy order price, which means this buy order could never be reached. Please adjust the trade set!','error')
             return wasactive
         self.tradeSets[iTs]['virgin'] = False
         self.tradeSets[iTs]['active'] = True
@@ -329,7 +329,11 @@ class tradeHandler:
                 sl = [val for val in [ts['SL'] ,ts['dailycloseSL'] if 'dailycloseSL' in ts else None,ts['weeklycloseSL'] if 'weeklycloseSL' in ts else None,] if val is not None][0]
                 loss = totalBuyCost - ts['costOut'] - (ts['initCoins']+self.sumBuyAmounts(iTs)-self.sumSellAmounts(iTs,'filled'))*sl
                 self.message('Estimated %s if buys reach stop-loss before selling: %s %s'%('*gain*' if loss<0 else 'loss',self.cost2Prec(ts['symbol'],-loss if loss<0 else loss),ts['baseCurrency']))        
-        self.initBuyOrders(iTs)
+        try:
+            self.initBuyOrders(iTs)
+        except InsufficientFunds as e:
+            self.message('Cannot activate trade set due to insufficient funds!','error')
+            self.deactivateTradeSet(iTs)
         return wasactive
     
     def deactivateTradeSet(self,iTs,cancelOrders=0):
@@ -638,16 +642,16 @@ class tradeHandler:
         if self.checkNum(buyPrice,buyAmount,candleAbove) or (candleAbove is None and self.checkNum(buyPrice,buyAmount)):
             fee = self.calculateFee(ts['symbol'],'limit','buy',buyAmount,buyPrice,'maker')
             if not self.checkQuantity(ts['symbol'],'amount',buyAmount):
-                self.message('Adding buy level failed, amount is not within the range, the exchange accepts')
+                self.message('Adding buy level failed, amount is not within the range, the exchange accepts','error')
                 return 0
             elif not self.checkQuantity(ts['symbol'],'price',buyPrice):
-                self.message('Adding buy level failed, price is not within the range, the exchange accepts')
+                self.message('Adding buy level failed, price is not within the range, the exchange accepts','error')
                 return 0 
             elif not self.checkQuantity(ts['symbol'],'cost',buyPrice*buyAmount):
-                self.message('Adding buy level failed, cost is not within the range, the exchange accepts')
+                self.message('Adding buy level failed, cost is not within the range, the exchange accepts','error')
                 return 0 
             elif self.getFreeBalance(ts['baseCurrency']) < buyAmount*buyPrice + fee['cost'] if fee['currency'] == ts['baseCurrency'] else 0:
-                self.message('Adding buy level failed, your balance of %s does not suffice to buy this amount%s!'%(ts['baseCurrency'],' and pay the trading fee (%s %s)'%(self.fee2Prec(ts['symbol'],fee['cost']),ts['baseCurrency']) if fee['currency'] == ts['baseCurrency'] else ''))
+                self.message('Adding buy level failed, your balance of %s does not suffice to buy this amount%s!'%(ts['baseCurrency'],' and pay the trading fee (%s %s)'%(self.fee2Prec(ts['symbol'],fee['cost']),ts['baseCurrency']) if fee['currency'] == ts['baseCurrency'] else ''),'error')
                 return 0 
             
             if fee['currency'] == ts['coinCurrency']:
