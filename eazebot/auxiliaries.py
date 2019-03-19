@@ -113,13 +113,21 @@ def load_data(filename='data.pickle'):
                 try:
                     return dill.load(f)
                 except ModuleNotFoundError:
+                    # file probably comes from another OS or eazebot is no installed package
+                    # as the txt replacement does only occcur if it finds the
+                    # corresponding linux/win/git strings, a wrong "from" part does
+                    # not matter
                     if os.name == 'nt':
-                        to = 'win'
+                        from_ = 'linux'
+                        to_ = 'win'
                     else:
-                        to = 'linux'
+                        from_ = 'win'
+                        to_ = 'linux'
                     if importlib.util.find_spec("eazebot") is None:
-                        to += 'git'
-            convert_data(from_='linux',to_=to,filename='data.pickle',filenameout='data.pickle')
+                        to_ += 'git'
+                    else:
+                        from_ += 'git'
+            convert_data(from_=from_,to_=to_,filename='data.pickle',filenameout='data.pickle')
             with open(filename, 'rb') as f:
                 return dill.load(f)
         except Exception as e:

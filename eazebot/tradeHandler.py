@@ -283,8 +283,6 @@ class tradeHandler:
                     print('The following error occured at exchange %s:\n%s'%(self.exchange.name,str(e)))
           
     def calculateFee(self,symbol, typ, direction, amount, price, makerOrTaker):
-        if 'kucoin' in self.exchange.name.lower(): # hack to avoid error on missing fee info
-            self.exchange.markets[symbol].update({'maker':0.0001, 'taker':0.0001})
         return self.exchange.calculateFee(symbol, typ, direction, amount, price, makerOrTaker)
         
     def initTradeSet(self,symbol):
