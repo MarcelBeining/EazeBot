@@ -36,7 +36,8 @@ Most importantly: **All popular exchanges are supported!**
 After the next steps, no matter if you are on Windows or Linux/Mac, you should have two json files (_APIs.json_ and _botConfig.json_) and some scripts in your target folder.
 
 ### Windows
-We simplified installation of the bot on Windows: Simply download (right click, save link as) [this File](https://github.com/MarcelBeining/EazeBot/wiki/files/install_and_init_bot_here.bat) and put the file in a folder, where you wish EazeBot files to be installed, and execute it.
+We simplified installation of the bot on Windows: Simply download (right click, save link as) [this File](https://github.com/MarcelBeining/EazeBot/blob/master/install_and_init_bot_here.bat
+) and put the file in a folder, where you wish EazeBot files to be installed, and execute it.
 
 ### Linux/Mac
 The simpliest and recommended way of installing EazeBot is using the pip install command:
