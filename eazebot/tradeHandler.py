@@ -1062,7 +1062,7 @@ class tradeHandler:
         
         tradeSetsToDelete = []
         try:
-            for iTs in self.tradeSets:
+            for indTs, iTs in enumerate(self.tradeSets):
                 try:
                     ts = self.tradeSets[iTs]
                     if not ts['active']:
@@ -1087,14 +1087,15 @@ class tradeHandler:
                                     newSL = ticker['last'] * (1- ts['trailingSL'][0])
                                 if newSL > ts['SL']:
                                     ts['SL'] = newSL
-                    elif specialCheck == 1 and 'dailycloseSL' in ts and ts['dailycloseSL'] is not None and ticker['last'] < ts['dailycloseSL']:
-                        self.message('Daily candle closed below chosen SL of %s for pair %s! Selling now!'%(self.price2Prec(ts['symbol'],ts['dailycloseSL']),ts['symbol']),'warning')
-                        # cancel all sell orders, create market sell order and save resulting amount of base currency
-                        sold = self.sellAllNow(iTs,price=ticker['last'])
-                        if sold:
-                            tradeSetsToDelete.append(iTs)
-                            self.unlockTradeSet(iTs)
-                            continue                                    
+                    elif specialCheck == 1:
+                        if 'dailycloseSL' in ts and ts['dailycloseSL'] is not None and ticker['last'] < ts['dailycloseSL']:
+                            self.message('Daily candle closed below chosen SL of %s for pair %s! Selling now!'%(self.price2Prec(ts['symbol'],ts['dailycloseSL']),ts['symbol']),'warning')
+                            # cancel all sell orders, create market sell order and save resulting amount of base currency
+                            sold = self.sellAllNow(iTs,price=ticker['last'])
+                            if sold:
+                                tradeSetsToDelete.append(iTs)
+                                self.unlockTradeSet(iTs)
+                                continue
                     elif specialCheck == 2 and 'weeklycloseSL' in ts and ts['weeklycloseSL'] is not None and ticker['last'] < ts['weeklycloseSL']:
                         self.message('Weekly candle closed below chosen SL of %s for pair %s! Selling now!'%(self.price2Prec(ts['symbol'],ts['weeklycloseSL']),ts['symbol']),'warning')
                         # cancel all sell orders, create market sell order and save resulting amount of base currency
@@ -1103,6 +1104,11 @@ class tradeHandler:
                             tradeSetsToDelete.append(iTs)
                             self.unlockTradeSet(iTs)
                             continue
+                    elif specialCheck == 3: # tax warning check
+                        for iTrade,trade in enumerate(ts['InTrades']):
+                            if 'time' in trade and (datetime.datetime.now() - trade['time']).days > 358 and (datetime.datetime.now() - trade['time']).days < 365:
+                                self.message('Time since buy level #%d of trade set %d (%s) on exchange %s was filled approaches one year (%s) after which gains/losses are not eligible for reporting in the tax report in most countries!'%(iTrade,indTs,ts['symbol'],self.exchange.name,(trade['time']+datetime.timedelta(days=365)).strftime('%Y-%m-%d %H:%M')),'warning')
+                        continue
                     orderExecuted = 0
                     # go through buy trades 
                     for iTrade,trade in enumerate(ts['InTrades']):
@@ -1128,7 +1134,7 @@ class tradeHandler:
                                 if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                                     orderExecuted = 1
                                     ts['InTrades'][iTrade]['oid'] = 'filled'
-                                    
+                                    ts['InTrades'][iTrade]['time'] = datetime.datetime.now()
                                     ts['InTrades'][iTrade]['price'] = orderInfo['price']
                                     ts['costIn'] += orderInfo['cost']
                                     self.message('Buy level of %s %s reached on %s! Bought %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))
@@ -1183,7 +1189,8 @@ class tradeHandler:
                                     
                                     if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
                                         orderExecuted = 2
-                                        ts['OutTrades'][iTrade]['oid'] = 'filled'                               
+                                        ts['OutTrades'][iTrade]['oid'] = 'filled'  
+                                        ts['OutTrades'][iTrade]['time'] = datetime.datetime.now()
                                         ts['OutTrades'][iTrade]['price'] = orderInfo['price']
                                         ts['costOut'] += orderInfo['cost']
                                         self.message('Sell level of %s %s reached on %s! Sold %s %s for %s %s.'%(self.price2Prec(ts['symbol'],orderInfo['price']),ts['symbol'],self.exchange.name,self.amount2Prec(ts['symbol'],orderInfo['amount']),ts['coinCurrency'],self.cost2Prec(ts['symbol'],orderInfo['cost']),ts['baseCurrency']))   

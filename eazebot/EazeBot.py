@@ -524,13 +524,20 @@ def doneCmd(bot,update,user_data):
     
     
 # job functions   
-def checkForUpdates(bot,job):
+def checkForUpdatesAndTax(bot,job):
     updater = job.context
     remoteVersion, versionMessage, onPyPi = getRemoteVersion()
     if remoteVersion != thisVersion and all([int(a) >= int(b) for a,b in zip(remoteVersion.split('.'),thisVersion.split('.'))]):
         for user in updater.dispatcher.user_data:
             if 'chatId' in updater.dispatcher.user_data[user]:
                 updater.dispatcher.user_data[user]['messages']['botInfo'].append(bot.send_message(updater.dispatcher.user_data[user]['chatId'],'There is a new version of EazeBot available on git (v%s) %s with these changes:\n%s'%(remoteVersion,'and PyPi' if onPyPi else '(not yet on PyPi)',versionMessage)))
+    
+    for user in updater.dispatcher.user_data:
+        if user in __config__['telegramUserId']:
+            if updater.dispatcher.user_data[user]['settings']['taxWarn']:
+                logging.info('Checking 1 year buy period limit')
+                for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
+                    updater.dispatcher.user_data[user]['trade'][ex].update(specialCheck=3)
 
 def updateTradeSets(bot,job):
     updater = job.context
@@ -581,8 +588,8 @@ def showSettings  (bot, update,user_data,botOrQuery=None):
     # show gain/loss in fiat
     # give preferred fiat
     # stop bot with security question
-    string = '*Settings:*\n_Fiat currencies(descending priority):_ %s\n_Show gain/loss in:_ %s'%(', '.join(user_data['settings']['fiat']), 'Fiat (if available)' if user_data['settings']['showProfitIn'] is not None else 'Base currency') #user_data['settings']['showProfitIn']
-    settingButtons = [[InlineKeyboardButton('Define your fiat',callback_data='settings|defFiat')],[InlineKeyboardButton("Toggle showing gain/loss in baseCurrency or fiat", callback_data='settings|toggleProfit')],[InlineKeyboardButton("*Stop bot*", callback_data='settings|stopBot'),InlineKeyboardButton("Back", callback_data='settings|cancel')]]    
+    string = '*Settings:*\n\n_Fiat currencies(descending priority):_ %s\n\n_Show gain/loss in:_ %s\n\n_%sarn if filled buys approach 1 year_'%(', '.join(user_data['settings']['fiat']), 'Fiat (if available)' if user_data['settings']['showProfitIn'] is not None else 'Base currency','W' if user_data['settings']['taxWarn'] else 'Do not w') 
+    settingButtons = [[InlineKeyboardButton('Define your fiat',callback_data='settings|defFiat')],[InlineKeyboardButton("Toggle showing gain/loss in baseCurrency or fiat", callback_data='settings|toggleProfit')],[InlineKeyboardButton("Toggle 1 year filled buy warning", callback_data='settings|toggleTaxWarn')],[InlineKeyboardButton("*Stop bot*", callback_data='settings|stopBot'),InlineKeyboardButton("Back", callback_data='settings|cancel')]]    
     if botOrQuery == None or isinstance(botOrQuery,type(bot)):
         user_data['messages']['settings'].append(bot.send_message(user_data['chatId'], string, parse_mode = 'markdown', reply_markup=InlineKeyboardMarkup(settingButtons)))
     else:
@@ -637,13 +644,15 @@ def InlineButtonCallback(bot, update,user_data,query=None,response=None):
                         user_data['settings']['fiat'] =  response.upper().split(',')
                         
                 elif subcommand == 'toggleProfit':
-                        if user_data['settings']['showProfitIn'] is None:
-                            if len(user_data['settings']['fiat'])>0:
-                                user_data['settings']['showProfitIn'] = user_data['settings']['fiat']
-                            else:
-                                query.answer('Please first specify fiat currency(s) in the settings.')
+                    if user_data['settings']['showProfitIn'] is None:
+                        if len(user_data['settings']['fiat'])>0:
+                            user_data['settings']['showProfitIn'] = user_data['settings']['fiat']
                         else:
-                            user_data['settings']['showProfitIn'] = None
+                            query.answer('Please first specify fiat currency(s) in the settings.')
+                    else:
+                        user_data['settings']['showProfitIn'] = None
+                elif subcommand == 'toggleTaxWarn':
+                    user_data['settings']['taxWarn'] = not user_data['settings']['taxWarn']
                 showSettings(bot, update,user_data,query)
         elif command == 'maxAmount':
             if len(user_data['lastFct']) > 0:
@@ -979,7 +988,7 @@ def startBot(debug=False):
     # start a job updating the trade sets each interval
     updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=5,context=updater)
     # start a job checking for updates once a  day
-    updater.job_queue.run_repeating(checkForUpdates, interval=60*60*24, first=0,context=updater)
+    updater.job_queue.run_repeating(checkForUpdatesAndTax, interval=60*60*24, first=0,context=updater)
     # start a job checking every day 10 sec after midnight (UTC time)
     updater.job_queue.run_daily(lambda u,b: checkCandle(u,b,1), (dt.datetime(1900,5,5,0,0,10) + (dt.datetime.now()-dt.datetime.utcnow())).time(), context=updater,name='dailyCheck')
     # start a job checking every week 10 sec after midnight (UTC time)
