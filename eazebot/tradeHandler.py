@@ -898,13 +898,27 @@ class tradeHandler:
             if self.exchange.has['createMarketOrder']:
                 try:
                     response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail']),0)
+                except InsufficientFunds:
+                    freeBal = self.getFreeBalance(ts['coinCurrency'])
+                    response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], freeBal),0)
+                    self.message('When selling %s, only %s %s was found and sold!'%(ts['symbol'], self.amount2Prec(ts['symbol'],freeBal), ts['coinCurrency']),'warning')
                 except:
                     params = { 'trading_agreement': 'agree' }  # for kraken api...
-                    response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail'],params),iTs=iTs)
+                    try:
+                        response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], ts['coinsAvail'],params),iTs=iTs)
+                    except InsufficientFunds:
+                        freeBal = self.getFreeBalance(ts['coinCurrency'])
+                        response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], freeBal),0)
+                        self.message('When selling %s, only %s %s was found and sold!'%(ts['symbol'], self.amount2Prec(ts['symbol'],freeBal), ts['coinCurrency']),'warning')
             else:
                 if price is None:
                     price = self.safeRun(lambda :self.exchange.fetch_ticker(ts['symbol'])['last'], iTs=iTs)
-                response = self.safeRun(lambda: self.exchange.createLimitSellOrder (ts['symbol'], ts['coinsAvail'],price*0.995),iTs=iTs)
+                try:
+                    response = self.safeRun(lambda: self.exchange.createLimitSellOrder (ts['symbol'], ts['coinsAvail'],price*0.995),iTs=iTs)
+                except InsufficientFunds:
+                    freeBal = self.getFreeBalance(ts['coinCurrency'])
+                    response = self.safeRun(lambda: self.exchange.createMarketSellOrder (ts['symbol'], freeBal),0)
+                    self.message('When selling %s, only %s %s was found and sold!'%(ts['symbol'], self.amount2Prec(ts['symbol'],freeBal), ts['coinCurrency']),'warning')
             time.sleep(5) # give exchange 5 sec for trading the order
             orderInfo = self.fetchOrder(response['id'],iTs,'SELL')
                     
@@ -943,7 +957,6 @@ class tradeHandler:
                         count += 1
                         orderInfo = self.fetchOrder(trade['oid'],iTs,'SELL')
                         self.tradeSets[iTs]['coinsAvail'] += trade['amount']
-                        trade['oid'] = None
                         if orderInfo['filled'] > 0:
                             self.message('(Partly?) filled sell order found during canceling. Updating balance')
                             self.tradeSets[iTs]['costOut'] += orderInfo['price']*orderInfo['filled']
@@ -951,9 +964,8 @@ class tradeHandler:
                             trade['oid'] = 'filled'
                             trade['amount'] = orderInfo['filled']
                             returnVal = 0.5
-                        elif deleteOrders:
-                            self.tradeSets[iTs]['OutTrades'].pop(iTrade)
-                    elif deleteOrders:
+                    if deleteOrders:
+                        if trade['oid'] != 'filled':
                             self.tradeSets[iTs]['OutTrades'].pop(iTrade)
             if count > 0:
                 self.message('%d sell orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
@@ -975,16 +987,16 @@ class tradeHandler:
                         time.sleep(1)
                         count += 1
                         orderInfo = self.fetchOrder(trade['oid'],iTs,'BUY')
-                        trade['oid'] = None
                         if orderInfo['filled'] > 0:
                             self.message('(Partly?) filled buy order found during canceling. Updating balance')
                             self.tradeSets[iTs]['costIn'] += orderInfo['price']*orderInfo['filled']
-                            self.tradeSets[iTs]['coinsAvail'] += orderInfo['filled']   
+                            self.tradeSets[iTs]['coinsAvail'] += orderInfo['filled']  
+                            trade['oid'] = 'filled'
+                            trade['amount'] = orderInfo['filled'] 
                             returnVal = 0.5
-                        elif deleteOrders:
+                    if deleteOrders:
+                        if trade['oid'] != 'filled':
                             self.tradeSets[iTs]['InTrades'].pop(iTrade)
-                    elif deleteOrders:
-                        self.tradeSets[iTs]['InTrades'].pop(iTrade)
             if count > 0:
                 self.message('%d buy orders canceled in total for tradeSet %d (%s)'%(count,list(self.tradeSets.keys()).index(iTs),self.tradeSets[iTs]['symbol']))
         return returnVal
