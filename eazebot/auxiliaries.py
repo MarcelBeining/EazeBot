@@ -34,14 +34,15 @@ def clean_data(user_data, allowed_users = None):
         if not ((allowed_users is None or user in allowed_users) and 'trade' in user_data[user]):
             delThese.append(user)
         else: # discard cached messages
+            if 'taxWarn' not in user_data[user]['settings']:
+                user_data[user]['settings']['taxWarn'] = True
             if 'messages' in user_data[user]:
                 typ = list(user_data[user]['messages'].keys())
                 for t in typ:
                     user_data[user]['messages'][t] = []
     for k in delThese:
         user_data.pop(k, None)
-    if 'taxWarn' not in user_data['settings']:
-        user_data['settings']['taxWarn'] = True
+
     return user_data
 
 def save_data(*arg):

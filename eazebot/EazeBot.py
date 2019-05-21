@@ -588,7 +588,7 @@ def showSettings  (bot, update,user_data,botOrQuery=None):
     # show gain/loss in fiat
     # give preferred fiat
     # stop bot with security question
-    string = '*Settings:*\n_Fiat currencies(descending priority):_ %s\n_Show gain/loss in:_ %s\n_%sarn if filled buys approach 1 year_'%(', '.join(user_data['settings']['fiat']), 'Fiat (if available)' if user_data['settings']['showProfitIn'] is not None else 'Base currency','W' if user_data['settings']['taxWarn'] else 'Do not w') 
+    string = '*Settings:*\n\n_Fiat currencies(descending priority):_ %s\n\n_Show gain/loss in:_ %s\n\n_%sarn if filled buys approach 1 year_'%(', '.join(user_data['settings']['fiat']), 'Fiat (if available)' if user_data['settings']['showProfitIn'] is not None else 'Base currency','W' if user_data['settings']['taxWarn'] else 'Do not w') 
     settingButtons = [[InlineKeyboardButton('Define your fiat',callback_data='settings|defFiat')],[InlineKeyboardButton("Toggle showing gain/loss in baseCurrency or fiat", callback_data='settings|toggleProfit')],[InlineKeyboardButton("Toggle 1 year filled buy warning", callback_data='settings|toggleTaxWarn')],[InlineKeyboardButton("*Stop bot*", callback_data='settings|stopBot'),InlineKeyboardButton("Back", callback_data='settings|cancel')]]    
     if botOrQuery == None or isinstance(botOrQuery,type(bot)):
         user_data['messages']['settings'].append(bot.send_message(user_data['chatId'], string, parse_mode = 'markdown', reply_markup=InlineKeyboardMarkup(settingButtons)))
