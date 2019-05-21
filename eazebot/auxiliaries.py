@@ -40,6 +40,8 @@ def clean_data(user_data, allowed_users = None):
                     user_data[user]['messages'][t] = []
     for k in delThese:
         user_data.pop(k, None)
+    if 'taxWarn' not in user_data['settings']:
+        user_data['settings']['taxWarn'] = True
     return user_data
 
 def save_data(*arg):
