@@ -1008,7 +1008,15 @@ class tradeHandler:
             # initialize buy orders
             for iTrade,trade in enumerate(self.tradeSets[iTs]['InTrades']):
                 if trade['oid'] is None and trade['candleAbove'] is None:
-                    response = self.safeRun(lambda: self.exchange.createLimitBuyOrder(self.tradeSets[iTs]['symbol'], trade['amount'],trade['price']))
+                    try:
+                        response = self.safeRun(lambda: self.exchange.createLimitBuyOrder(self.tradeSets[iTs]['symbol'], trade['amount'],trade['price']))
+                    except InsufficientFunds as e:
+                        self.deactivateTradeSet(iTs)
+                        self.message('Insufficient funds on exchange %s for trade set #%d. \
+                                     Trade set is deactivated now and not updated anymore (open orders are still open)! \
+                                     Free the missing funds and reactivate. \n %s.'
+                                     %(self.exchange.name, list(self.tradeSets.keys()).index(iTs), str(e)),'error')
+                        raise(e)
                     self.tradeSets[iTs]['InTrades'][iTrade]['oid'] = response['id']
     
     def cancelOrder(self,oid,iTs,typ):
@@ -1182,7 +1190,16 @@ class tradeHandler:
                         # go through all selling positions and create those for which the bought coins suffice
                         for iTrade,_ in enumerate(ts['OutTrades']):
                             if ts['OutTrades'][iTrade]['oid'] is None and ts['coinsAvail'] >= ts['OutTrades'][iTrade]['amount']:
-                                response = self.safeRun(lambda: self.exchange.createLimitSellOrder(ts['symbol'], ts['OutTrades'][iTrade]['amount'], ts['OutTrades'][iTrade]['price']), iTs=iTs)
+                                try:
+                                    response = self.safeRun(lambda: self.exchange.createLimitSellOrder(ts['symbol'], ts['OutTrades'][iTrade]['amount'], ts['OutTrades'][iTrade]['price']), iTs=iTs)
+                                except InsufficientFunds as e:
+                                    self.deactivateTradeSet(iTs)
+                                    self.message('Insufficient funds on exchange %s for trade set #%d. \
+                                                 Trade set is deactivated now and not updated anymore (open orders are still open)! \
+                                                 Free the missing funds and reactivate. \n %s.'
+                                                 %(self.exchange.name, list(self.tradeSets.keys()).index(iTs), str(e)),'error')
+
+                                    raise(e)
                                 ts['OutTrades'][iTrade]['oid'] = response['id']
                                 ts['coinsAvail'] -= ts['OutTrades'][iTrade]['amount']
                         # go through sell trades 
