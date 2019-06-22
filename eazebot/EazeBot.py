@@ -166,11 +166,13 @@ def buttonsEditTS(ct,uidTS,mode='full'):
     for i,trade in enumerate(ct.tradeSets[uidTS]['InTrades']):
         if trade['oid'] == 'filled':
             buttons.append([InlineKeyboardButton("Readd BuyOrder from level #%d"%i,callback_data='2|%s|%s|buyReAdd%d|chosen'%(exch,uidTS,i))])
-        buttons.append([InlineKeyboardButton("Delete Buy level #%d"%i,callback_data='2|%s|%s|BLD%d|chosen'%(exch,uidTS,i))])
+        else:
+            buttons.append([InlineKeyboardButton("Delete Buy level #%d"%i,callback_data='2|%s|%s|BLD%d|chosen'%(exch,uidTS,i))])
     for i,trade in enumerate(ct.tradeSets[uidTS]['OutTrades']):
         if trade['oid'] == 'filled':
             buttons.append([InlineKeyboardButton("Readd SellOrder from level #%d"%i,callback_data='2|%s|%s|sellReAdd%d|chosen'%(exch,uidTS,i))])
-        buttons.append([InlineKeyboardButton("Delete Sell level #%d"%i,callback_data='2|%s|%s|SLD%d|chosen'%(exch,uidTS,i))])
+        else:
+            buttons.append([InlineKeyboardButton("Delete Sell level #%d"%i,callback_data='2|%s|%s|SLD%d|chosen'%(exch,uidTS,i))])
     if mode == 'full':
         buttons.append([InlineKeyboardButton("Set/Change SL",callback_data='2|%s|%s|SLM'%(exch,uidTS))])
         buttons.append([InlineKeyboardButton("%s trade set"%('Deactivate' if ct.tradeSets[uidTS]['active'] else 'Activate'),callback_data='2|%s|%s|%s|chosen'%(exch,uidTS,'TSstop' if ct.tradeSets[uidTS]['active'] else 'TSgo')),InlineKeyboardButton("Delete trade set",callback_data='3|%s|%s'%(exch,uidTS))])
@@ -264,10 +266,14 @@ def checkBalance(bot,update,user_data,exchange=None):
             if ct.balance['total'][c] > 0:
                 if c == 'BTC' and ct.balance['total'][c] > __config__['minBalanceInBTC']:
                     string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec('ETH/BTC',ct.balance['total'][c]), ct.cost2Prec('ETH/BTC',ct.balance['free'][c]))
-                elif BTCpair2 in ct.exchange.symbols and ct.exchange.markets[BTCpair2]['active'] and ct.balance['total'][c]/func(BTCpair2)['last'] > __config__['minBalanceInBTC'] :
-                    string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec(BTCpair2,ct.balance['total'][c]), ct.cost2Prec(BTCpair2,ct.balance['free'][c]))
-                elif BTCpair in ct.exchange.symbols and ct.exchange.markets[BTCpair]['active'] and func(BTCpair)['last']*ct.balance['total'][c] > __config__['minBalanceInBTC']:
-                    string += '*%s:* %s _(free: %s)_\n'%(c, ct.amount2Prec(BTCpair,ct.balance['total'][c]), ct.amount2Prec(BTCpair,ct.balance['free'][c]))
+                elif BTCpair2 in ct.exchange.symbols and ct.exchange.markets[BTCpair2]['active']:
+                    lastPrice = func(BTCpair2)['last']
+                    if lastPrice is not None and ct.balance['total'][c]/lastPrice > __config__['minBalanceInBTC'] :
+                        string += '*%s:* %s _(free: %s)_\n'%(c, ct.cost2Prec(BTCpair2,ct.balance['total'][c]), ct.cost2Prec(BTCpair2,ct.balance['free'][c]))
+                elif BTCpair in ct.exchange.symbols and ct.exchange.markets[BTCpair]['active']:
+                    lastPrice = func(BTCpair)['last']
+                    if lastPrice is not None and lastPrice*ct.balance['total'][c] > __config__['minBalanceInBTC']:
+                        string += '*%s:* %s _(free: %s)_\n'%(c, ct.amount2Prec(BTCpair,ct.balance['total'][c]), ct.amount2Prec(BTCpair,ct.balance['free'][c]))
                 elif not (BTCpair2 in ct.exchange.symbols and ct.exchange.markets[BTCpair2]['active']) and not (BTCpair in ct.exchange.symbols and ct.exchange.markets[BTCpair]['active']):
                     # handles cases where BTCpair and BTCpair2 do not exist or are not active
                     if __config__['minBalanceInBTC'] == 0:
@@ -537,7 +543,7 @@ def checkForUpdatesAndTax(bot,job):
             if updater.dispatcher.user_data[user]['settings']['taxWarn']:
                 logging.info('Checking 1 year buy period limit')
                 for iex,ex in enumerate(updater.dispatcher.user_data[user]['trade']):
-                    updater.dispatcher.user_data[user]['trade'][ex].update(specialCheck=3)
+                    updater.dispatcher.user_data[user]['trade'][ex].update(specialCheck=2)
 
 def updateTradeSets(bot,job):
     updater = job.context
@@ -987,12 +993,10 @@ def startBot(debug=False):
     
     # start a job updating the trade sets each interval
     updater.job_queue.run_repeating(updateTradeSets, interval=60*__config__['updateInterval'], first=5,context=updater)
-    # start a job checking for updates once a  day
+    # start a job checking for updates once a day
     updater.job_queue.run_repeating(checkForUpdatesAndTax, interval=60*60*24, first=0,context=updater)
     # start a job checking every day 10 sec after midnight (UTC time)
     updater.job_queue.run_daily(lambda u,b: checkCandle(u,b,1), (dt.datetime(1900,5,5,0,0,10) + (dt.datetime.now()-dt.datetime.utcnow())).time(), context=updater,name='dailyCheck')
-    # start a job checking every week 10 sec after midnight (UTC time)
-    updater.job_queue.run_daily(lambda u,b: checkCandle(u,b,2), (dt.datetime(1900,5,5,0,0,10) + (dt.datetime.now()-dt.datetime.utcnow())).time(), days=tuple([0]),context=updater,name='weeklyCheck')
     # start a job saving the user data each 5 minutes
     updater.job_queue.run_repeating(save_data, interval=5*60, context=updater)
     # start a job making backup of the user data each x days

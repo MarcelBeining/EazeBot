@@ -68,6 +68,7 @@ class tradeHandler:
             text = 'Exchange %s does not support all required features (%s)'%(exchName,', '.join(checkThese))
             self.message(text,'error')
             raise Exception(text)
+        self.lastUpdate = time.time()-10
         self.amount2Prec = lambda a,b: self.stripZeros(self.exchange.amountToPrecision(a,b)) if isinstance(self.exchange.amountToPrecision(a,b),str) else self.stripZeros(format(self.exchange.amountToPrecision(a,b),'.10f'))
         self.price2Prec = lambda a,b: self.stripZeros(self.exchange.priceToPrecision(a,b)) if isinstance(self.exchange.priceToPrecision(a,b),str) else self.stripZeros(format(self.exchange.priceToPrecision(a,b),'.10f'))
         self.cost2Prec = lambda a,b: self.stripZeros(self.exchange.costToPrecision(a,b)) if isinstance(self.exchange.costToPrecision(a,b),str) else self.stripZeros(format(self.exchange.costToPrecision(a,b),'.10f'))
@@ -414,7 +415,7 @@ class tradeHandler:
                 if trade['candleAbove'] is None:
                     tmpstr = tmpstr + '_Order not initiated_\n'
                 else:
-                    tmpstr = tmpstr + 'if DC > %s'%self.price2Prec(ts['symbol'],trade['candleAbove'])
+                    tmpstr = tmpstr + 'if DC > %s\n'%self.price2Prec(ts['symbol'],trade['candleAbove'])
             elif trade['oid'] == 'filled':
                 tmpstr = tmpstr + '_Order filled_\n'
                 filledBuys.append([trade['actualAmount'],trade['price']])
@@ -1043,6 +1044,11 @@ class tradeHandler:
     def update(self,specialCheck=0):
         # goes through all trade sets and checks/updates the buy/sell/stop loss orders
         # daily check is for checking if a candle closed above a certain value
+        if not specialCheck:
+            # fix for accumulating update jobs if update interval is set too small
+            if (time.time()-self.lastUpdate) < 1:
+                return None            
+            
         if self.updateDownState():
             # check if exchange is still down, if yes, return
             return
@@ -1062,13 +1068,21 @@ class tradeHandler:
         
         tradeSetsToDelete = []
         try:
+            if specialCheck != 2:
+                if self.exchange.has['fetchTickers']:
+                    tickers = self.safeRun(self.exchange.fetchTickers)
+                    func = lambda sym, iTs: tickers[sym] if sym in tickers else self.safeRun(lambda : self.exchange.fetchTicker(sym), iTs=iTs)  # includes a hot fix for some ccxt problems
+                else:
+                    func = lambda sym, iTs: self.safeRun(lambda : self.exchange.fetchTicker(sym), iTs=iTs)
+            
             for indTs, iTs in enumerate(self.tradeSets):
                 try:
                     ts = self.tradeSets[iTs]
                     if not ts['active']:
                         continue
                     self.lockTradeSet(iTs)
-                    ticker = self.safeRun(lambda: self.exchange.fetchTicker(ts['symbol']), iTs=iTs)
+                    if specialCheck != 2:
+                        ticker = func(ts['symbol'], iTs=iTs)
                     # check if stop loss is reached
                     if not specialCheck:
                         if ts['SL'] is not None:
@@ -1096,15 +1110,15 @@ class tradeHandler:
                                 tradeSetsToDelete.append(iTs)
                                 self.unlockTradeSet(iTs)
                                 continue
-                    elif specialCheck == 2 and 'weeklycloseSL' in ts and ts['weeklycloseSL'] is not None and ticker['last'] < ts['weeklycloseSL']:
-                        self.message('Weekly candle closed below chosen SL of %s for pair %s! Selling now!'%(self.price2Prec(ts['symbol'],ts['weeklycloseSL']),ts['symbol']),'warning')
-                        # cancel all sell orders, create market sell order and save resulting amount of base currency
-                        sold = self.sellAllNow(iTs,price=ticker['last'])
-                        if sold:
-                            tradeSetsToDelete.append(iTs)
-                            self.unlockTradeSet(iTs)
-                            continue
-                    elif specialCheck == 3: # tax warning check
+                        if datetime.date.today().weekday() == 0 and 'weeklycloseSL' in ts and ts['weeklycloseSL'] is not None and ticker['last'] < ts['weeklycloseSL']:
+                            self.message('Weekly candle closed below chosen SL of %s for pair %s! Selling now!'%(self.price2Prec(ts['symbol'],ts['weeklycloseSL']),ts['symbol']),'warning')
+                            # cancel all sell orders, create market sell order and save resulting amount of base currency
+                            sold = self.sellAllNow(iTs,price=ticker['last'])
+                            if sold:
+                                tradeSetsToDelete.append(iTs)
+                                self.unlockTradeSet(iTs)
+                                continue
+                    elif specialCheck == 2: # tax warning check
                         for iTrade,trade in enumerate(ts['InTrades']):
                             if 'time' in trade and (datetime.datetime.now() - trade['time']).days > 358 and (datetime.datetime.now() - trade['time']).days < 365:
                                 self.message('Time since buy level #%d of trade set %d (%s) on exchange %s was filled approaches one year (%s) after which gains/losses are not eligible for reporting in the tax report in most countries!'%(iTrade,indTs,ts['symbol'],self.exchange.name,(trade['time']+datetime.timedelta(days=365)).strftime('%Y-%m-%d %H:%M')),'warning')
@@ -1123,7 +1137,7 @@ class tradeHandler:
                             try:
                                 orderInfo = self.fetchOrder(trade['oid'],iTs,'BUY')
                                 # fetch trades for all orders because a limit order might also be filled at a lower val
-                                if self.exchange.has['fetchMyTrades'] != False:
+                                if orderInfo['status'].lower() in ['closed','filled','canceled'] and self.exchange.has['fetchMyTrades'] != False:
                                     trades = self.exchange.fetchMyTrades(ts['symbol'])
                                     orderInfo['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == orderInfo['id']])
                                     if orderInfo['cost'] == 0:
@@ -1131,7 +1145,7 @@ class tradeHandler:
                                     else:
                                         orderInfo['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == orderInfo['id']])
     
-                                if any([orderInfo['status'].lower() == val for val in ['closed','filled']]):
+                                if orderInfo['status'].lower() in ['closed','filled']:
                                     orderExecuted = 1
                                     ts['InTrades'][iTrade]['oid'] = 'filled'
                                     ts['InTrades'][iTrade]['time'] = datetime.datetime.now()
@@ -1228,4 +1242,5 @@ class tradeHandler:
             for iTs in tradeSetsToDelete:
                 self.createTradeHistoryEntry(iTs)
                 self.tradeSets.pop(iTs) 
+            self.lastUpdate = time.time()
     
