@@ -144,11 +144,17 @@ def startCmd(bot, update,user_data):
         logging.info('User %s %s (username: %s, id: %s) (re)started the bot'%(update.message.from_user.first_name,update.message.from_user.last_name,update.message.from_user.username,update.message.from_user.id))
     if user_data:
         washere = 'back '
-        user_data.update({'lastFct':[],'whichCurrency':0,'tempTradeSet':[None,None,None],'messages':{'status':[],'dialog':[],'botInfo':[],'settings':[],'history':[]}})
+        deleteMessages(user_data)
+        user_data.update({'lastFct':[],'whichCurrency':0,'tempTradeSet':[None,None,None],
+                          'messages':{'status':{},'dialog':[],'botInfo':[],'settings':[],'history':[]}})
     else:
         washere = ''
-        user_data.update({'chatId':update.message.chat_id,'exchanges':{},'trade':{},'settings':{'fiat':[],'showProfitIn':None},'lastFct':[],'whichCurrency':0,'tempTradeSet':[None,None,None],'messages':{'status':[],'dialog':[],'botInfo':[],'settings':[],'history':[]}})
-    deleteMessages(user_data)
+        user_data.update({
+                'chatId':update.message.chat_id,'exchanges':{},'trade':{},
+                'settings':{'fiat':[],'showProfitIn':None},'lastFct':[],
+                'whichCurrency':0,'tempTradeSet':[None,None,None],
+                'messages':{'status':{},'dialog':[],'botInfo':[],'settings':[],'history':[]}})
+    
     bot.send_message(user_data['chatId'],
         "Welcome %s%s to the EazeBot! You are in the main menu."%(washere,update.message.from_user.first_name),
         reply_markup=markupMainMenu)
@@ -197,7 +203,7 @@ def buttonsEditTSH(ct):
     return InlineKeyboardMarkup([[InlineKeyboardButton("Clear Trade History",callback_data='resetTSH|%s|XXX'%(exch))]])
 
 
-def deleteMessages(user_data,typ='all',onlyForget=False):
+def deleteMessages(user_data,typ='all',onlyForget=False, iTs=None):
     if isinstance(typ,str):
         if typ == 'all':
             typ = list(user_data['messages'].keys())
@@ -206,16 +212,28 @@ def deleteMessages(user_data,typ='all',onlyForget=False):
     for t in typ:
         if not onlyForget and t in user_data['messages']:
             for msg in user_data['messages'][t]:
+                # status messages are as dict to remove not all trade sets when changing only one
+                if t=='status' and isinstance(user_data['messages'][t],dict):
+                    if iTs is None or iTs==msg or msg=='1':
+                        msg = user_data['messages'][t][msg]
+                    else:
+                        continue
                 try:
                     msg.delete()
                 except:
                     pass
-        user_data['messages'][t] = []
+        if t=='status':
+            if iTs is None:
+                user_data['messages'][t] = {}
+            else:
+                user_data['messages'][t].pop(iTs)
+        else:
+            user_data['messages'][t] = []
     return 1
     
 def printTradeStatus(bot,update,user_data,onlyThisTs=None):
     count = 0
-    deleteMessages(user_data,'status')
+    deleteMessages(user_data,'status',iTs=onlyThisTs)
     for iex,ex in enumerate(user_data['trade']):
         ct = user_data['trade'][ex]
         if onlyThisTs is not None and onlyThisTs not in ct.tradeSets:
@@ -231,14 +249,14 @@ def printTradeStatus(bot,update,user_data,onlyThisTs=None):
                 else:
                     markup = makeTSInlineKeyboard(ex,iTs)
                 count += 1
-                user_data['messages']['status'].append(bot.send_message(user_data['chatId'],ct.getTradeSetInfo(iTs,user_data['settings']['showProfitIn']),reply_markup=markup,parse_mode='markdown'))
+                user_data['messages']['status'][iTs] = bot.send_message(user_data['chatId'],ct.getTradeSetInfo(iTs,user_data['settings']['showProfitIn']),reply_markup=markup,parse_mode='markdown')
             except Exception as e:
                 logging.error(str(e))
                 pass
         if count == 0:
-            user_data['messages']['status'].append(bot.send_message(user_data['chatId'],'No Trade sets found on %s'%ex))
+            user_data['messages']['status'][iTs] = bot.send_message(user_data['chatId'],'No Trade sets found on %s'%ex)
     if len(user_data['trade']) == 0:
-        user_data['messages']['status'].append(bot.send_message(user_data['chatId'],'No exchange found to check trade sets'))
+        user_data['messages']['status']['1'] = bot.send_message(user_data['chatId'],'No exchange found to check trade sets')
     return MAINMENU 
 
 def printTradeHistory(bot,update,user_data):

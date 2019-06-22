@@ -80,7 +80,7 @@ def backup_data(*arg):
     clean_data(user_data)
     # write user data
     if not os.path.isdir('backup'):
-        os.makedir('backup')
+        os.mkdir('backup')
     with open(os.path.join('backup',time.strftime('%Y_%m_%d_data.pickle')), 'wb') as f:
         dill.dump(user_data, f)
     logging.info('User data backuped')   

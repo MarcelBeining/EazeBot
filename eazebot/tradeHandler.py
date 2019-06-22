@@ -1222,6 +1222,7 @@ class tradeHandler:
                                             self.message('Sell order (level %d of trade set %d on %s) was canceled by exchange or someone else (reason: %s) but already partly filled! Treating order as closed now and updating trade set info.'%(iTrade,list(self.tradeSets.keys()).index(iTs),self.exchange.name))
                                         else:
                                             ts['OutTrades'][iTrade]['oid'] = None
+                                            ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
                                             self.message('Sell order (level %d of trade set %d on %s) was canceled by exchange or someone else (reason:%s)! Will be reinitialized during next update.'%(iTrade,list(self.tradeSets.keys()).index(iTs),self.exchange.name,reason))
                                         
                                 except OrderNotFound as e:
