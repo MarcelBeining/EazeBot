@@ -226,7 +226,10 @@ def deleteMessages(user_data,typ='all',onlyForget=False, iTs=None):
             if iTs is None:
                 user_data['messages'][t] = {}
             else:
-                user_data['messages'][t].pop(iTs)
+                try:
+                    user_data['messages'][t].pop(iTs)
+                except:
+                    pass
         else:
             user_data['messages'][t] = []
     return 1
