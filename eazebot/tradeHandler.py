@@ -965,6 +965,8 @@ class tradeHandler:
                             trade['oid'] = 'filled'
                             trade['amount'] = orderInfo['filled']
                             returnVal = 0.5
+                        else:
+                            trade['oid'] = None
                     if deleteOrders:
                         if trade['oid'] != 'filled':
                             self.tradeSets[iTs]['OutTrades'].pop(iTrade)
@@ -995,6 +997,8 @@ class tradeHandler:
                             trade['oid'] = 'filled'
                             trade['amount'] = orderInfo['filled'] 
                             returnVal = 0.5
+                        else:
+                            trade['oid'] = None
                     if deleteOrders:
                         if trade['oid'] != 'filled':
                             self.tradeSets[iTs]['InTrades'].pop(iTrade)
