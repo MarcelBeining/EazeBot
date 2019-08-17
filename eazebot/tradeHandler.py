@@ -582,6 +582,7 @@ class tradeHandler:
 
     def resetTradeHistory(self):
         self.tradeSetHistory = []
+        self.logger.info('Trade set history on %s cleared'%self.exchange.name)
         return 1
 
     def convertAmount(self, amount, currency, targetCurrency):
@@ -1033,10 +1034,10 @@ class tradeHandler:
             if self.exchange.has['createMarketOrder']:
                 try:
                     response = self.safeRun(lambda: self.exchange.createMarketSellOrder(ts['symbol'], ts['coinsAvail']),
-                                            0)
+                                            False)
                 except InsufficientFunds:
                     freeBal = self.getFreeBalance(ts['coinCurrency'])
-                    response = self.safeRun(lambda: self.exchange.createMarketSellOrder(ts['symbol'], freeBal), 0)
+                    response = self.safeRun(lambda: self.exchange.createMarketSellOrder(ts['symbol'], freeBal), False)
                     self.message('When selling %s, only %s %s was found and sold!' % (
                     ts['symbol'], self.amount2Prec(ts['symbol'], freeBal), ts['coinCurrency']), 'warning')
                 except:
@@ -1047,7 +1048,7 @@ class tradeHandler:
                             iTs=iTs)
                     except InsufficientFunds:
                         freeBal = self.getFreeBalance(ts['coinCurrency'])
-                        response = self.safeRun(lambda: self.exchange.createMarketSellOrder(ts['symbol'], freeBal), 0)
+                        response = self.safeRun(lambda: self.exchange.createMarketSellOrder(ts['symbol'], freeBal), False)
                         self.message('When selling %s, only %s %s was found and sold!' % (
                         ts['symbol'], self.amount2Prec(ts['symbol'], freeBal), ts['coinCurrency']), 'warning')
             else:

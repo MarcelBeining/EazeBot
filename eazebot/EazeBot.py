@@ -227,7 +227,6 @@ def buttonsSL(ct, uidTS):
 
 def buttonsEditTSH(ct):
     exch = ct.exchange.name.lower()
-    ct.resetTradeHistory()
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton("Clear Trade History", callback_data='resetTSH|%s|XXX' % (exch))]])
 
