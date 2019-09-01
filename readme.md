@@ -31,7 +31,7 @@ Most importantly: **All popular exchanges are supported!**
 
 ## Installing
 
-**You require [Python 3](https://www.python.org/downloads/) to be installed on your system.**
+**You require [Python 3.6 or higher](https://www.python.org/downloads/) to be installed on your system.**
 
 After the next steps, no matter if you are on Windows or Linux/Mac, you should have two json files (_APIs.json_ and _botConfig.json_) and some scripts in your target folder.
 
