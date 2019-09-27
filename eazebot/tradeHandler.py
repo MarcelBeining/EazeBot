@@ -574,9 +574,9 @@ class tradeHandler:
         if len(self.tradeSetHistory) > 0:
             return f"*Profit history on {self.exchange.name}:\n\
             Avg. relative gain: {np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory if tsh['gainRel'] is not None]):+7.1f}%%\n\
-            Total profit in BTC: %+.5f\nTotal profit in USD: %+.2f\n\nDetailed Set Info:\n*" % (
-            sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]),
-            sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory])) + string
+            Total profit in BTC: {sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]):+.5f}\n \
+            Total profit in USD: {sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory]):+.2f}\n \
+            \nDetailed Set Info:\n*" + string
         else:
             return '*No profit history on %s*' % self.exchange.name
 

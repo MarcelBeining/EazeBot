@@ -5,7 +5,7 @@ try:
         from EazeBot import *
     else:
     	from eazebot.EazeBot import *
-    startBot()
+    start_bot()
 except Exception as e:
     print('An error occured:\n%s\n\nPress Enter to abort'%str(e))
     input()
