@@ -45,12 +45,11 @@ def clean_data(user_data, allowed_users = None):
 
     return user_data
 
-def save_data(*arg):
-    if len(arg) == 1:
-        user_data = deepcopy(arg[0])
+def save_data(arg):
+    if isinstance(arg, dict):
+        user_data = deepcopy(arg)
     else:
-        bot,job = arg
-        user_data = deepcopy(job.context.dispatcher.user_data)
+        user_data = deepcopy(arg.job.context.dispatcher.user_data)
     # remove backup
     try:
         os.remove('data.bkp') 
@@ -70,12 +69,11 @@ def save_data(*arg):
         dill.dump(user_data, f)
     logging.info('User data autosaved')
         
-def backup_data(*arg):
-    if len(arg) == 1:
-        user_data = deepcopy(arg[0])
+def backup_data(arg):
+    if isinstance(arg, dict):
+        user_data = deepcopy(arg)
     else:
-        bot,job = arg
-        user_data = deepcopy(job.context.dispatcher.user_data)
+        user_data = deepcopy(arg.job.context.dispatcher.user_data)
         
     clean_data(user_data)
     # write user data

@@ -1,4 +1,4 @@
 from eazebot.tradeHandler import tradeHandler
 
 __all__ = ["tradeHandler"]
-__version__ = '1.10.5'
+__version__ = '1.11.0'

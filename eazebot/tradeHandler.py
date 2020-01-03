@@ -47,8 +47,8 @@ class tradeHandler:
         checkThese = ['cancelOrder', 'createLimitOrder', 'fetchBalance', 'fetchTicker']
         self.tradeSets = {}
         self.tradeSetHistory = []
-        if exchName == 'kucoin':
-            exchName = exchName.replace('kucoin', 'kucoin2')
+        if exchName == 'kucoin2':
+            exchName = exchName.replace('kucoin2', 'kucoin')
         self.exchange = getattr(ccxt, exchName)({'enableRateLimit': True, 'options': {
             'adjustForTimeDifference': True}})  # 'nonce': ccxt.Exchange.milliseconds,
         if key:
@@ -72,16 +72,10 @@ class tradeHandler:
             self.message(text, 'error')
             raise Exception(text)
         self.lastUpdate = time.time() - 10
-        self.amount2Prec = lambda a, b: self.stripZeros(self.exchange.amountToPrecision(a, b)) if isinstance(
-            self.exchange.amountToPrecision(a, b), str) else self.stripZeros(
-            format(self.exchange.amountToPrecision(a, b), '.10f'))
-        self.price2Prec = lambda a, b: self.stripZeros(self.exchange.priceToPrecision(a, b)) if isinstance(
-            self.exchange.priceToPrecision(a, b), str) else self.stripZeros(
-            format(self.exchange.priceToPrecision(a, b), '.10f'))
-        self.cost2Prec = lambda a, b: self.stripZeros(self.exchange.costToPrecision(a, b)) if isinstance(
-            self.exchange.costToPrecision(a, b), str) else self.stripZeros(
-            format(self.exchange.costToPrecision(a, b), '.10f'))
-        self.fee2Prec = lambda a, b: self.stripZeros(str(b))
+        self.amount2Prec = lambda a, b: self.x_to_prec(a, b, 'amount')
+        self.price2Prec = lambda a, b: self.x_to_prec(a, b, 'price')
+        self.cost2Prec = lambda a, b:  self.x_to_prec(a, b, 'cost')
+        self.fee2Prec = lambda a, b: self.x_to_prec(a, b, 'fee')
 
     def __reduce__(self):
         # function needes for serializing the object
@@ -123,8 +117,28 @@ class tradeHandler:
         else:
             return (self.tradeSets, [])
 
+    def x_to_prec(self, pair, x, what):
+        if x is None:
+            return 'N/A'
+        if what == 'amount':
+            fct = self.exchange.amountToPrecision
+        elif what == 'cost':
+            fct = self.exchange.costToPrecision
+        elif what == 'price':
+            fct = self.exchange.priceToPrecision
+        elif what == 'fee':
+            fct = lambda a, b: str(b)
+        else:
+            raise ValueError(f"Unknown argument {what}")
+
+        result = fct(pair, x)
+        if isinstance(result, str):
+            return self.strip_zeros(result)
+        else:
+            return self.strip_zeros(format(result, '.10f'))
+
     @staticmethod
-    def stripZeros(string):
+    def strip_zeros(string):
         if '.' in string:
             return string.rstrip('0').rstrip('.')
         else:
