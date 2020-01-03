@@ -13,37 +13,43 @@ from collections import defaultdict
 import time
 import importlib
 
-def copyJSON(folderName=os.getcwd(),force=0):
-    if force == 0 and os.path.isfile(os.path.join(folderName,'botConfig.json')):
-        print('Warning: botConfig.json already exists in\n%s\nUse copyJSON(targetfolder,force=1) or copyJSON(force=1) to overwrite both (!) JSONs'%folderName)
-    else:
-        copy2(os.path.join(os.path.dirname(__file__),'botConfig.json'),folderName)
-    if force == 0 and os.path.isfile(os.path.join(folderName,'APIs.json')):
-        print('Warning: APIs.json already exists in\n%s\nUse copyJSON(targetfolder,force=1) or copyJSON(force=1) to overwrite both (!) JSONs'%folderName)
-    else:  
-        copy2(os.path.join(os.path.dirname(__file__),'APIs.json'),folderName)
-    copy2(os.path.join(os.path.dirname(__file__),'startBotScript.py'),folderName)
-    copy2(os.path.join(os.path.dirname(__file__),'startBot.bat'),folderName)
-    copy2(os.path.join(os.path.dirname(__file__),'updateBot.bat'),folderName)
-    print('botConfig.json and APIs.json successfully copied to\n%s\nPlease open and configure these files before running the bot'%folderName)
 
-def clean_data(user_data, allowed_users = None):
-    delThese = []
+def copyJSON(folder=os.getcwd(), force=0, warning=True):
+    if force == 0 and os.path.isfile(os.path.join(folder, 'botConfig.json')) and warning:
+        print('Warning: botConfig.json already exists in\n%s\n'
+              'If wanted, use copyJSON(targetfolder,force=1) or copyJSON(force=1) to overwrite both (!) JSONs' % folder)
+    else:
+        copy2(os.path.join(os.path.dirname(__file__), 'botConfig.json'), folder)
+    if force == 0 and os.path.isfile(os.path.join(folder, 'APIs.json')) and warning:
+        print('Warning: APIs.json already exists in\n%s\n'
+              'If wanted, use copyJSON(targetfolder,force=1) or copyJSON(force=1) to overwrite both (!) JSONs' % folder)
+    else:  
+        copy2(os.path.join(os.path.dirname(__file__), 'APIs.json'), folder)
+    copy2(os.path.join(os.path.dirname(__file__), 'startBotScript.py'), folder)
+    copy2(os.path.join(os.path.dirname(__file__), 'startBot.bat'), folder)
+    copy2(os.path.join(os.path.dirname(__file__), 'updateBot.bat'), folder)
+    print('botConfig.json and APIs.json successfully copied to\n%s\n'
+          'Please open and configure these files before running the bot' % folder)
+
+
+def clean_data(user_data, allowed_users=None):
+    del_these = []
     for user in user_data:
         # discard unknown users
         if not ((allowed_users is None or user in allowed_users) and 'trade' in user_data[user]):
-            delThese.append(user)
-        else: # discard cached messages
+            del_these.append(user)
+        else:  # discard cached messages
             if 'taxWarn' not in user_data[user]['settings']:
                 user_data[user]['settings']['taxWarn'] = True
             if 'messages' in user_data[user]:
                 typ = list(user_data[user]['messages'].keys())
                 for t in typ:
                     user_data[user]['messages'][t] = []
-    for k in delThese:
+    for k in del_these:
         user_data.pop(k, None)
 
     return user_data
+
 
 def save_data(arg):
     if isinstance(arg, dict):
@@ -53,14 +59,14 @@ def save_data(arg):
     # remove backup
     try:
         os.remove('data.bkp') 
-    except:
+    except FileNotFoundError:
         logging.warning('No backup file found')
         pass
     # rename last save to backup
     try:
         os.rename('data.pickle', 'data.bkp')
         logging.info('Created user data autosave backup')
-    except:
+    except [FileNotFoundError, PermissionError]:
         logging.warning('Could not rename last saved data to backup')
         pass
     clean_data(user_data)
@@ -68,7 +74,8 @@ def save_data(arg):
     with open('data.pickle', 'wb') as f:
         dill.dump(user_data, f)
     logging.info('User data autosaved')
-        
+
+
 def backup_data(arg):
     if isinstance(arg, dict):
         user_data = deepcopy(arg)
@@ -79,33 +86,34 @@ def backup_data(arg):
     # write user data
     if not os.path.isdir('backup'):
         os.mkdir('backup')
-    with open(os.path.join('backup',time.strftime('%Y_%m_%d_data.pickle')), 'wb') as f:
+    with open(os.path.join('backup', time.strftime('%Y_%m_%d_data.pickle')), 'wb') as f:
         dill.dump(user_data, f)
     logging.info('User data backuped')   
     
     
-def convert_data(from_='linux',to_='win',filename='data.pickle',filenameout='data.pickle.new'):
+def convert_data(from_='linux', to_='win', filename='data.pickle', filenameout='data.pickle.new'):
     with open(filename, 'rb') as fi:
-        byteContent = fi.read()
+        byte_content = fi.read()
         with open(filenameout, 'wb') as fo:
             if 'linux' in from_ and 'win' in to_:
-                byteContent = byteContent.replace(b'cdill._dill', b'cdill.dill')
+                byte_content = byte_content.replace(b'cdill._dill', b'cdill.dill')
             elif 'win' in from_ and 'linux' in to_:
-                byteContent = byteContent.replace(b'cdill.dill',b'cdill._dill')
+                byte_content = byte_content.replace(b'cdill.dill', b'cdill._dill')
             if 'git' not in from_ and 'git' in to_:
-                byteContent = byteContent.replace(b'ceazebot.tradeHandler', b'ctradeHandler')
-                byteContent = byteContent.replace(b'ceazebot.EazeBot', b'cEazeBot')
+                byte_content = byte_content.replace(b'ceazebot.tradeHandler', b'ctradeHandler')
+                byte_content = byte_content.replace(b'ceazebot.EazeBot', b'cEazeBot')
             elif 'git' in from_ and 'git' not in to_:
-                byteContent = byteContent.replace(b'ctradeHandler', b'ceazebot.tradeHandler')
-                byteContent = byteContent.replace(b'cEazeBot', b'ceazebot.EazeBot')
-            fo.write(byteContent)
+                byte_content = byte_content.replace(b'ctradeHandler', b'ceazebot.tradeHandler')
+                byte_content = byte_content.replace(b'cEazeBot', b'ceazebot.EazeBot')
+            fo.write(byte_content)
         
         
 def load_data(filename='data.pickle'):
     # load latest user data
     if os.path.isfile(filename):
         if os.path.getmtime(filename) < time.time() - 60*60*24*14:
-            answer = input('WARNING! The tradeSet data you want to load is older than 2 weeks! Are you sure you want to load it? (y/n): ')
+            answer = input('WARNING! The tradeSet data you want to load is older than 2 weeks! '
+                           'Are you sure you want to load it? (y/n): ')
             if answer != 'y':
                 os.rename('data.pickle', 'data.old')
         try:
@@ -128,12 +136,11 @@ def load_data(filename='data.pickle'):
                         to_ += 'git'
                     else:
                         from_ += 'git'
-            convert_data(from_=from_,to_=to_,filename='data.pickle',filenameout='data.pickle')
+            convert_data(from_=from_, to_=to_, filename='data.pickle', filenameout='data.pickle')
             with open(filename, 'rb') as f:
                 return dill.load(f)
         except Exception as e:
-            raise(e)
+            raise e
     else:
         logging.error('No autosave file found')
         return defaultdict(dict)    
-    
