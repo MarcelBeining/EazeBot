@@ -104,6 +104,7 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGABRT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
+
 # define  helper functions
 def broadcast_msg(bot, user_id, msg, level='info'):
     # put msg into log with userId
@@ -251,7 +252,7 @@ def buttons_sl(ct, uid_ts):
                [InlineKeyboardButton("Change/Delete SL", callback_data='2|%s|%s|SLC|chosen' % (exch, uid_ts))],
                [InlineKeyboardButton("Set daily-close SL", callback_data='2|%s|%s|DCSL|chosen' % (exch, uid_ts))],
                [InlineKeyboardButton("Set weekly-close SL", callback_data='2|%s|%s|WCSL|chosen' % (exch, uid_ts))]]
-    if ct.numBuyLevels(uid_ts, 'notfilled') == 0:  # only show trailing SL option if all buy orders are filled
+    if ct.num_buy_levels(uid_ts, 'notfilled') == 0:  # only show trailing SL option if all buy orders are filled
         buttons.append([InlineKeyboardButton("Set trailing SL", callback_data='2|%s|%s|TSL|chosen' % (exch, uid_ts))])
     buttons.append([InlineKeyboardButton("Back", callback_data='2|%s|%s|back|chosen' % (exch, uid_ts))])
     return buttons
@@ -314,8 +315,8 @@ def print_trade_status(update: Update, context: CallbackContext, only_this_ts=No
                 count += 1
                 context.user_data['messages']['status'][iTs] = context.bot.send_message(
                     context.user_data['chatId'],
-                    ct.getTradeSetInfo(iTs,
-                                       context.user_data[
+                    ct.get_trade_set_info(iTs,
+                                          context.user_data[
                                             'settings'][
                                             'showProfitIn']),
                     reply_markup=markup, parse_mode='markdown')
@@ -338,7 +339,7 @@ def print_trade_history(update: Update, context: CallbackContext):
     for iex, ex in enumerate(context.user_data['trade']):
         ct = context.user_data['trade'][ex]
         context.user_data['messages']['history'].append(
-            context.bot.send_message(context.user_data['chatId'], ct.getTradeHistory(), parse_mode='markdown',
+            context.bot.send_message(context.user_data['chatId'], ct.get_trade_history(), parse_mode='markdown',
                                      reply_markup=buttons_edit_tsh(ct)))
     return MAINMENU
 
@@ -346,13 +347,13 @@ def print_trade_history(update: Update, context: CallbackContext):
 def check_balance(update: Update, context: CallbackContext, exchange=None):
     if exchange:
         ct = context.user_data['trade'][exchange]
-        ct.updateBalance()
+        ct.update_balance()
         if ct.exchange.has['fetchTickers']:
-            tickers = ct.safeRun(ct.exchange.fetchTickers)
-            func = lambda sym: tickers[sym] if sym in tickers else ct.safeRun(
+            tickers = ct.safe_run(ct.exchange.fetchTickers)
+            func = lambda sym: tickers[sym] if sym in tickers else ct.safe_run(
                 lambda: ct.exchange.fetchTicker(sym))  # includes a hot fix for some ccxt problems
         else:
-            func = lambda sym: ct.safeRun(lambda: ct.exchange.fetchTicker(sym))
+            func = lambda sym: ct.safe_run(lambda: ct.exchange.fetchTicker(sym))
         coins = list(ct.balance['total'].keys())
         string = '*Balance on %s (>%g BTC):*\n' % (exchange, __config__['minBalanceInBTC'])
         no_check_coins = []
@@ -418,8 +419,8 @@ def create_trade_set(update: Update, context: CallbackContext, exchange=None, sy
             if symbol and symbol.upper() in ct.exchange.symbols:
                 delete_messages(context.user_data, 'dialog')
                 symbol = symbol.upper()
-                ts, uid_ts = ct.initTradeSet(symbol)
-                ct.updateBalance()
+                ts, uid_ts = ct.init_trade_set(symbol)
+                ct.update_balance()
                 context.user_data['messages']['dialog'].append(
                     context.bot.send_message(
                         context.user_data['chatId'], 'Thank you, now let us begin setting the trade set'))
@@ -471,8 +472,8 @@ def ask_amount(user_data, exch, uid_ts, direction, bot_or_query):
     currency = ts['baseCurrency']
     if direction == 'sell':
         # free balance is coins available in trade set minus coins that will be sold plus coins that will be bought
-        bal = ts['coinsAvail'] - ct.sumSellAmounts(uid_ts, 'notinitiated') + ct.sumBuyAmounts(uid_ts, 'notfilled',
-                                                                                              subtractFee=True)
+        bal = ts['coinsAvail'] - ct.sum_sell_amounts(uid_ts, 'notinitiated') + ct.sum_buy_amounts(uid_ts, 'notfilled',
+                                                                                                  subtract_fee=True)
         if user_data['whichCurrency'] == 0:
             bal = ct.amount2Prec(ts['symbol'], bal)
             cname = coin
@@ -485,7 +486,7 @@ def ask_amount(user_data, exch, uid_ts, direction, bot_or_query):
             bal_text = 'return from available %s [fee subtracted] would be' % coin
     elif direction == 'buy':
         # free balance is free currency minus cost for coins that will be bought
-        bal = ct.getFreeBalance(currency) - ct.sumBuyCosts(uid_ts, 'notinitiated')
+        bal = ct.get_free_balance(currency) - ct.sum_buy_costs(uid_ts, 'notinitiated')
         if user_data['whichCurrency'] == 0:
             bal = ct.amount2Prec(ts['symbol'], bal / user_data['tempTradeSet'][0])
             cname = coin
@@ -537,7 +538,7 @@ def add_init_balance(bot, user_data, exch, uid_ts, input_type=None, response=Non
             user_data['chatId'],
             "You already have %s that you want to add to the trade set? How much is it (found %.5g free %s on %s)?" % (
                 ct.tradeSets[uid_ts]['coinCurrency'],
-                ct.getFreeBalance(ct.tradeSets[uid_ts]['coinCurrency']),
+                ct.get_free_balance(ct.tradeSets[uid_ts]['coinCurrency']),
                 ct.tradeSets[uid_ts]['coinCurrency'], exch),
             reply_markup=InlineKeyboardMarkup([[
                                                    InlineKeyboardButton(
@@ -569,12 +570,12 @@ def add_pos(bot, user_data, exch, uid_ts, direction, fct=None):
     ct = user_data['trade'][exch]
     try:
         if direction == 'buy':
-            ct.addBuyLevel(uid_ts, user_data['tempTradeSet'][0], user_data['tempTradeSet'][1],
-                           user_data['tempTradeSet'][2])
+            ct.add_buy_level(uid_ts, user_data['tempTradeSet'][0], user_data['tempTradeSet'][1],
+                             user_data['tempTradeSet'][2])
         elif direction == 'sell':
-            ct.addSellLevel(uid_ts, user_data['tempTradeSet'][0], user_data['tempTradeSet'][1])
+            ct.add_sell_level(uid_ts, user_data['tempTradeSet'][0], user_data['tempTradeSet'][1])
         else:
-            ct.addInitCoins(uid_ts, user_data['tempTradeSet'][0], user_data['tempTradeSet'][1])
+            ct.add_init_coins(uid_ts, user_data['tempTradeSet'][0], user_data['tempTradeSet'][1])
     except Exception as e:
         broadcast_msg(bot, user_data['chatId'], str(e), 'error')
     user_data['tempTradeSet'] = [None, None, None]
@@ -601,7 +602,7 @@ def ask_pos(bot, user_data, exch, uid_ts, direction, apply_fct=None, input_type=
                 bot.send_message(user_data['chatId'], "Zero not allowed, please retry."))
             return NUMBER
         else:
-            price = ct.safeRun(lambda: ct.exchange.fetchTicker(symbol))['last']
+            price = ct.safe_run(lambda: ct.exchange.fetchTicker(symbol))['last']
             if direction == 'buy':
                 if response > 1.1 * price:
                     user_data['lastFct'].append(
@@ -697,14 +698,15 @@ def add_exchanges(update, context: CallbackContext):
             if a in has_password:
                 exch_params['password'] = apis['apiPassword%s' % a]
             # if no tradeHandler object has been created yet, create one, but also check for correct authentication
+            messagerFct = lambda msg, lvl='info': broadcast_msg(context.bot, context.user_data['chatId'], msg, lvl)
             if exch not in context.user_data['trade']:
-                user_id = context.user_data['chatId']
                 context.user_data['trade'][exch] = tradeHandler(
                     exch, **exch_params,
-                    messagerFct=lambda a, b='info': broadcast_msg(context.bot, user_id, a, b),
+                    messagerFct=messagerFct,
                     logger=rootLogger)
             else:
-                context.user_data['trade'][exch].updateKeys(**exch_params)
+                context.user_data['trade'][exch].update_keys(**exch_params)
+                context.user_data['trade'][exch].update_messager_fct(messagerFct)
             if not context.user_data['trade'][exch].authenticated and not context.user_data['trade'][exch].tradeSets:
                 logging.warning('Authentication failed for %s' % exch)
                 context.user_data['trade'].pop(exch)
@@ -806,7 +808,7 @@ def update_balance(context):
     for user in updater.dispatcher.user_data:
         if user in __config__['telegramUserId'] and 'trade' in updater.dispatcher.user_data[user]:
             for iex, ex in enumerate(updater.dispatcher.user_data[user]['trade']):
-                updater.dispatcher.user_data[user]['trade'][ex].updateBalance()
+                updater.dispatcher.user_data[user]['trade'][ex].update_balance()
     logging.info('Finished updating balances...')
 
 
@@ -1066,7 +1068,7 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                 ct = context.user_data['trade'][exch]
                 if 'yes' in args:
                     query.message.delete()
-                    ct.resetTradeHistory()
+                    ct.reset_trade_history()
                 elif 'no' in args:
                     query.edit_message_reply_markup(reply_markup=buttons_edit_tsh(ct))
                 else:
@@ -1095,14 +1097,14 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                             query.answer('')
 
                         elif any(['BLD' in val for val in args]):
-                            ct.deleteBuyLevel(uidTS, int([re.search('(?<=^BLD)\d+', val).group(0) for val in args if
-                                                          isinstance(val, str) and 'BLD' in val][0]))
+                            ct.delete_buy_level(uidTS, int([re.search('(?<=^BLD)\d+', val).group(0) for val in args if
+                                                            isinstance(val, str) and 'BLD' in val][0]))
                             update_ts_text(update, context, uidTS, query)
                             query.answer('Deleted buy level')
 
                         elif any(['SLD' in val for val in args]):
-                            ct.deleteSellLevel(uidTS, int([re.search('(?<=^SLD)\d+', val).group(0) for val in args if
-                                                           isinstance(val, str) and 'SLD' in val][0]))
+                            ct.delete_sell_level(uidTS, int([re.search('(?<=^SLD)\d+', val).group(0) for val in args if
+                                                             isinstance(val, str) and 'SLD' in val][0]))
                             update_ts_text(update, context, uidTS, query)
                             query.answer('Deleted sell level')
 
@@ -1113,9 +1115,9 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                                                apply_fct=lambda: inline_button_callback(update, context, query,
                                                                                         'continue'))
                             else:
-                                ct.addBuyLevel(uidTS, context.user_data['tempTradeSet'][0],
-                                               context.user_data['tempTradeSet'][1],
-                                               context.user_data['tempTradeSet'][2])
+                                ct.add_buy_level(uidTS, context.user_data['tempTradeSet'][0],
+                                                 context.user_data['tempTradeSet'][1],
+                                                 context.user_data['tempTradeSet'][2])
                                 context.user_data['tempTradeSet'] = [None, None, None]
                                 update_ts_text(update, context, uidTS, query)
 
@@ -1126,8 +1128,8 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                                                apply_fct=lambda: inline_button_callback(update, context, query,
                                                                                         'continue'))
                             else:
-                                ct.addSellLevel(uidTS, context.user_data['tempTradeSet'][0],
-                                                context.user_data['tempTradeSet'][1])
+                                ct.add_sell_level(uidTS, context.user_data['tempTradeSet'][0],
+                                                  context.user_data['tempTradeSet'][1])
                                 context.user_data['tempTradeSet'] = [None, None, None]
                                 update_ts_text(update, context, uidTS, query)
 
@@ -1136,14 +1138,14 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                             level = int([re.search('(?<=^buyReAdd)\d+', val).group(0) for val in args if
                                          isinstance(val, str) and 'buyReAdd' in val][0])
                             trade = ct.tradeSets[uidTS]['InTrades'][level]
-                            ct.addBuyLevel(uidTS, trade['price'], trade['amount'], trade['candleAbove'])
+                            ct.add_buy_level(uidTS, trade['price'], trade['amount'], trade['candleAbove'])
                             update_ts_text(update, context, uidTS, query)
 
                         elif any(['sellReAdd' in val for val in args]):
                             level = int([re.search('(?<=^sellReAdd)\d+', val).group(0) for val in args if
                                          isinstance(val, str) and 'sellReAdd' in val][0])
                             trade = ct.tradeSets[uidTS]['OutTrades'][level]
-                            ct.addSellLevel(uidTS, trade['price'], trade['amount'])
+                            ct.add_sell_level(uidTS, trade['price'], trade['amount'])
                             update_ts_text(update, context, uidTS, query)
 
                         elif 'AIC' in args:
@@ -1153,12 +1155,12 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                                                     fct=lambda: print_trade_status(update, context, uidTS))
 
                         elif 'TSgo' in args:
-                            ct.activateTradeSet(uidTS)
+                            ct.activate_trade_set(uidTS)
                             update_ts_text(update, context, uidTS, query)
                             query.answer('Trade set activated')
 
                         elif 'TSstop' in args:
-                            ct.deactivateTradeSet(uidTS, 1)
+                            ct.deactivate_trade_set(uidTS, 1)
                             update_ts_text(update, context, uidTS, query)
                             query.answer('Trade set deactivated!')
 
@@ -1168,7 +1170,7 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                             query.answer('Choose an option')
 
                         elif 'SLBE' in args:
-                            ans = ct.setSLBreakEven(uidTS)
+                            ans = ct.set_sl_break_even(uidTS)
                             if ans:
                                 query.answer('SL set break even')
                             else:
@@ -1208,7 +1210,7 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                                                              exch,
                                                              uidTS))]])))
                             else:
-                                ct.setDailyCloseSL(uidTS, response)
+                                ct.set_daily_close_sl(uidTS, response)
                                 delete_messages(context.user_data, 'dialog')
                                 update_ts_text(update, context, uidTS, query)
 
@@ -1241,7 +1243,7 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                                                          "Cancel",
                                                          callback_data='2|%s|%s|cancel' % (exch, uidTS))]])))
                             else:
-                                ct.setWeeklyCloseSL(uidTS, response)
+                                ct.set_weekly_close_sl(uidTS, response)
                                 delete_messages(context.user_data, 'dialog')
                                 update_ts_text(update, context, uidTS, query)
 
@@ -1275,7 +1277,7 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                                 response = float(response)
                                 if 'rel' in args:
                                     response /= 100
-                                ct.setTrailingSL(uidTS, response, typ='abs' if 'abs' in args else 'rel')
+                                ct.set_trailing_sl(uidTS, response, typ='abs' if 'abs' in args else 'rel')
                                 delete_messages(context.user_data, 'dialog')
                                 update_ts_text(update, context, uidTS, query)
 
@@ -1289,7 +1291,7 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                                 response = float(response)
                                 if response == 0:
                                     response = None
-                                ct.setSL(uidTS, response)
+                                ct.set_sl(uidTS, response)
                                 update_ts_text(update, context, uidTS, query)
                         else:
                             buttons = buttons_edit_ts(ct, uidTS, 'full')
@@ -1298,7 +1300,7 @@ def inline_button_callback(update: Update, context: CallbackContext, query=None,
                     elif command == '3':  # init trade set deletion
                         if 'ok' in args:
                             query.message.delete()
-                            ct.deleteTradeSet(uidTS, sellAll='yes' in args)
+                            ct.delete_trade_set(uidTS, sellAll='yes' in args)
                             query.answer('Trade Set deleted')
                         elif 'yes' in args or 'no' in args:
                             query.answer('Ok, and are you really sure to delete this trade set?')
