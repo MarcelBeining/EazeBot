@@ -109,7 +109,7 @@ class tradeHandler:
                         # enough BNB, however so far no API chance to see if this is the case. Here I assume that
                         # 0.5 BNB are enough to pay the fee for the trade and thus the fee is not subtracted from the
                         # traded coin
-                        if self.exchange.name.lower() != 'binance' or self.get_free_balance('BNB') < 0.5:
+                        if self.exchange.name.lower() != 'binance' or self.get_balance('BNB') < 0.5:
                             trade['actualAmount'] -= fee['cost']
                     else:
                         trade['actualAmount'] = trade['amount']
@@ -301,9 +301,10 @@ class tradeHandler:
         self.balance = self.safe_run(self.exchange.fetch_balance)
         self.authenticated = True
 
-    def get_free_balance(self, coin):
+    def get_balance(self, coin, balance_type='free'):
+        assert balance_type in ['free', 'total'], f"Unknown balance type {balance_type}"
         if coin in self.balance:
-            return self.balance[coin]['free']
+            return self.balance[coin][balance_type]
         else:
             return 0
 
@@ -653,7 +654,7 @@ class tradeHandler:
                 initPrice = None
             ts = self.tradeSets[iTs]
             # check if free balance is indeed sufficient
-            bal = self.get_free_balance(ts['coinCurrency'])
+            bal = self.get_balance(ts['coinCurrency'])
             if bal is None:
                 self.message('Free balance could not be determined as exchange does not support this! '
                              'If free balance does not suffice for initial coins there will be an error when trade set '
@@ -662,7 +663,7 @@ class tradeHandler:
             elif bal < initCoins:
                 self.message('Adding initial balance failed: %s %s requested but only %s %s are free!' % (
                     self.amount2Prec(ts['symbol'], initCoins), ts['coinCurrency'],
-                    self.amount2Prec(ts['symbol'], self.get_free_balance(ts['coinCurrency'])), ts['coinCurrency']),
+                    self.amount2Prec(ts['symbol'], self.get_balance(ts['coinCurrency'])), ts['coinCurrency']),
                              'error')
                 return 0
             self.lock_trade_set(iTs)
@@ -789,7 +790,7 @@ class tradeHandler:
             elif not self.check_quantity(ts['symbol'], 'cost', buyPrice * buyAmount):
                 self.message('Adding buy level failed, cost is not within the range, the exchange accepts', 'error')
                 return 0
-            bal = self.get_free_balance(ts['baseCurrency'])
+            bal = self.get_balance(ts['baseCurrency'])
             if bal is None:
                 self.message('Free balance could not be determined as exchange does not support this! '
                              'If free balance does not suffice there will be an error when trade set is activated',
@@ -804,7 +805,7 @@ class tradeHandler:
 
             bought_amount = buyAmount
             if fee['currency'] == ts['coinCurrency'] and \
-                    (self.exchange.name.lower() != 'binance' or self.get_free_balance('BNB') < 0.5):
+                    (self.exchange.name.lower() != 'binance' or self.get_balance('BNB') < 0.5):
                 # this is a hack, as fees on binance are deduced from BNB if this is activated and there is enough BNB,
                 # however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay
                 # the fee for the trade and thus the fee is not subtracted from the traded coin
@@ -853,7 +854,7 @@ class tradeHandler:
                 elif not self.check_quantity(ts['symbol'], 'cost', price * amount):
                     self.message('Changing buy level failed, cost is not within the range, the exchange accepts')
                     return 0
-                bal = self.get_free_balance(ts['baseCurrency'])
+                bal = self.get_balance(ts['baseCurrency'])
                 if bal is None:
                     self.message('Free balance could not be determined as exchange does not support this! '
                                  'If free balance does not suffice there will be an error when trade set is activated',
@@ -871,7 +872,7 @@ class tradeHandler:
                 # however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay
                 # the fee for the trade and thus the fee is not subtracted from the traded coin
                 if fee['currency'] == ts['coinCurrency'] and \
-                        (self.exchange.name.lower() != 'binance' or self.get_free_balance('BNB') < 0.5):
+                        (self.exchange.name.lower() != 'binance' or self.get_balance('BNB') < 0.5):
                     bought_amount -= fee['cost']
 
                 wasactive = self.deactivate_trade_set(iTs)
@@ -880,7 +881,7 @@ class tradeHandler:
                     returnVal = self.cancel_buy_orders(iTs, ts['InTrades'][iTrade]['oid'])
                     ts['InTrades'][iTrade]['oid'] = None
                     if returnVal == 0.5:
-                        bal = self.get_free_balance(ts['baseCurrency'])
+                        bal = self.get_balance(ts['baseCurrency'])
                         if bal is None:
                             self.message('Free balance could not be determined as exchange does not support this! '
                                          'If free balance does not suffice there will be an error when trade set is activated',
@@ -1074,7 +1075,7 @@ class tradeHandler:
                 return 1
 
     def sell_free_bal(self, ts):
-        free_bal = self.get_free_balance(ts['coinCurrency'])
+        free_bal = self.get_balance(ts['coinCurrency'])
         if free_bal is None:
             self.message('When selling %s, insufficient funds were found and exchange does not allow to determine'
                          'free balance of %s, thus nothing could be sold automatically! Please sell manually!' % (
