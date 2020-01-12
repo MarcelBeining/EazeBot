@@ -186,15 +186,19 @@ def start_cmd(update: Update, context: CallbackContext):
     if context.user_data:
         washere = 'back '
         delete_messages(context.user_data)
-        context.user_data.update({'lastFct': [], 'whichCurrency': 0, 'tempTradeSet': [None, None, None],
+        context.user_data.update({'lastFct': [],
+                                  'whichCurrency': 0,
+                                  'tempTradeSet': [None, None, None],
                                  'messages': {'status': {}, 'dialog': [], 'botInfo': [], 'settings': [], 'history': []}}
                                  )
     else:
         washere = ''
         context.user_data.update({
-            'chatId': update.message.chat_id, 'exchanges': {}, 'trade': {},
-            'settings': {'fiat': [], 'showProfitIn': None}, 'lastFct': [],
-            'whichCurrency': 0, 'tempTradeSet': [None, None, None],
+            'chatId': update.message.chat_id, 'trade': {},
+            'settings': {'fiat': [], 'showProfitIn': None},
+            'lastFct': [],
+            'whichCurrency': 0,
+            'tempTradeSet': [None, None, None],
             'messages': {'status': {}, 'dialog': [], 'botInfo': [], 'settings': [], 'history': []}})
 
     context.bot.send_message(context.user_data['chatId'],
