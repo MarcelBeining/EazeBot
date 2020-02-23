@@ -713,7 +713,7 @@ def add_exchanges(update, context: CallbackContext):
             if exch not in context.user_data['trade']:
                 context.user_data['trade'][exch] = tradeHandler(
                     exch, **exch_params,
-                    messagerFct=messagerFct,
+                    messager_fct=messagerFct,
                     logger=rootLogger)
             else:
                 context.user_data['trade'][exch].update_keys(**exch_params)
@@ -796,7 +796,7 @@ def check_for_updates_and_tax(context):
             if updater.dispatcher.user_data[user]['settings']['taxWarn']:
                 logging.info('Checking 1 year buy period limit')
                 for iex, ex in enumerate(updater.dispatcher.user_data[user]['trade']):
-                    updater.dispatcher.user_data[user]['trade'][ex].update(specialCheck=2)
+                    updater.dispatcher.user_data[user]['trade'][ex].update(special_check=2)
 
 
 def update_trade_sets(context):
@@ -830,7 +830,7 @@ def check_candle(context, which=1):
         if user in __config__['telegramUserId']:
             for iex, ex in enumerate(updater.dispatcher.user_data[user]['trade']):
                 # avoid to hit it during updating
-                updater.dispatcher.user_data[user]['trade'][ex].update(specialCheck=which)
+                updater.dispatcher.user_data[user]['trade'][ex].update(special_check=which)
     logging.info('Finished checking candles for all trade sets...')
 
 
