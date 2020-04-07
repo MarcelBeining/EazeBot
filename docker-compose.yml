@@ -8,4 +8,4 @@ services:
     volumes:
       - type: bind
         source: ./user_data
-        target: /eazebot_data
+        target: /eazebot_docker/user_data

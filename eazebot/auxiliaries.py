@@ -4,35 +4,121 @@ Created on Fri Feb  1 08:43:48 2019
 
 @author: beiningm
 """
+import json
 import os
-import logging 
+import logging
+import re
+
+import ccxt
 import dill
 from copy import deepcopy
 from shutil import copy2
 from collections import defaultdict
 import time
 import importlib
+import warnings
 
 
 def copy_user_files(folder=os.getcwd(), force=0, warning=True):
-    template_folder = os.path.join(os.path.dirname(__file__), 'user_files')
-    if force == 0 and os.path.isfile(os.path.join(folder, 'botConfig.json')) and warning:
-        print('Warning: botConfig.json already exists in\n%s\n'
-              'If wanted, use copy_user_files(targetfolder,force=1) or copy_user_files(force=1) to overwrite both (!) '
-              'JSONs' % folder)
+    template_folder = os.path.join(os.path.dirname(__file__), 'templates')
+    if force == 0 and os.path.isfile(os.path.join(folder, 'botConfig.json')):
+        if warning:
+            warnings.warn('Warning: botConfig.json already exists in\n%s\nIf wanted, use copy_user_files(targetfolder,'
+                          ' force=1) or copy_user_files(force=1) to overwrite both (!) JSONs' % folder)
     else:
-        copy2(os.path.join(template_folder, 'botConfig.json'), folder)
-    if force == 0 and os.path.isfile(os.path.join(folder, 'APIs.json')) and warning:
-        print('Warning: APIs.json already exists in\n%s\n'
-              'If wanted, use copy_user_files(targetfolder,force=1) or copy_user_files(force=1) to overwrite both (!) '
-              'JSONs' % folder)
+        copy2(os.path.join(template_folder, 'botConfig.json.tmp'), os.path.join(folder, 'botConfig.json'))
+
+    if force == 0 and os.path.isfile(os.path.join(folder, 'APIs.json')):
+        if warning:
+            warnings.warn('Warning: APIs.json already exists in\n%s\nIf wanted, use copy_user_files(targetfolder,'
+                          ' force=1) or copy_user_files(force=1) to overwrite both (!) JSONs' % folder)
     else:  
-        copy2(os.path.join(template_folder, 'APIs.json'), folder)
-    copy2(os.path.join(template_folder, 'startBotScript.py'), folder)
-    copy2(os.path.join(template_folder, 'startBot.bat'), folder)
-    copy2(os.path.join(template_folder, 'updateBot.bat'), folder)
-    print('botConfig.json and APIs.json successfully copied to\n%s\n'
-          'Please open and configure these files before running the bot' % folder)
+        copy2(os.path.join(template_folder, 'APIs.json.tmp'), os.path.join(folder, 'APIs.json'))
+
+    other_files = set(os.listdir(template_folder)) - {'APIs.json.tmp', 'botConfig.json.tmp', '__init__.py'}
+    for file in other_files:
+        copy2(os.path.join(template_folder, file), os.path.join(folder, file[0:-4]))
+
+    print('User files successfully copied to\n%s\n'
+          'Please open and configure the json files before running the bot' % folder)
+
+
+def start_config_dialog():
+    with open('botConfig.json', 'r') as fh:
+        bot_config = json.load(fh)
+    for key in bot_config:
+        while True:
+            res = input(f"Please enter your {key} [Default:{bot_config[key]}]")
+            res = res or bot_config[key]
+            if res != 'PLACEHOLDER':
+                break
+            else:
+                print(f"You have to replace the placeholder by a valid input!")
+
+        if isinstance(res, str):
+            if res.isnumeric():
+                res = int(res)
+            elif re.match(r'^-?\d+(?:\.\d+)?$', res):
+                res = float(res)
+
+        bot_config[key] = res
+    with open('botConfig.json', 'w') as fh:
+        json.dump(bot_config, fh)
+
+    with open('APIs.json', 'r') as fh:
+        api_config = json.load(fh)
+    entries_to_del = []
+    for n_exch, exch in enumerate(api_config):
+        if not('exchange' in exch and 'key' in exch and 'secret' in exch):
+            print(f"API entry {exch} does not have the reuired keys 'exchange', 'key' and 'secret' and is deleted!")
+            entries_to_del.append(n_exch)
+        else:
+            while True:
+                res = input(f"Keep API key {exch['key']} from exchange {exch['exchange']} ? [y/n]")
+                if res in ['y', 'n']:
+                    break
+            if res == 'n':
+                entries_to_del.append(n_exch)
+
+    for index in sorted(entries_to_del, reverse=True):
+        del api_config[index]
+
+    while True:
+        res = input(f"Add another API key? [y/n]")
+        if res == 'y':
+            api_dict = {}
+            flag = False
+            while True:
+                api_exch = input(f"Please type the exchange name as lower case:")
+                if api_exch in ccxt.exchanges:
+                    if api_exch in (val['exchange'] for val in api_config):
+                        print(f"You already have set an API key pair for that exchange!")
+                        flag = True
+                    break
+                else:
+                    print(f"The exchange name has to be one of:\n {ccxt.exchanges}")
+            if flag:
+                continue
+            api_key = input(f"Please type in or paste the API key provided by {api_exch}:")
+            api_secret = input(f"Please type in or paste the API secret provided by {api_exch}:")
+            api_dict.update({'exchange': api_exch, 'key': api_key, 'secret': api_secret})
+            res = input(f"Does a password belong to that API key (not your exchange password!)? [y/n]")
+            if res == 'y':
+                res = input(f"Please type in or paste the API password provided by {api_exch}:")
+                if res:
+                    api_dict['password'] = res
+            res = input(f"Does a unique id (uid) belong to that API key? [y/n]")
+            if res == 'y':
+                res = input(f"Please type in or paste the API uid provided by {api_exch}:")
+                if res:
+                    api_dict['uid'] = res
+            api_config.append(api_dict)
+        else:
+            break
+    with open('APIs.json', 'w') as fh:
+        json.dump(api_config, fh)
+
+    print('EazeBot successfully configurated. You can now start the bot!')
 
 
 def clean_data(user_data, allowed_users=None):
@@ -71,7 +157,7 @@ def save_data(arg):
     try:
         os.rename('data.pickle', 'data.bkp')
         logging.info('Created user data autosave backup')
-    except [FileNotFoundError, PermissionError]:
+    except (FileNotFoundError, PermissionError):
         logging.warning('Could not rename last saved data to backup')
         pass
     clean_data(user_data)

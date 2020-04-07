@@ -10,3 +10,6 @@ CODE_OF_CONDUCT.md
 MANIFEST.in
 *.bat
 docs
+build
+user_data
+eazebot/user_data

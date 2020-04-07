@@ -38,13 +38,8 @@ from telegram.bot import Bot
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
                           ConversationHandler, CallbackQueryHandler, CallbackContext)
 from telegram.error import BadRequest
-
-if __name__ == '__main__' or os.path.isfile('tradeHandler.py'):
-    from tradeHandler import tradeHandler
-    from auxiliaries import clean_data, load_data, save_data, backup_data
-else:
-    from eazebot.tradeHandler import tradeHandler
-    from eazebot.auxiliaries import clean_data, load_data, save_data, backup_data
+from eazebot.tradeHandler import tradeHandler
+from eazebot.auxiliaries import clean_data, load_data, save_data, backup_data
 
 logFileName = 'telegramEazeBot'
 MAINMENU, SETTINGS, SYMBOL, NUMBER, TIMING, INFO = range(6)
@@ -1419,8 +1414,3 @@ def start_bot():
         save_data(updater.dispatcher.user_data)  # last data save when finishing
     else:
         return updater
-
-
-# execute main if running as script
-if __name__ == '__main__':
-    start_bot()

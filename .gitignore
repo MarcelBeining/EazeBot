@@ -6,5 +6,6 @@ __pycache__/
 eazebot.egg-info/
 dist/
 build/
-
+eazebot/user_data
+user_data
 .idea/
