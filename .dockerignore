@@ -1,0 +1,12 @@
+.git
+.gitignore
+.idea
+.github
+Dockerfile
+.dockerignore
+.travis.yml
+licenseTemplate
+CODE_OF_CONDUCT.md
+MANIFEST.in
+*.bat
+docs

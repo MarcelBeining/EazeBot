@@ -48,7 +48,7 @@ You then need to copy the configuration files to some folder. Here is an example
 ````
 sudo mkdir ~/eazebot
 cd ~/eazebot
-sudo python3 -c "from eazebot.auxiliaries import copyJSON; copyJSON()"
+sudo python3 -c "from eazebot.auxiliaries import copy_user_files; copy_user_files()"
 ````
 
 

@@ -74,6 +74,9 @@ markupTradeSetMenu = ReplyKeyboardMarkup(tradeSetMenu, one_time_keyboard=True)
 
 # init base variables
 # %% load bot configuration
+if not os.path.isfile("botConfig.json"):
+    raise FileNotFoundError(f"botConfig.json not found in path {os.getcwd()}! Probably you did not initalize the config"
+                            f"files with command 'python -c \"from eazebot.auxiliaries import copy_user_files; copy_user_files()\"'")
 with open("botConfig.json", "r") as fin:
     __config__ = json.load(fin)
 if isinstance(__config__['telegramUserId'], str) or isinstance(__config__['telegramUserId'], int):

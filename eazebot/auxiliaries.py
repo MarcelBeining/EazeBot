@@ -14,20 +14,23 @@ import time
 import importlib
 
 
-def copyJSON(folder=os.getcwd(), force=0, warning=True):
+def copy_user_files(folder=os.getcwd(), force=0, warning=True):
+    template_folder = os.path.join(os.path.dirname(__file__), 'user_files')
     if force == 0 and os.path.isfile(os.path.join(folder, 'botConfig.json')) and warning:
         print('Warning: botConfig.json already exists in\n%s\n'
-              'If wanted, use copyJSON(targetfolder,force=1) or copyJSON(force=1) to overwrite both (!) JSONs' % folder)
+              'If wanted, use copy_user_files(targetfolder,force=1) or copy_user_files(force=1) to overwrite both (!) '
+              'JSONs' % folder)
     else:
-        copy2(os.path.join(os.path.dirname(__file__), 'botConfig.json'), folder)
+        copy2(os.path.join(template_folder, 'botConfig.json'), folder)
     if force == 0 and os.path.isfile(os.path.join(folder, 'APIs.json')) and warning:
         print('Warning: APIs.json already exists in\n%s\n'
-              'If wanted, use copyJSON(targetfolder,force=1) or copyJSON(force=1) to overwrite both (!) JSONs' % folder)
+              'If wanted, use copy_user_files(targetfolder,force=1) or copy_user_files(force=1) to overwrite both (!) '
+              'JSONs' % folder)
     else:  
-        copy2(os.path.join(os.path.dirname(__file__), 'APIs.json'), folder)
-    copy2(os.path.join(os.path.dirname(__file__), 'startBotScript.py'), folder)
-    copy2(os.path.join(os.path.dirname(__file__), 'startBot.bat'), folder)
-    copy2(os.path.join(os.path.dirname(__file__), 'updateBot.bat'), folder)
+        copy2(os.path.join(template_folder, 'APIs.json'), folder)
+    copy2(os.path.join(template_folder, 'startBotScript.py'), folder)
+    copy2(os.path.join(template_folder, 'startBot.bat'), folder)
+    copy2(os.path.join(template_folder, 'updateBot.bat'), folder)
     print('botConfig.json and APIs.json successfully copied to\n%s\n'
           'Please open and configure these files before running the bot' % folder)
 
