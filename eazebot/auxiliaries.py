@@ -35,7 +35,7 @@ def copy_user_files(folder=os.getcwd(), force=0, warning=True):
     else:  
         copy2(os.path.join(template_folder, 'APIs.json.tmp'), os.path.join(folder, 'APIs.json'))
 
-    other_files = set(os.listdir(template_folder)) - {'APIs.json.tmp', 'botConfig.json.tmp', '__init__.py'}
+    other_files = set(os.listdir(template_folder)) - {'APIs.json.tmp', 'botConfig.json.tmp'}
     for file in other_files:
         copy2(os.path.join(template_folder, file), os.path.join(folder, file[0:-4]))
 
