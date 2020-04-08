@@ -230,7 +230,7 @@ class tradeHandler:
                 if count >= 5:
                     if iTs:
                         self.unlock_trade_set(iTs)
-                    raise (e)
+                    raise e
                 else:
                     time.sleep(0.5)
                     continue
@@ -241,7 +241,7 @@ class tradeHandler:
                     self.down = True
                     if print_error:
                         self.message('%s seems to be down.' % self.exchange.name)
-                raise (e)
+                raise e
             except Exception as e:
                 if count < 4 and isinstance(e, ExchangeError) and "symbol" in str(e).lower():
                     self.safe_run(self.exchange.loadMarkets)
@@ -265,7 +265,7 @@ class tradeHandler:
 
                     if print_error:
                         self.message(string, 'Error')
-                    raise (e)
+                    raise e
             finally:
                 if wasdown and not self.down:
                     self.message('Exchange %s seems back to work!' % self.exchange.name)
@@ -374,15 +374,19 @@ class tradeHandler:
         # sanity check of amounts to buy/sell
         if self.sum_sell_amounts(iTs, 'notinitiated') - (self.sum_buy_amounts(iTs, 'notfilled') + ts['coinsAvail']) > 0:
             self.message(
-                'Cannot activate trade set because the total amount you (still) want to sell (%s %s) exceeds the total amount you want to buy (%s %s after fee subtraction) and the amount you already have in this trade set (%s %s). Please adjust the trade set!' % (
-                    self.amount2Prec(ts['symbol'], self.sum_sell_amounts(iTs, 'notinitiated', 1)), ts['coinCurrency'],
-                    self.amount2Prec(ts['symbol'], self.sum_buy_amounts(iTs, 'notfilled', 1)), ts['coinCurrency'],
-                    self.amount2Prec(ts['symbol'], ts['coinsAvail']), ts['coinCurrency']), 'error')
+                f"Cannot activate trade set because the total amount you (still) want to sell "
+                f"({self.amount2Prec(ts['symbol'], self.sum_sell_amounts(iTs, 'notinitiated', True))} "
+                f"{ts['coinCurrency']}) exceeds the total amount you want to buy "
+                f"({self.amount2Prec(ts['symbol'], self.sum_buy_amounts(iTs, 'notfilled', True))} {ts['coinCurrency']} "
+                f"after fee subtraction) and the amount you already have in this trade set "
+                f"({self.amount2Prec(ts['symbol'], ts['coinsAvail'])} {ts['coinCurrency']}). "
+                f"Please adjust the trade set!", 'error')
             return wasactive
         elif self.min_buy_price(iTs, order='notfilled') is not None and ts['SL'] is not None and ts[
             'SL'] >= self.min_buy_price(iTs, order='notfilled'):
             self.message(
-                'Cannot activate trade set because the current stop loss price is higher than the lowest non-filled buy order price, which means this buy order could never be reached. Please adjust the trade set!',
+                'Cannot activate trade set because the current stop loss price is higher than the lowest non-filled buy'
+                ' order price, which means this buy order could never be reached. Please adjust the trade set!',
                 'error')
             return wasactive
         self.tradeSets[iTs]['virgin'] = False
@@ -416,9 +420,19 @@ class tradeHandler:
         self.tradeSets[iTs]['active'] = False
         return wasactive
 
-    def new_trade_set(self, symbol, buy_levels=[], buy_amounts=[], sell_levels=[], sell_amounts=[], sl=None,
-                      candle_above=[],
-                      initCoins=0, initPrice=None, force=False):
+    def new_trade_set(self, symbol, buy_levels=None, buy_amounts=None, sell_levels=None, sell_amounts=None, sl=None,
+                      candle_above=None,
+                      init_coins=0, init_price=None, force=False):
+        if candle_above is None:
+            candle_above = []
+        if sell_amounts is None:
+            sell_amounts = []
+        if sell_levels is None:
+            sell_levels = []
+        if buy_amounts is None:
+            buy_amounts = []
+        if buy_levels is None:
+            buy_levels = []
         self.update_down_state(True)
         if symbol not in self.exchange.symbols:
             raise NameError('Trading pair %s not found on %s' % (symbol, self.exchange.name))
@@ -428,7 +442,7 @@ class tradeHandler:
             raise TypeError('Sell levels and amounts must be of type float!')
         if sl and not self.check_num(sl):
             raise TypeError('Stop-loss must be of type float!')
-        if not self.check_num(initCoins):
+        if not self.check_num(init_coins):
             raise TypeError('Initial coin amount must be of type float!')
         if len(buy_levels) != len(buy_amounts):
             raise ValueError('The number of buy levels and buy amounts has to be the same')
@@ -450,7 +464,7 @@ class tradeHandler:
         buy_levels = np.array(buy_levels)
         buy_amounts = np.array(buy_amounts)
         if len(buy_amounts) != len(candle_above):
-            candle_above = np.repeat(None, len(buy_amounts))
+            candle_above = [None] * len(buy_amounts)
         else:
             candle_above = np.array(candle_above)
 
@@ -468,7 +482,7 @@ class tradeHandler:
         for n, _ in enumerate(buy_levels):
             self.add_buy_level(iTs, buy_levels[n], buy_amounts[n], candle_above[n])
 
-        self.add_init_coins(iTs, initCoins, initPrice)
+        self.add_init_coins(iTs, init_coins, init_price)
         self.set_sl(iTs, sl)
         self.set_trailing_sl(iTs, None)
         # create the sell orders
@@ -583,9 +597,9 @@ class tradeHandler:
                         gainUSD = None
             else:
                 gainUSD = None
-            self.tradeSetHistory.append({'time': time.time(), 'days': None if not 'createdAt' in ts else (time.time() -
-                                                                                                          ts[
-                                                                                                              'createdAt']) / 60 / 60 / 24,
+            self.tradeSetHistory.append({'time': time.time(),
+                                         'days': None if not 'createdAt' in ts
+                                         else (time.time() - ts['createdAt']) / 60 / 60 / 24,
                                          'symbol': ts['symbol'], 'gain': gain,
                                          'gainRel': gain / (ts['costIn']) * 100 if ts['costIn'] > 0 else None,
                                          'quote': ts['baseCurrency'], 'gainBTC': gainBTC, 'gainUSD': gainUSD})
@@ -647,10 +661,10 @@ class tradeHandler:
         else:
             self.unlock_trade_set(iTs)
 
-    def add_init_coins(self, iTs, initCoins=0, initPrice=None):
-        if self.check_num(initCoins, initPrice) or (initPrice is None and self.check_num(initCoins)):
-            if initPrice is not None and initPrice < 0:
-                initPrice = None
+    def add_init_coins(self, iTs, init_coins=0, init_price=None):
+        if self.check_num(init_coins, init_price) or (init_price is None and self.check_num(init_coins)):
+            if init_price is not None and init_price < 0:
+                init_price = None
             ts = self.tradeSets[iTs]
             # check if free balance is indeed sufficient
             bal = self.get_balance(ts['coinCurrency'])
@@ -659,9 +673,9 @@ class tradeHandler:
                              'If free balance does not suffice for initial coins there will be an error when trade set '
                              'is activated!',
                              'warning')
-            elif bal < initCoins:
+            elif bal < init_coins:
                 self.message('Adding initial balance failed: %s %s requested but only %s %s are free!' % (
-                    self.amount2Prec(ts['symbol'], initCoins), ts['coinCurrency'],
+                    self.amount2Prec(ts['symbol'], init_coins), ts['coinCurrency'],
                     self.amount2Prec(ts['symbol'], self.get_balance(ts['coinCurrency'])), ts['coinCurrency']),
                              'error')
                 return 0
@@ -670,12 +684,12 @@ class tradeHandler:
             if ts['coinsAvail'] > 0 and ts['initPrice'] is not None:
                 # remove old cost again
                 ts['costIn'] -= (ts['coinsAvail'] * ts['initPrice'])
-            ts['coinsAvail'] = initCoins
-            ts['initCoins'] = initCoins
+            ts['coinsAvail'] = init_coins
+            ts['initCoins'] = init_coins
 
-            ts['initPrice'] = initPrice
-            if initPrice is not None:
-                ts['costIn'] += (initCoins * initPrice)
+            ts['initPrice'] = init_price
+            if init_price is not None:
+                ts['costIn'] += (init_coins * init_price)
             self.unlock_trade_set(iTs)
             return 1
         else:
@@ -882,16 +896,15 @@ class tradeHandler:
                     if returnVal == 0.5:
                         bal = self.get_balance(ts['baseCurrency'])
                         if bal is None:
-                            self.message('Free balance could not be determined as exchange does not support this! '
-                                         'If free balance does not suffice there will be an error when trade set is activated',
+                            self.message('Free balance could not be determined as exchange does not support this! If '
+                                         'free balance does not suffice there will be an error on trade set activation',
                                          'warning')
                         elif bal + ts['InTrades'][iTrade]['amount'] * ts['InTrades'][iTrade]['price'] < amount * price \
                                 + fee['cost'] if fee['currency'] == ts['baseCurrency'] else 0:
-                            self.message(
-                                'Changing buy level failed, your balance of %s does not suffice to buy this amount%s!' % (
-                                    ts['baseCurrency'], ' and pay the trading fee (%s %s)' % (
-                                        self.fee2Prec(ts['symbol'], fee['cost']),
-                                        ts['baseCurrency']) if fee['currency'] == ts['baseCurrency'] else ''))
+                            self.message(f"Changing buy level failed, your balance of {ts['baseCurrency']} does not "
+                                         f"suffice to buy this amount%s!" % (
+                                            f" and pay the trading fee ({self.fee2Prec(ts['symbol'], fee['cost'])} "
+                                            f"{ts['baseCurrency']})" if fee['currency'] == ts['baseCurrency'] else ''))
                             return 0
                 ts['InTrades'][iTrade].update({'amount': amount, 'actualAmount': bought_amount, 'price': price})
 
@@ -1049,13 +1062,13 @@ class tradeHandler:
         self.update_down_state(True)
         ts = self.tradeSets[iTs]
         if ts['initCoins'] > 0 and ts['initPrice'] is None:
-            self.message(
-                'Break even SL cannot be set as you this trade set contains %s that you obtained beforehand and no buy price information was given.' %
-                ts['coinCurrency'])
+            self.message(f"Break even SL cannot be set as you this trade set contains {ts['coinCurrency']} that you "
+                         f"obtained beforehand and no buy price information was given.")
             return 0
         elif ts['costOut'] - ts['costIn'] > 0:
             self.message(
-                'Break even SL cannot be set as your sold coins of this trade already outweigh your buy expenses (congrats!)! You might choose to sell everything immediately if this is what you want.')
+                'Break even SL cannot be set as your sold coins of this trade already outweigh your buy expenses '
+                '(congrats!)! You might choose to sell everything immediately if this is what you want.')
             return 0
         elif ts['costOut'] - ts['costIn'] == 0:
             self.message('Break even SL cannot be set as there are no unsold %s coins right now' % ts['coinCurrency'])
@@ -1233,10 +1246,10 @@ class tradeHandler:
                                                                       trade['price']))
                     except InsufficientFunds as e:
                         self.deactivate_trade_set(iTs)
-                        self.message('Insufficient funds on exchange %s for trade set #%d. \
-                                     Trade set is deactivated now and not updated anymore (open orders are still open)! \
-                                     Free the missing funds and reactivate. \n %s.'
-                                     % (self.exchange.name, list(self.tradeSets.keys()).index(iTs), str(e)), 'error')
+                        self.message(f"Insufficient funds on exchange {self.exchange.name} for trade set "
+                                     f"#{self.exchange.name}. Trade set is deactivated now and not updated anymore "
+                                     f"(open orders are still open)! Free the missing funds and reactivate. \n {e}.",
+                                     'error')
                         raise (e)
                     self.tradeSets[iTs]['InTrades'][iTrade]['oid'] = response['id']
 
@@ -1320,7 +1333,7 @@ class tradeHandler:
                         if ts['SL'] is not None:
                             if ticker['last'] <= ts['SL']:
                                 self.message('Stop loss for pair %s has been triggered!' % ts['symbol'], 'warning')
-                                # cancel all sell orders, create market sell order and save resulting amount of base currency
+                                # cancel all sell orders, create market sell order, save resulting amount of currency
                                 sold = self.sell_all_now(iTs, price=ticker['last'])
                                 if sold:
                                     trade_sets_to_delete.append(iTs)
@@ -1359,10 +1372,11 @@ class tradeHandler:
                             if 'time' in trade and (datetime.datetime.now() - trade['time']).days > 358 and (
                                     datetime.datetime.now() - trade['time']).days < 365:
                                 self.message(
-                                    'Time since buy level #%d of trade set %d (%s) on exchange %s was filled approaches one year (%s) after which gains/losses are not eligible for reporting in the tax report in most countries!' % (
-                                        iTrade, indTs, ts['symbol'], self.exchange.name,
-                                        (trade['time'] + datetime.timedelta(days=365)).strftime('%Y-%m-%d %H:%M')),
-                                    'warning')
+                                    f"Time since buy level #{iTrade} of trade set {indTs} ({ts['symbol']}) on exchange "
+                                    f"{self.exchange.name} was filled approaches one year "
+                                    f"({(trade['time'] + datetime.timedelta(days=365)).strftime('%Y-%m-%d %H:%M')}) "
+                                    f"after which gains/losses are not eligible for reporting in the tax report in most"
+                                    f" countries!", 'warning')
                         continue
                     order_executed = 0
                     # go through buy trades 
@@ -1411,6 +1425,9 @@ class tradeHandler:
                                         reason = orderInfo['info']['reason']
                                     else:
                                         reason = 'N/A'
+                                    cancel_msg = f"Buy order (level {iTrade} of trade set " \
+                                        f"{list(self.tradeSets.keys()).index(iTs)} on {self.exchange.name}) was " \
+                                        f"canceled by exchange or someone else (reason: {reason}) "
                                     if orderInfo['cost'] > 0:
                                         ts['InTrades'][iTrade]['oid'] = 'filled'
                                         ts['InTrades'][iTrade]['price'] = orderInfo['price']
@@ -1419,24 +1436,19 @@ class tradeHandler:
                                             orderInfo['amount'] = sum(
                                                 [tr['amount'] for tr in trades if tr['order'] == orderInfo['id']])
                                         ts['coinsAvail'] += orderInfo['amount']
-                                        self.message(
-                                            'Buy order (level %d of trade set %d on %s) was canceled by exchange or someone else (reason: %s) but already partly filled! Treating order as closed now and updating trade set info.' % (
-                                                iTrade, list(self.tradeSets.keys()).index(iTs), self.exchange.name,
-                                                reason),
-                                            'error')
+                                        self.message(cancel_msg + 'but already partly filled! Treating '
+                                                                  'order as closed and updating trade set info.',
+                                                     'error')
                                     else:
                                         ts['InTrades'][iTrade]['oid'] = None
-                                        self.message(
-                                            'Buy order (level %d of trade set %d on %s) was canceled by exchange or someone else (reason:%s)! Will be reinitialized during next update.' % (
-                                                iTrade, list(self.tradeSets.keys()).index(iTs), self.exchange.name,
-                                                reason),
-                                            'error')
+                                        self.message(cancel_msg + 'Will be reinitialized during next update.', 'error')
 
                             except OrderNotFound as e:
                                 self.lock_trade_set(iTs)
                                 self.message(
-                                    'Buy order id %s for trade set %s not found on %s! Maybe exchange API has changed? Resetting order to "not initiated", will be initiated on next trade set update!' % (
-                                        str(ts['InTrades'][iTrade]['oid']), ts['symbol'], self.exchange.name), 'error')
+                                    f"Buy order id {ts['InTrades'][iTrade]['oid']} for trade set {ts['symbol']} not "
+                                    f"found on {self.exchange.name}! Maybe exchange API has changed? Resetting order to"
+                                    f" 'not initiated', will be initiated on next trade set update!", 'error')
                                 ts['InTrades'][iTrade]['oid'] = None
 
                         else:
@@ -1459,10 +1471,10 @@ class tradeHandler:
                                                              iTs=iTs)
                                 except InsufficientFunds as e:
                                     self.deactivate_trade_set(iTs)
-                                    self.message('Insufficient funds on exchange %s for trade set #%d. \
-                                                 Trade set is deactivated now and not updated anymore (open orders are still open)! \
-                                                 Free the missing funds and reactivate. \n %s.'
-                                                 % (self.exchange.name, list(self.tradeSets.keys()).index(iTs), str(e)),
+                                    self.message(f"Insufficient funds on exchange {self.exchange.name} for trade set "
+                                                 f"#{list(self.tradeSets.keys()).index(iTs)}. Trade set is deactivated "
+                                                 f"now and not updated anymore (open orders are still open)! "
+                                                 f"Free the missing funds and reactivate. \n {e}."
                                                  'error')
 
                                     raise (e)
@@ -1475,7 +1487,7 @@ class tradeHandler:
                             elif trade['oid'] is not None:
                                 try:
                                     orderInfo = self.fetch_order(trade['oid'], iTs, 'SELL')
-                                    # fetch trades for all orders because a limit order might also be filled at a higher val
+                                    # fetch trades for all orders as a limit order might also be filled at a higher val
                                     if self.exchange.has['fetchMyTrades'] != False:
                                         trades = self.exchange.fetchMyTrades(ts['symbol'])
                                         orderInfo['cost'] = sum(
@@ -1512,22 +1524,26 @@ class tradeHandler:
                                                     [tr['amount'] for tr in trades if tr['order'] == orderInfo['id']])
                                             ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount'] - orderInfo['amount']
                                             self.message(
-                                                'Sell order (level %d of trade set %d on %s) was canceled by exchange or someone else (reason: %s) but already partly filled! Treating order as closed now and updating trade set info.' % (
-                                                    iTrade, list(self.tradeSets.keys()).index(iTs), self.exchange.name,
-                                                    reason))
+                                                f"Sell order (level {iTrade} of trade set "
+                                                f"{list(self.tradeSets.keys()).index(iTs)} on {self.exchange.name}) was"
+                                                f" canceled by exchange or someone else (reason: {reason}) but already "
+                                                f"partly filled! Treating order as closed and updating trade set info.")
                                         else:
                                             ts['OutTrades'][iTrade]['oid'] = None
                                             ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
                                             self.message(
-                                                'Sell order (level %d of trade set %d on %s) was canceled by exchange or someone else (reason:%s)! Will be reinitialized during next update.' % (
-                                                    iTrade, list(self.tradeSets.keys()).index(iTs), self.exchange.name,
-                                                    reason))
+                                                f"Sell order (level {iTrade} of trade set "
+                                                f"{list(self.tradeSets.keys()).index(iTs)} on {self.exchange.name}) was"
+                                                f" canceled by exchange or someone else (reason:{reason})! "
+                                                f"Will be reinitialized during next update.")
 
                                 except OrderNotFound as e:
                                     self.lock_trade_set(iTs)
                                     self.message(
-                                        'Sell order id %s for trade set %s not found on %s! Maybe exchange API has changed? Resetting order to "not initiated"! If InsufficientFunds errors pop up, the order had probably been executed. In this case please delete the trade set.' % (
-                                            str(ts['OutTrades'][iTrade]['oid']), ts['symbol'], self.exchange.name),
+                                        f"Sell order id {ts['OutTrades'][iTrade]['oid']} for trade set {ts['symbol']} "
+                                        f"not found on {self.exchange.name}! Maybe exchange API has changed? "
+                                        f"Resetting order to 'not initiated'! If InsufficientFunds errors pop up, the "
+                                        f"order had probably been executed. In this case please delete the trade set.",
                                         'error')
                                     ts['coinsAvail'] += ts['OutTrades'][iTrade]['amount']
                                     ts['OutTrades'][iTrade]['oid'] = None
