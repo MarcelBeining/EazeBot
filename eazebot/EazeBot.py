@@ -761,7 +761,7 @@ def get_remote_version():
     remote_version = re.search(r'(?<=__version__ = \\\')[0-9.]+', str(remote_txt)).group(0)
     remote_version_commit = \
     [val['commit']['url'] for val in requests.get('https://api.github.com/repos/MarcelBeining/EazeBot/tags').json() if
-     val['name'] == 'EazeBot_%s' % remote_version][0]
+     val['name'] == 'v%s' % remote_version][0]
     return remote_version, requests.get(remote_version_commit).json()['commit']['message'], pypi_version == remote_version
 
 
