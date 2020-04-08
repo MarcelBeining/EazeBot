@@ -27,19 +27,6 @@ if version_type < 2:
 
 new_version_string = '.'.join([str(x) for x in new_version_parsed])
 
-with open(os.path.join(pathname,'licenseTemplate'),'r') as fh:
-    licenseTxt = str(fh.read())
-with open(os.path.join(pathname,'eazebot','version.txt'), 'w') as fh:
-    fh.write(licenseTxt+'version = %s' % new_version_string)
-
-with open(os.path.join(pathname, 'requirements.txt')) as fh:
-    requirementsTxt = str(fh.read())
-ccxt_txt_version = re.search(r'(?<=ccxt \>\= )[0-9\.]+', requirementsTxt).group(0)
-if ccxt_version > ccxt_txt_version:
-    with open(os.path.join(pathname, 'requirements.txt'), 'w') as fh:
-        fh.write(requirementsTxt.replace(ccxt_txt_version, ccxt_version))
-
-
 # initialize Repo object, add all relevant files (py and version.txt) and print the git status
 repo = Repo(os.path.dirname(__file__).replace('/', '\\'))
 assert repo.bare is False, 'Folder is no existing Git repository!'
@@ -59,6 +46,20 @@ git.checkout('HEAD', b=new_branch_name)  # create a new branch
 # change the version in the pipeline
 with open('eazebot/__init__.py', 'w') as fh:
     fh.write(f"__version__ = '{new_version_string}'\n")
+
+
+with open(os.path.join(pathname,'licenseTemplate'),'r') as fh:
+    licenseTxt = str(fh.read())
+with open(os.path.join(pathname,'eazebot','version.txt'), 'w') as fh:
+    fh.write(licenseTxt+'version = %s' % new_version_string)
+
+with open(os.path.join(pathname, 'requirements.txt')) as fh:
+    requirementsTxt = str(fh.read())
+ccxt_txt_version = re.search(r'(?<=ccxt \>\= )[0-9\.]+', requirementsTxt).group(0)
+if ccxt_version > ccxt_txt_version:
+    with open(os.path.join(pathname, 'requirements.txt'), 'w') as fh:
+        fh.write(requirementsTxt.replace(ccxt_txt_version, ccxt_version))
+
 
 # add modified files
 # p = re.compile(r'modified:\s+(\S+)\n')
