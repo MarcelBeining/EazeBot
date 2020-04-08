@@ -75,6 +75,8 @@ if ccxt_version > ccxt_txt_version:
 #     print('Removing deleted file: ' + file)
 #     git.rm(file)
 git.add('eazebot/__init__.py')
+git.add('eazebot/version.txt')
+git.add('requirements.txt')
 print(git.status())
 
 # get commit message and unescape backslashes
