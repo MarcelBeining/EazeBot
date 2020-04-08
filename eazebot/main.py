@@ -1,14 +1,14 @@
 import argparse
 
 # execute main if running as script
-if __name__ == '__main__':
+def main(sysargv = None):
     parser = argparse.ArgumentParser(description='Processes input to eazebot main function.')
     parser.add_argument('--init', dest='init', action='store_true', required=False,
                         help='copies the necessary user config files to the current directory')
     parser.add_argument('--config', dest='config', action='store_true', required=False,
                         help='calls a dialog to fill out the configs interactively')
 
-    args = parser.parse_args()
+    args = parser.parse_args(sysargv)
 
     if args.init:
         from eazebot.auxiliaries import copy_user_files
@@ -19,3 +19,7 @@ if __name__ == '__main__':
     else:
         from eazebot.EazeBot import start_bot
         start_bot()
+
+
+if __name__ == '__main__':
+    main()
