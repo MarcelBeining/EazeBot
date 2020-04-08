@@ -2,9 +2,7 @@ include readme.md
 include botLogo.png
 include LICENSE
 include LICENSE.LESSER
-include eazebot/*.json
+include eazebot/templates/*
 include requirements.txt
 include eazebot/version.txt
-include eazebot/updateBot.bat
-include eazebot/startBot.bat
 prune eazebot/__pycache__
