@@ -14,7 +14,7 @@ print(f'Current version: {current_version}')
 
 # ask for new version type
 version_type = input('What type of new version? Major (0), minor (1) or hotfix (2)?\n')
-assert re.match('^[1-3]$', version_type) is not None, 'Please give a number!'
+assert re.match('^[0-2]$', version_type) is not None, 'Please give a number!'
 version_type = int(version_type)
 
 # update version number accordingly
