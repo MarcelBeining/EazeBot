@@ -677,55 +677,68 @@ def ask_pos(bot, user_data, exch, uid_ts, direction, apply_fct=None, input_type=
 def add_exchanges(update, context: CallbackContext):
     idx = [i for i, x in enumerate(__config__['telegramUserId']) if x == context.user_data['chatId']][0] + 1
     if idx == 1:
-        with open("APIs.json", "r") as fin:
-            apis = json.load(fin)
+        api_file = "APIs.json"
     else:
-        with open("APIs%d.json" % idx, "r") as fin:
-            apis = json.load(fin)
-    keys = list(apis.keys())
-    has_key = [re.search(r'(?<=^apiKey).*', val).group(0) for val in keys if
-               re.search(r'(?<=^apiKey).*', val, re.IGNORECASE) is not None]
-    has_secret = [re.search(r'(?<=^apiSecret).*', val).group(0) for val in keys if
-                  re.search(r'(?<=^apiSecret).*', val, re.IGNORECASE) is not None]
-    has_uid = [re.search(r'(?<=^apiUid).*', val).group(0) for val in keys if
-               re.search(r'(?<=^apiUid).*', val, re.IGNORECASE) is not None]
-    has_password = [re.search(r'(?<=^apiPassword).*', val).group(0) for val in keys if
-                    re.search(r'(?<=^apiPassword).*', val, re.IGNORECASE) is not None]
-    available_exchanges = set(has_key).intersection(set(has_secret))
-    avail_exchanges_low = set()
-    for a in available_exchanges:
-        avail_exchanges_low.add(a.lower())
+        api_file = "APIs%d.json" % idx
+    with open(api_file, "r") as fin:
+        apis = json.load(fin)
+
+    if isinstance(apis, dict):
+        # transform old style api json to new style
+        keys = list(apis.keys())
+        has_key = [re.search(r'(?<=^apiKey).*', val).group(0) for val in keys if
+                   re.search(r'(?<=^apiKey).*', val, re.IGNORECASE) is not None]
+        has_secret = [re.search(r'(?<=^apiSecret).*', val).group(0) for val in keys if
+                      re.search(r'(?<=^apiSecret).*', val, re.IGNORECASE) is not None]
+
+        apis_tmp = []
+        for a in set(has_key).intersection(set(has_secret)):
+            exch_params = {'exchange': a.lower(), 'key': apis['apiKey%s' % a], 'secret': apis['apiSecret%s' % a]}
+            if 'apiUid%s' % a in apis:
+                exch_params['uid'] = apis['apiUid%s' % a]
+            if 'apiPassword%s' % a in apis:
+                exch_params['password'] = apis['apiPassword%s' % a]
+            apis_tmp.append(exch_params)
+        apis = apis_tmp
+        with open(api_file, "w") as fin:
+            json.dump(apis, fin)
+
+    available_exchanges = {val['exchange']: val for val in apis
+                           if 'key' in val and 'secret' in val and 'exchange' in val}
+    has_password = [key for key in available_exchanges if 'password' in available_exchanges[key]]
+    has_uid = [key for key in available_exchanges if 'uid' in available_exchanges[key]]
+
+    has_key = list(available_exchanges.keys())
+    has_secret = list(available_exchanges.keys())
+
     if len(available_exchanges) > 0:
         logging.info('Found exchanges %s with keys %s, secrets %s, uids %s, password %s' % (
             available_exchanges, has_key, has_secret, has_uid, has_password))
         authenticated_exchanges = []
-        for a in available_exchanges:
-            exch = a.lower()
-            exch_params = {'key': apis['apiKey%s' % a], 'secret': apis['apiSecret%s' % a]}
-            if a in has_uid:
-                exch_params['uid'] = apis['apiUid%s' % a]
-            if a in has_password:
-                exch_params['password'] = apis['apiPassword%s' % a]
+        for exch_name in available_exchanges:
+            exch_params = available_exchanges[exch_name]
+            exch_params.pop('exchange')
             # if no tradeHandler object has been created yet, create one, but also check for correct authentication
-            messagerFct = lambda msg, lvl='info': broadcast_msg(context.bot, context.user_data['chatId'], msg, lvl)
-            if exch not in context.user_data['trade']:
-                context.user_data['trade'][exch] = tradeHandler(
-                    exch, **exch_params,
-                    messager_fct=messagerFct,
+            messager_fct = lambda msg, lvl='info': broadcast_msg(context.bot, context.user_data['chatId'], msg, lvl)
+            if exch_name not in context.user_data['trade']:
+                context.user_data['trade'][exch_name] = tradeHandler(
+                    exch_name, **exch_params,
+                    messager_fct=messager_fct,
                     logger=rootLogger)
             else:
-                context.user_data['trade'][exch].update_keys(**exch_params)
-                context.user_data['trade'][exch].update_messager_fct(messagerFct)
-            if not context.user_data['trade'][exch].authenticated and not context.user_data['trade'][exch].tradeSets:
-                logging.warning('Authentication failed for %s' % exch)
-                context.user_data['trade'].pop(exch)
+                context.user_data['trade'][exch_name].update_keys(**exch_params)
+                context.user_data['trade'][exch_name].update_messager_fct(messager_fct)
+            if not context.user_data['trade'][exch_name].authenticated and \
+                    not context.user_data['trade'][exch_name].tradeSets:
+                logging.warning('Authentication failed for %s' % exch_name)
+                context.user_data['trade'].pop(exch_name)
             else:
-                authenticated_exchanges.append(a)
+                authenticated_exchanges.append(exch_name)
         context.bot.send_message(context.user_data['chatId'], 'Exchanges %s added/updated' % authenticated_exchanges)
     else:
         context.bot.send_message(context.user_data['chatId'], 'No exchange found to add')
 
-    old_exchanges = set(ct.exchange.name.lower() for _, ct in context.user_data['trade'].items()) - avail_exchanges_low
+    old_exchanges = set(context.user_data['trade'].keys()) - set(available_exchanges.keys())
     removed_exchanges = []
     for exch in old_exchanges:
         if len(context.user_data['trade'][exch].tradeSets) == 0:
