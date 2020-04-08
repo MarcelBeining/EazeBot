@@ -1,0 +1,11 @@
+---
+version: '3.2'
+services:
+  eazebot:
+    image: mbeining/eazebot:master
+    restart: unless-stopped
+    container_name: eazebot
+    volumes:
+      - type: bind
+        source: ./user_data
+        target: /eazebot_docker/user_data
