@@ -18,7 +18,7 @@ def main(sysargv = None):
         from eazebot.auxiliaries import start_config_dialog
         start_config_dialog()
     else:
-        from eazebot.eazebot import EazeBot
+        from eazebot.bot import EazeBot
         EazeBot().start_bot()
 
 
