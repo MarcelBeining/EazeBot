@@ -22,8 +22,6 @@ RUN pip install -r /eazebot_docker/requirements.txt --no-cache-dir
 COPY . /eazebot_docker/
 RUN pip install -e /eazebot_docker --no-cache-dir
 
-WORKDIR /eazebot_docker/user_data
-
 ENTRYPOINT ["python", "/eazebot_docker/eazebot/main.py"]
 
 CMD []

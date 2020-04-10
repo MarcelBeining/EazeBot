@@ -9,10 +9,10 @@
 [![Beerpay](https://beerpay.io/MarcelBeining/EazeBot/badge.svg?style=beer-square)](https://beerpay.io/MarcelBeining/EazeBot)
 
 
-# EazeBot
+#EazeBot
 <img src="https://github.com/MarcelBeining/EazeBot/blob/master/botLogo.png" width="250">
 
-## Introduction
+##Introduction
 - Have you ever traded cryptocurrencies and lost overview of your planned buys/sells?
 - Have you encountered the experience that your buy order was executed while you slept, and before you could place any stop-loss, the price rushed so deep that you made huge loss?
 - Have you ever complained about that there is no exchange where you can set for one and the same coin a sell order and a stop-loss at the same time?
@@ -29,32 +29,43 @@ Most importantly: **All popular exchanges are supported!**
 (for supported exchanges [see here](https://github.com/ccxt/ccxt#supported-cryptocurrency-exchange-markets "ccxt supported exchanges"))
 
 
-## Installing
+##Installation
+After the next steps, no matter if you are on Windows or Linux/Mac, you should have at least two json files (_APIs.json_ and _botConfig.json_)in your target folder.
 
+###With docker
+**You require [Docker](https://docs.docker.com/get-docker/) to be installed on your system.**
+
+###With Pip
 **You require [Python 3.6 or higher](https://www.python.org/downloads/) to be installed on your system.**
 
-After the next steps, no matter if you are on Windows or Linux/Mac, you should have two json files (_APIs.json_ and _botConfig.json_) and some scripts in your target folder.
+####Windows
+We simplified installation/configuration of the bot on Windows: Simply download (right click, save link as) [this File](https://github.com/MarcelBeining/EazeBot/blob/master/install_and_init_bot_here.bat
+) and put the file in a folder, where you wish EazeBot files to be installed. Then execute it.
 
-### Windows
-We simplified installation of the bot on Windows: Simply download (right click, save link as) [this File](https://github.com/MarcelBeining/EazeBot/blob/master/install_and_init_bot_here.bat
-) and put the file in a folder, where you wish EazeBot files to be installed, and execute it.
-
-### Linux/Mac
+####Linux/Mac
 The simpliest and recommended way of installing EazeBot is using the pip install command:
-````python
+````
 sudo python3 -m pip install eazebot
 ````
 You then need to copy the configuration files to some folder. Here is an example to make a folder in your home directory and copy the files there:
 ````
 sudo mkdir ~/eazebot
 cd ~/eazebot
-sudo python3 -c "from eazebot.auxiliaries import copy_user_files; copy_user_files()"
+python3 -m eazebot --init"
 ````
 
 
-## Getting Started
-
+##Getting Started
 After installation of EazeBot you have to set up the bot so that you can control him via Telegram and that he can access your exchanges. 
+
+###With docker
+
+
+###With pip / others
+You then need to copy the configuration files to some folder. Here is an example to make a folder in your home directory and copy the files there:
+````
+python3 -m eazebot --config"
+````
 
 
 **For this the following steps are necessary:**
@@ -83,31 +94,32 @@ After installation of EazeBot you have to set up the bot so that you can control
    to use the built-in donation feature, it needs the right to withdraw.
 4. **Run the bot and start a conversation via Telegram.**
    + On Windows, simply go to the folder where the JSONs were copied to and double-click _startBotScript.py_
-   + On Linux/Mac use the terminal, go to the folder, where the JSONs were copied to (see [Installing_ step](https://github.com/MarcelBeining/EazeBot/blob/master/readme.md#installing) and run this command:
+   + On Linux/Mac use the terminal, go to the folder, where the JSONs were copied to (see [Installing_ step](https://github.com/MarcelBeining/EazeBot/blob/master/readme.md#installation) and run this command:
    ````
-   python startBotScript.py // on AWS Ubuntu it is python3 startBotScript.py
+   python3 -m eazebot
    ````
    1) Thereafter you should start a conversation with your bot on Telegram.
    2) The bot will welcome you and show you a menu of things you can do. Everything should be rather self-explanatory as the bot will have a dialog with you on everything you click.
 
 
-## Help
+##Help
 
 We have added a [Wiki](https://github.com/MarcelBeining/EazeBot/wiki) with more details on installing and handling the bot. You may also open an issue if you encounter bugs or want to suggest improvements.
 
-## Versioning
+##Versioning
 
 For the versions available, see the [tags on this repository](https://github.com/MarcelBeining/eazebot/tags/). 
 
 From time to time you should update EazeBot by
-+ Executing `python -m pip install eazebot --upgrade` on Linux/Mac
++ Executing `python -m pip install eazebot --upgrade` on Linux/Mac when [installed with pip](###With Pip)
 + Double-clicking on updateBot.bat on Windows
++ Executing `docker-compose pull` on Linux/Mac
 
-## Authors
+##Authors
 
 * **Marcel Beining** - *Ground work* - [MBeining](https://github.com/MarcelBeining)
 
-# License
+#License
 You may copy, distribute and modify the software provided that modifications are described and licensed for free under LGPL-3. Derivatives works (including modifications or anything statically linked to the library) can only be redistributed under LGPL-3, but applications that use the library don't have to be.
 See the [LICENSE](LICENSE) and [LICENSE.LESSER](LICENSE.LESSER) file for details
 

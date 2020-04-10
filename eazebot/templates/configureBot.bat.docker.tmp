@@ -1,0 +1,4 @@
+cd %~dp0
+docker-compose stop eazebot
+docker-compose run --rm eazebot --config
+pause

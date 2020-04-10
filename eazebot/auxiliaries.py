@@ -19,32 +19,49 @@ import importlib
 import warnings
 
 
-def copy_user_files(folder=os.getcwd(), force=0, warning=True):
+def copy_init_files(folder=os.getcwd(), force=0, warning=True):
     template_folder = os.path.join(os.path.dirname(__file__), 'templates')
-    if force == 0 and os.path.isfile(os.path.join(folder, 'botConfig.json')):
+    user_folder = os.path.join(folder, 'user_data')
+    if not os.path.isdir(user_folder):
+        os.mkdir(user_folder)
+    # copy jsons in user_data subfolder
+    if force == 0 and os.path.isfile(os.path.join(user_folder, 'botConfig.json')):
         if warning:
             warnings.warn('Warning: botConfig.json already exists in\n%s\nIf wanted, use copy_user_files(targetfolder,'
-                          ' force=1) or copy_user_files(force=1) to overwrite both (!) JSONs' % folder)
+                          ' force=1) or copy_user_files(force=1) to overwrite both (!) JSONs' % user_folder)
     else:
-        copy2(os.path.join(template_folder, 'botConfig.json.tmp'), os.path.join(folder, 'botConfig.json'))
+        copy2(os.path.join(template_folder, 'botConfig.json.tmp'), os.path.join(user_folder, 'botConfig.json'))
 
-    if force == 0 and os.path.isfile(os.path.join(folder, 'APIs.json')):
+    if force == 0 and os.path.isfile(os.path.join(user_folder, 'APIs.json')):
         if warning:
             warnings.warn('Warning: APIs.json already exists in\n%s\nIf wanted, use copy_user_files(targetfolder,'
-                          ' force=1) or copy_user_files(force=1) to overwrite both (!) JSONs' % folder)
+                          ' force=1) or copy_user_files(force=1) to overwrite both (!) JSONs' % user_folder)
     else:  
-        copy2(os.path.join(template_folder, 'APIs.json.tmp'), os.path.join(folder, 'APIs.json'))
+        copy2(os.path.join(template_folder, 'APIs.json.tmp'), os.path.join(user_folder, 'APIs.json'))
 
+    # copy rest of files in main folder
     other_files = set(os.listdir(template_folder)) - {'APIs.json.tmp', 'botConfig.json.tmp'}
     for file in other_files:
-        copy2(os.path.join(template_folder, file), os.path.join(folder, file[0:-4]))
+        if '.bat' in file:
+            if os.name != 'nt':
+                # do not copy bat files if not on windows
+                continue
+            elif os.environ.get('IN_DOCKER_CONTAINER', False) and '.python.' in file:
+                continue
+            elif not os.environ.get('IN_DOCKER_CONTAINER', False) and '.docker.' in file:
+                continue
+            else:
+                copy2(os.path.join(template_folder, file), os.path.join(folder, file[0:-11]))
+        else:
+            copy2(os.path.join(template_folder, file), os.path.join(folder, file[0:-4]))
 
     print('User files successfully copied to\n%s\n'
-          'Please open and configure the json files before running the bot' % folder)
+          'Please open and configure the json files before running the bot '
+          '(e.g. by running "python -m eazebot --config"' % folder)
 
 
-def start_config_dialog():
-    with open('botConfig.json', 'r') as fh:
+def start_config_dialog(user_dir='user_data'):
+    with open(os.path.join(user_dir, 'botConfig.json'), 'r') as fh:
         bot_config = json.load(fh)
     for key in bot_config:
         while True:
@@ -62,10 +79,10 @@ def start_config_dialog():
                 res = float(res)
 
         bot_config[key] = res
-    with open('botConfig.json', 'w') as fh:
+    with open(os.path.join(user_dir, 'botConfig.json'), 'w') as fh:
         json.dump(bot_config, fh)
 
-    with open('APIs.json', 'r') as fh:
+    with open(os.path.join(user_dir, 'APIs.json'), 'r') as fh:
         api_config = json.load(fh)
     entries_to_del = []
     for n_exch, exch in enumerate(api_config):
@@ -115,7 +132,7 @@ def start_config_dialog():
             api_config.append(api_dict)
         else:
             break
-    with open('APIs.json', 'w') as fh:
+    with open(os.path.join(user_dir, 'APIs.json'), 'w') as fh:
         json.dump(api_config, fh)
 
     print('EazeBot successfully configurated. You can now start the bot!')
@@ -142,32 +159,33 @@ def clean_data(user_data, allowed_users=None):
     return user_data
 
 
-def save_data(arg):
+def save_data(arg, user_dir: str = 'user_data'):
     if isinstance(arg, dict):
         user_data = deepcopy(arg)
     else:
         user_data = deepcopy(arg.job.context.dispatcher.user_data)
+
     # remove backup
     try:
-        os.remove('data.bkp') 
+        os.remove(os.path.join(user_dir, 'data.bkp'))
     except FileNotFoundError:
         logging.warning('No backup file found')
         pass
     # rename last save to backup
     try:
-        os.rename('data.pickle', 'data.bkp')
+        os.rename(os.path.join(user_dir, 'data.pickle'), os.path.join(user_dir, 'data.bkp'))
         logging.info('Created user data autosave backup')
     except (FileNotFoundError, PermissionError):
         logging.warning('Could not rename last saved data to backup')
         pass
     clean_data(user_data)
     # write user data
-    with open('data.pickle', 'wb') as f:
+    with open(os.path.join(user_dir, 'data.pickle'), 'wb') as f:
         dill.dump(user_data, f)
     logging.info('User data autosaved')
 
 
-def backup_data(arg):
+def backup_data(arg, user_dir: str = 'user_data'):
     if isinstance(arg, dict):
         user_data = deepcopy(arg)
     else:
@@ -175,9 +193,9 @@ def backup_data(arg):
         
     clean_data(user_data)
     # write user data
-    if not os.path.isdir('backup'):
-        os.mkdir('backup')
-    with open(os.path.join('backup', time.strftime('%Y_%m_%d_data.pickle')), 'wb') as f:
+    if not os.path.isdir(os.path.join(user_dir, 'backup')):
+        os.mkdir(os.path.join(user_dir, 'backup'))
+    with open(os.path.join(user_dir, 'backup', time.strftime('%Y_%m_%d_data.pickle')), 'wb') as f:
         dill.dump(user_data, f)
     logging.info('User data backuped')   
     
@@ -199,7 +217,9 @@ def convert_data(from_='linux', to_='win', filename='data.pickle', filenameout='
             fo.write(byte_content)
         
         
-def load_data(filename='data.pickle'):
+def load_data(filename='data.pickle', user_dir: str = 'user_data'):
+
+    filename = os.path.join(user_dir, filename)
     # load latest user data
     if os.path.isfile(filename):
         if os.path.getmtime(filename) < time.time() - 60*60*24*14:
@@ -227,7 +247,7 @@ def load_data(filename='data.pickle'):
                         to_ += 'git'
                     else:
                         from_ += 'git'
-            convert_data(from_=from_, to_=to_, filename='data.pickle', filenameout='data.pickle')
+            convert_data(from_=from_, to_=to_, filename=filename, filenameout=filename)
             with open(filename, 'rb') as f:
                 return dill.load(f)
         except Exception as e:
