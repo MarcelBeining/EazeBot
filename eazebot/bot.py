@@ -92,6 +92,9 @@ class EazeBot:
         with open(os.path.join(self.user_dir, "botConfig.json"), "r") as fin:
             self.__config__ = json.load(fin)
         if isinstance(self.__config__['telegramUserId'], str) or isinstance(self.__config__['telegramUserId'], int):
+            if self.__config__['telegramUserId'] == 'PLACEHOLDER':
+                raise ValueError('Json files are not configured yet, please configurate them with '
+                                 '"python -m eazebot --config"')
             self.__config__['telegramUserId'] = [int(self.__config__['telegramUserId'])]
         elif isinstance(self.__config__['telegramUserId'], list):
             self.__config__['telegramUserId'] = [int(val) for val in self.__config__['telegramUserId']]

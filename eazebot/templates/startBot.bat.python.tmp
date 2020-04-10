@@ -1,2 +1,3 @@
 cd %~dp0
 python -m eazebot
+pause
