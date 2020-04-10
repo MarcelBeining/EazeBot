@@ -37,10 +37,14 @@ def copy_user_files(folder=os.getcwd(), force=0, warning=True):
 
     other_files = set(os.listdir(template_folder)) - {'APIs.json.tmp', 'botConfig.json.tmp'}
     for file in other_files:
+        if (os.name != 'nt' or os.environ.get('IN_DOCKER_CONTAINER', False)) and '.bat' in file:
+            # do not copy bat files if not on windows or if running as docker
+            continue
         copy2(os.path.join(template_folder, file), os.path.join(folder, file[0:-4]))
 
     print('User files successfully copied to\n%s\n'
-          'Please open and configure the json files before running the bot' % folder)
+          'Please open and configure the json files before running the bot '
+          '(e.g. by running "python -m eazebot --config"' % folder)
 
 
 def start_config_dialog():
