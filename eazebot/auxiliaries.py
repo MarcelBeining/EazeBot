@@ -43,12 +43,10 @@ def copy_init_files(folder=os.getcwd(), force=0, warning=True):
     other_files = set(os.listdir(template_folder)) - {'APIs.json.tmp', 'botConfig.json.tmp'}
     for file in other_files:
         if '.bat' in file:
-            # do not copy bat files if not on windows
+            # do not copy bat files if not on windows (can only check if not running with docker)
             if not os.environ.get('IN_DOCKER_CONTAINER', False):
                 if os.name != 'nt':
                     continue
-            elif 'windows' not in os.popen('docker version').read().lower():
-                continue
 
             # do only copy the correct bat files
             if os.environ.get('IN_DOCKER_CONTAINER', False) and '.python.' in file:
