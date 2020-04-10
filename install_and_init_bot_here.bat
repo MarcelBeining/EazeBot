@@ -1,4 +1,4 @@
 cd %~dp0
-if not exist "eazebot/EazeBot.py" python -m pip install eazebot
-python -c "from eazebot.auxiliaries import copy_user_files; copy_user_files()"
+if not exist "eazebot/EazeBot.py" python -m pip install -U eazebot
+python -m eazebot --init
 pause

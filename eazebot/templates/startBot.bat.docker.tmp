@@ -1,0 +1,3 @@
+cd %~dp0
+docker-compose run --rm eazebot
+pause
