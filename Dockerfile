@@ -12,6 +12,7 @@ RUN apt-get update \
 WORKDIR /eazebot_docker
 
 ENV LD_LIBRARY_PATH /usr/local/lib
+ENV IN_DOCKER_CONTAINER Yes
 
 # Install dependencies
 COPY requirements.txt /eazebot_docker/
