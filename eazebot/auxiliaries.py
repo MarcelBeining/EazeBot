@@ -41,23 +41,33 @@ def copy_init_files(folder=os.getcwd(), force=0, warning=True):
 
     # copy rest of files in main folder
     other_files = set(os.listdir(template_folder)) - {'APIs.json.tmp', 'botConfig.json.tmp'}
+
+    if os.environ.get('IN_DOCKER_CONTAINER', False):
+        folder_str = f' to target folder.'
+        is_docker = True
+    else:
+        folder_str = f' to\n{folder}'
+        is_docker = False
+
     for file in other_files:
         if '.bat' in file:
-            if os.name != 'nt':
-                # do not copy bat files if not on windows
+            # do not copy bat files if not on windows (can only check if not running with docker)
+            if not is_docker and os.name != 'nt':
                 continue
-            elif os.environ.get('IN_DOCKER_CONTAINER', False) and '.python.' in file:
+
+            # do only copy the correct bat files
+            if is_docker and '.python.' in file:
                 continue
-            elif not os.environ.get('IN_DOCKER_CONTAINER', False) and '.docker.' in file:
+            elif not is_docker and '.docker.' in file:
                 continue
             else:
                 copy2(os.path.join(template_folder, file), os.path.join(folder, file[0:-11]))
         else:
             copy2(os.path.join(template_folder, file), os.path.join(folder, file[0:-4]))
 
-    print('User files successfully copied to\n%s\n'
-          'Please open and configure the json files before running the bot '
-          '(e.g. by running "python -m eazebot --config"' % folder)
+    print(f'User files successfully copied{folder_str}\n'
+          'Please configure the json files before running the bot '
+          '(e.g. by running "python -m eazebot --config"')
 
 
 def start_config_dialog(user_dir='user_data'):

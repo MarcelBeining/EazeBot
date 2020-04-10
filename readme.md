@@ -30,10 +30,17 @@ Most importantly: **All popular exchanges are supported!**
 
 
 ##Installation
-After the next steps, no matter if you are on Windows or Linux/Mac, you should have at least two json files (_APIs.json_ and _botConfig.json_)in your target folder.
+There are different ways to install EazeBot. We recommend using [Docker](###With Docker) as this guarantees system-
+independent compatibility.
+
+After the next steps, no matter if you are on Windows or Linux/Mac, you should have at least a "user_data" folder in 
+your target folder containing two json files (_APIs.json_ and _botConfig.json_). Under Windows there are additional bat
+files for easier execution.
 
 ###With docker
 **You require [Docker](https://docs.docker.com/get-docker/) to be installed on your system.**
+
+Download (right click, save link as) [this File](https://github.com/MarcelBeining/EazeBot/blob/master/install_and_init_bot_here.bat
 
 ###With Pip
 **You require [Python 3.6 or higher](https://www.python.org/downloads/) to be installed on your system.**
