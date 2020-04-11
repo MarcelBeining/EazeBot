@@ -109,7 +109,8 @@ elif 'hotfix/' in repo.active_branch.name or 'release/' in repo.active_branch.na
             p = Popen(['python', 'setup.py', 'sdist', 'bdist_wheel'], cwd=os.path.dirname(__file__))
             p.wait()
 
-            p = Popen(['python -m twine upload dist/*'], cwd=os.path.dirname(__file__))
+            p = Popen('python -m twine upload dist/*', cwd=os.path.dirname(__file__),
+                      stderr=PIPE, stdout=PIPE, stdin=PIPE)
             p.communicate(input('Username:'))
             p.communicate(input('Password:'))
             p.wait()
