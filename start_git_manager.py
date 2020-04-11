@@ -5,7 +5,8 @@ import warnings
 from git import Repo, GitCommandError
 from eazebot import __version__ as current_version
 from ccxt import __version__ as ccxt_version
-
+from subprocess import Popen, PIPE
+import shutil
 
 def git_push(git_obj, branch_name):
     try:
@@ -105,6 +106,14 @@ elif 'hotfix/' in repo.active_branch.name or 'release/' in repo.active_branch.na
         git.merge(branch_to_merge)
         if branch == 'master':
             git.execute(f'git tag v{current_version}')  # -a x -m "{commit_message}\"
+
+            shutil.rmtree('dist')
+            os.system('python setup.py sdist bdist_wheel')
+
+            p = Popen(['python', 'setup.py', 'sdist', 'bdist_wheel'], cwd=os.path.dirname(__file__))
+            p.wait()
+
+            p = Popen(['python', '-m twine', 'upload dist/*'], stdin=PIPE, cwd=os.path.dirname(__file__))
     for branch in ['master', 'dev']:
         git_push(git, branch)
 elif 'feature/' in repo.active_branch.name:
