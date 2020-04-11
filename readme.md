@@ -29,7 +29,7 @@ Most importantly: **All popular exchanges are supported!**
 
 
 ## Installation
-There are different ways to install EazeBot. We recommend using [Docker](###with-docker) as this guarantees system-
+There are different ways to install EazeBot. We recommend using [Docker](#with-docker) as this guarantees system-
 independent compatibility.
 
 After the next steps, no matter if you are on Windows or Linux/Mac, you should have at least a "user_data" folder in 
@@ -71,7 +71,7 @@ We simplified installation/configuration of the bot on Windows:
 ## Getting Started
 After installation of EazeBot you have to set up the bot so that you can control him via Telegram and that he can access your exchanges. 
 
-### Obtain the necessary configuration tokens/keys
+### Obtain the necessary configuration tokens and keys
 **For this the following steps are necessary:**
 1. **Create a Telegram bot token using @botfather**  
    + This sounds complicated but is rather simple. Start a chat with [Botfather](https://t.me/botfather) on Telegram 
@@ -107,7 +107,7 @@ python3 -m eazebot --config"
 ### Manual configuration
 We recommend the interactive configuration, as editing the json files in the wrong way may lead to EazeBot not being 
 functional! However, here is how you can configure EazeBot manually (all json files are located in the _user_data_ 
-folder within your EazeBot folder, assuming you have [installed EazeBot](##installation) correctly):
+folder within your EazeBot folder, assuming you have [installed EazeBot](#installation) correctly):
 + The Telegram bot token needs to be inserted into the *botConfig.json* file: Replace the *PLACEHOLDER* text to the 
  right of the *telegramAPI* key (keep the quotation marks!).
 + Your Telegram ID needs to be inserted into the *botConfig.json* file: Replace the *PLACEHOLDER* text to the 
@@ -135,7 +135,7 @@ Now you can run the bot and start a conversation via Telegram.**
 python3 -m eazebot
 ````
 1) Thereafter you should start a conversation with your bot (see 
-[Token creation with bot father](###Obtain the necessary configuration tokens/keys)) on Telegram.
+[Token creation with bot father](#obtain-the-necessary-configuration-tokens-and-keys)) on Telegram.
 2) The bot will welcome you and show you a menu of things you can do. Everything should be rather self-explanatory as 
 the bot will have a dialog with you on everything you click.
 3) Enjoy!
@@ -149,9 +149,9 @@ dialog.
     + Windows:
         + Double-clicking on _updateBot.bat_ in your EazeBot folder
     + Linux/Mac:
-        + Execute `python -m pip install -U eazebot` when [installed with pip](###with-pip)
-        + Executing `docker-compose pull` when [installed with docker](###with-docker)
-3. [Restart the Bot](###start-eazebot)
+        + Execute `python -m pip install -U eazebot` when [installed with pip](#with-pip)
+        + Executing `docker-compose pull` when [installed with docker](#with-docker)
+3. [Restart the Bot](#start-eazebot)
 
 ## Help
 
