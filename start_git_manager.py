@@ -105,17 +105,15 @@ elif 'hotfix/' in repo.active_branch.name or 'release/' in repo.active_branch.na
         git.checkout(branch)
         git.merge(branch_to_merge)
         if branch == 'master':
-            git.execute(f'git tag v{current_version}')  # -a x -m "{commit_message}\"
-
             shutil.rmtree('dist')
             p = Popen(['python', 'setup.py', 'sdist', 'bdist_wheel'], cwd=os.path.dirname(__file__))
             p.wait()
 
-            p = Popen(['python', '-m twine', 'upload dist/*'], cwd=os.path.dirname(__file__))
+            p = Popen(['python -m twine upload dist/*'], cwd=os.path.dirname(__file__))
             p.communicate(input('Username:'))
             p.communicate(input('Password:'))
             p.wait()
-            print('done')
+            git.execute(f'git tag v{current_version}')  # -a x -m "{commit_message}\"
     for branch in ['master', 'dev']:
         git_push(git, branch)
 elif 'feature/' in repo.active_branch.name:
