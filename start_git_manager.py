@@ -111,8 +111,8 @@ elif 'hotfix/' in repo.active_branch.name or 'release/' in repo.active_branch.na
 
             p = Popen('python -m twine upload dist/*', cwd=os.path.dirname(__file__),
                       stderr=PIPE, stdout=PIPE, stdin=PIPE)
-            p.communicate(input('Username:'))
-            p.communicate(input('Password:'))
+            p.communicate(input('Username:').encode())
+            p.communicate(input('Password:').encode())
             p.wait()
             git.execute(f'git tag v{current_version}')  # -a x -m "{commit_message}\"
     for branch in ['master', 'dev']:
