@@ -24,11 +24,13 @@
 import logging
 import logging.handlers  # necessary if run as main script and not interactively...dunno why
 import re
+import traceback
 import shutil
 import time
 import datetime as dt
 import json
 import signal
+from multiprocessing.pool import Pool
 from typing import Union, List
 
 import requests
@@ -44,6 +46,12 @@ from eazebot.auxiliaries import clean_data, load_data, save_data, backup_data
 
 MAINMENU, SETTINGS, SYMBOL, NUMBER, TIMING, INFO = range(6)
 
+
+def safe_tradeset_update(key_class):
+    try:
+        return key_class[1].update()
+    except Exception:
+        return Exception(f"Exception on {key_class[0]}:\n{traceback.print_exc()}")
 
 class EazeBot:
     def __init__(self, user_dir: str = 'user_data'):
@@ -115,6 +123,7 @@ class EazeBot:
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGABRT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
+        self.pool = Pool(processes=4)
 
     # define  helper functions
     def signal_handler(self, signal, frame):
@@ -819,6 +828,7 @@ class EazeBot:
         return MAINMENU
 
     # job functions
+
     def check_for_updates_and_tax(self, context):
         updater = context.job.context
         remote_version, version_message, on_py_pi = self.get_remote_version()
@@ -836,6 +846,12 @@ class EazeBot:
             if user in self.__config__['telegramUserId']:
                 if updater.dispatcher.user_data[user]['settings']['taxWarn']:
                     logging.info('Checking 1 year buy period limit')
+                    # results = self.pool.map(self.safe_tradeset_update(special_check=2),
+                    #                         updater.dispatcher.user_data[user]['trade'].items())
+                    # for res in results:
+                    #     if isinstance(res, Exception):
+                    #         logging.error(str(res))
+
                     for iex, ex in enumerate(updater.dispatcher.user_data[user]['trade']):
                         updater.dispatcher.user_data[user]['trade'][ex].update(special_check=2)
 
@@ -844,12 +860,19 @@ class EazeBot:
         logging.info('Updating trade sets...')
         for user in updater.dispatcher.user_data:
             if user in self.__config__['telegramUserId'] and 'trade' in updater.dispatcher.user_data[user]:
-                for iex, ex in enumerate(updater.dispatcher.user_data[user]['trade']):
-                    try:  # make sure other exchanges are checked too, even if one has a problem
-                        updater.dispatcher.user_data[user]['trade'][ex].update()
-                    except Exception as e:
-                        logging.error(str(e))
-                        pass
+                results = self.pool.map(safe_tradeset_update,
+                                        updater.dispatcher.user_data[user]['trade'].items())
+                for res in results:
+                    if isinstance(res, Exception):
+                        logging.error(str(res))
+
+                # for iex, ex in enumerate(updater.dispatcher.user_data[user]['trade']):
+                #     try:  # make sure other exchanges are checked too, even if one has a problem
+                #
+                #         updater.dispatcher.user_data[user]['trade'][ex].update()
+                #     except Exception:
+                #         logging.error(traceback.print_exc())
+
         logging.info('Finished updating trade sets...')
 
     def update_balance(self, context):
@@ -866,12 +889,18 @@ class EazeBot:
         logging.info('Checking candles for all trade sets...')
         for user in updater.dispatcher.user_data:
             if user in self.__config__['telegramUserId']:
+                # results = self.pool.map(self.safe_tradeset_update(special_check=which),
+                #                         updater.dispatcher.user_data[user]['trade'].items())
+                # for res in results:
+                #     if isinstance(res, Exception):
+                #         logging.error(str(res))
                 for iex, ex in enumerate(updater.dispatcher.user_data[user]['trade']):
                     # avoid to hit it during updating
                     updater.dispatcher.user_data[user]['trade'][ex].update(special_check=which)
         logging.info('Finished checking candles for all trade sets...')
 
-    def timing_callback(self, update: Update, context: CallbackContext, query=None, response=None):
+    @staticmethod
+    def timing_callback(update: Update, context: CallbackContext, query=None, response=None):
         if query is None:
             query = update.callback_query
         if query is None:
@@ -1457,6 +1486,8 @@ class EazeBot:
                 time.sleep(1)
                 if self.interrupted:
                     updater.stop()
+                    self.pool.close()
+                    self.pool.join()
                     for user in self.__config__['telegramUserId']:
                         chat_obj = updater.bot.get_chat(user)
                         try:
