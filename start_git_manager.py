@@ -103,6 +103,8 @@ elif 'hotfix/' in repo.active_branch.name or 'release/' in repo.active_branch.na
     for branch in ['master', 'dev']:
         git.checkout(branch)
         git.merge(branch_to_merge)
+        if branch == 'master':
+            git.execute(f'git tag v{current_version}')  # -a x -m "{commit_message}\"
     for branch in ['master', 'dev']:
         git_push(git, branch)
 elif 'feature/' in repo.active_branch.name:

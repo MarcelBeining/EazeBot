@@ -120,9 +120,9 @@ class tradeHandler:
 
     def __getstate__(self):
         if hasattr(self, 'tradeSetHistory'):
-            return (self.tradeSets, self.tradeSetHistory)
+            return self.tradeSets, self.tradeSetHistory
         else:
-            return (self.tradeSets, [])
+            return self.tradeSets, []
 
     def x_to_prec(self, pair, x, what):
         if x is None:
@@ -1550,9 +1550,12 @@ class tradeHandler:
 
                         # delete Tradeset when all orders have been filled (but only if there were any to execute
                         # and if no significant coin amount is left)
-                        significant_amount = (self.sum_buy_amounts(iTs, order='filled') + ts['initCoins'] -
-                                              self.sum_sell_amounts(iTs, order='filled')) / \
-                                             (ts['initCoins'] + self.sum_buy_amounts(iTs, order='filled'))
+                        if not (self.num_buy_levels(iTs, order='filled') + ts['initCoins']):
+                            significant_amount = np.inf
+                        else:
+                            significant_amount = (self.sum_buy_amounts(iTs, order='filled') + ts['initCoins'] -
+                                                  self.sum_sell_amounts(iTs, order='filled')) / \
+                                                 (ts['initCoins'] + self.sum_buy_amounts(iTs, order='filled'))
                         if ((ts['SL'] is None and order_executed > 0) or (order_executed == 2 and
                             significant_amount < 0.01)) and self.num_sell_levels(
                             iTs, 'notfilled') == 0 and self.num_buy_levels(iTs, 'notfilled') == 0:

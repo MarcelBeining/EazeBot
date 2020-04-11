@@ -25,6 +25,7 @@ import logging
 import logging.handlers  # necessary if run as main script and not interactively...dunno why
 import re
 import shutil
+import traceback
 import time
 import datetime as dt
 import json
@@ -350,7 +351,7 @@ class EazeBot:
                                                   'showProfitIn']),
                         reply_markup=markup, parse_mode='markdown')
                 except Exception as e:
-                    logging.error(str(e))
+                    logging.error(traceback.print_exc())
                     pass
             if count == 0:
                 context.user_data['messages']['status']['1'] = context.bot.send_message(
@@ -799,7 +800,7 @@ class EazeBot:
              requests.get('https://api.github.com/repos/MarcelBeining/EazeBot/tags').json() if
              val['name'] in ('EazeBot_%s' % remote_version, 'v%s' % remote_version)][0]
         return remote_version, requests.get(remote_version_commit).json()['commit']['message'], \
-               pypi_version == remote_version
+            pypi_version == remote_version
 
     def bot_info(self, update: Update, context: CallbackContext):
         self.delete_messages(context.user_data, 'botInfo')
@@ -848,8 +849,7 @@ class EazeBot:
                     try:  # make sure other exchanges are checked too, even if one has a problem
                         updater.dispatcher.user_data[user]['trade'][ex].update()
                     except Exception as e:
-                        logging.error(str(e))
-                        pass
+                        logging.error(traceback.print_exc())
         logging.info('Finished updating trade sets...')
 
     def update_balance(self, context):
