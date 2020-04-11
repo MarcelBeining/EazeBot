@@ -103,6 +103,7 @@ elif 'hotfix/' in repo.active_branch.name or 'release/' in repo.active_branch.na
     for branch in ['master', 'dev']:
         git.checkout(branch)
         git.merge(branch_to_merge)
+    for branch in ['master', 'dev']:
         git_push(git, branch)
 elif 'feature/' in repo.active_branch.name:
     while True:
