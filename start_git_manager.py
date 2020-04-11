@@ -108,12 +108,14 @@ elif 'hotfix/' in repo.active_branch.name or 'release/' in repo.active_branch.na
             git.execute(f'git tag v{current_version}')  # -a x -m "{commit_message}\"
 
             shutil.rmtree('dist')
-            os.system('python setup.py sdist bdist_wheel')
-
             p = Popen(['python', 'setup.py', 'sdist', 'bdist_wheel'], cwd=os.path.dirname(__file__))
             p.wait()
 
-            p = Popen(['python', '-m twine', 'upload dist/*'], stdin=PIPE, cwd=os.path.dirname(__file__))
+            p = Popen(['python', '-m twine', 'upload dist/*'], cwd=os.path.dirname(__file__))
+            p.communicate(input('Username:'))
+            p.communicate(input('Password:'))
+            p.wait()
+            print('done')
     for branch in ['master', 'dev']:
         git_push(git, branch)
 elif 'feature/' in repo.active_branch.name:
