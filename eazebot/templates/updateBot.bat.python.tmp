@@ -1,4 +1,4 @@
 cd %~dp0
 python -m pip install eazebot --upgrade --no-cache-dir
-python -m eazebot --init
+python -m eazebot --init --no-warning
 pause

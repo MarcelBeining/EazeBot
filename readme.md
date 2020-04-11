@@ -40,74 +40,119 @@ files for easier execution.
 ###With docker
 **You require [Docker](https://docs.docker.com/get-docker/) to be installed on your system.**
 
-Download (right click, save link as) [this File](https://github.com/MarcelBeining/EazeBot/blob/master/install_and_init_bot_here.bat
+1. Create a new folder for EazeBot
+2. Download (right click, save link as) [this File](https://github.com/MarcelBeining/EazeBot/blob/master/docker-compose.yml) to that folder.
+3. Open a terminal, cd to your EazeBot directory and run 
+    ````
+    docker-compose run --rm eazebot --init
+    ````
 
 ###With Pip
 **You require [Python 3.6 or higher](https://www.python.org/downloads/) to be installed on your system.**
 
 ####Windows
-We simplified installation/configuration of the bot on Windows: Simply download (right click, save link as) [this File](https://github.com/MarcelBeining/EazeBot/blob/master/install_and_init_bot_here.bat
-) and put the file in a folder, where you wish EazeBot files to be installed. Then execute it.
+We simplified installation/configuration of the bot on Windows: 
+1. Simply download (right click, save link as) [this File](https://github.com/MarcelBeining/EazeBot/blob/master/install_and_init_bot_here.bat)
+) and put the file in a folder, where you wish EazeBot files to be installed. 
+2. Then execute it.
 
 ####Linux/Mac
-The simpliest and recommended way of installing EazeBot is using the pip install command:
-````
-sudo python3 -m pip install eazebot
-````
-You then need to copy the configuration files to some folder. Here is an example to make a folder in your home directory and copy the files there:
-````
-sudo mkdir ~/eazebot
-cd ~/eazebot
-python3 -m eazebot --init"
-````
+1. The simpliest and recommended way of installing EazeBot is using the pip install command:
+    ````
+    sudo python3 -m pip install eazebot
+    ````
+2. You then need to copy the configuration files to some folder. Here is an example to make a folder in your home directory and copy the files there:
+    ````
+    sudo mkdir ~/eazebot
+    cd ~/eazebot
+    python3 -m eazebot --init"
+    ````
 
 
 ##Getting Started
 After installation of EazeBot you have to set up the bot so that you can control him via Telegram and that he can access your exchanges. 
 
-###With docker
+###Obtain the necessary configuration tokens/keys
+**For this the following steps are necessary:**
+1. **Create a Telegram bot token using @botfather**  
+   + This sounds complicated but is rather simple. Start a chat with [Botfather](https://t.me/botfather) on Telegram 
+   and follow [these instructions](https://core.telegram.org/bots#creating-a-new-bot). The token you get in the end 
+   is needed during EazeBot configuration.
+2. **Get your Telegram ID**
+   + Your Telegram ID is needed during EazeBot configuration, too. It ensures that **only you** are able to control the 
+   bot via Telegram. The Telegram ID is (normally) a 9-digit number. 
+   + If you do not know it, you can talk to the [userinfobot](https://telegram.me/userinfobot).
+3. **Create API keys for each exchange you want to access via EazeBot**
+   + Please refer on your exchange on how to create an API token.
+   + Some exchanges allow you to determine what you can do with the created API token (e.g. read-only or no withdrawing etc.). Of course, 
+   EazeBot bot needs the permission to set and cancel orders for you and to fetch your balance in order to work properly. Also, if you want
+   to use the built-in donation feature, it needs the right to withdraw.
+   + Normally, once you created an API token, you will see an API key and an API secret (sometimes also called private 
+   key). This information is needed during EazeBot configuration, so save it temporarily somewhere. 
+   + Some exchanges also have more security factors, like a API password (not your exchange login password!)or an 
+   uid. If existent, please temporarily save this information as you will need it for EazeBot configuration, too.
 
+###Interactive configuration 
+####With docker
+Run the following command in your EazeBot folder:
+````
+docker-compose run --rm eazebot --config
+````
 
-###With pip / others
-You then need to copy the configuration files to some folder. Here is an example to make a folder in your home directory and copy the files there:
+####With pip / others
+Run the following command in your EazeBot folder:
 ````
 python3 -m eazebot --config"
 ````
 
+###Manual configuration
+We recommend the interactive configuration, as editing the json files in the wrong way may lead to EazeBot not being 
+functional! However, here is how you can configure EazeBot manually (all json files are located in the _user_data_ 
+folder within your EazeBot folder, assuming you have [installed EazeBot](##Installation) correctly):
++ The Telegram bot token needs to be inserted into the *botConfig.json* file: Replace the *PLACEHOLDER* text to the 
+ right of the *telegramAPI* key (keep the quotation marks!).
++ Your Telegram ID needs to be inserted into the *botConfig.json* file: Replace the *PLACEHOLDER* text to the 
+ right of the *telegramUserId* key (keep the quotation marks!).
++ Each API key information needs to be inserted into the *APIs.json* between the brackets in the following format:
+    ````json
+    {
+    "exchange": "xxx",
+    "key": "xxx",
+    "secret": "xxx",
+    "password": "xxx",
+    "uid": "xxx"
+  }
+    ````
+    + The value under _exchange_ needs to be in lower case and be one of the exchanges supported by 
+    [ccxt](https://github.com/ccxt/ccxt/wiki/Exchange-Markets) (i.e. a value from the _id_ column).
+    + As mentioned above, _password_ and _uid_ are only necessary on some exchanges. If not available, completely discard
+     these lines.
 
-**For this the following steps are necessary:**
-1. **Create a Telegram bot token using @botfather and add it to _botConfig.json_**  
-   + This sounds complicated but is rather simple. Start a chat with [Botfather](https://t.me/botfather) on Telegram and 
-   follow [these instructions](https://core.telegram.org/bots#creating-a-new-bot). Once you have the token, replace 
-   the *YOURBOTTOKEN* text in the *botConfig.json* file that comes with the EazeBot package (see above).
-2. **Add your Telegram ID to _botConfig.json_**
-   + This ensures that **only you** are able to control the bot via Telegram.
-   + Simply replace the *000000000* text in *botConfig.json* with your telegram ID. This is (normally) a 9-digit number. 
-   If you do not know it, simply start EazeBot bot (_see step 4_) and start a conversation with him
-   (e.g. if you named your telegram bot @mysuperbot,  search for him in Telegram and click the Start button). The bot will tell you
-   your Telegram ID (now you can add it to the json file) and that you are not authorized (yet). Stop the bot (e.g. ctrl+c in Python) again for now!
-3. **Create API keys for each exchange you want to access via EazeBot and add them to _APIs.json_**
-   + Please refer on your exchange on how to create an API token.
-   + Normally, once you created an API token, you will see an API key and an API secret (sometimes also called private key).
-   These two keys need to be copy-pasted into the APIs.json file from the EazeBot package. The json file already contains
-   two examples on how this has to be done. Of course, if your exchange is not binance or coinbase, simply add your exchange keys analogously
-   (i.e. your exchange's name is XYZ, then it should be: 
-   ```apiKeyXYZ : "YOURAPIKEY",``` and ```apiSecretXYZ : "YOURAPISECRET",``` (no comma in the last line before the **}** )
-   + Some exchanges also have more security factors, like a password or a uid. These are added analogously to the keys/secrets
-   (i.e. your exchange's name is XYZ, then it should be: 
-   ```apiPasswordXYZ : "YOURAPIPASSWORD",``` and ```apiUid : "YOURAPIUID",``` (no comma in the last line before the **}** )
-   + Some exchanges allow you to determine what you can do with the created API token (e.g. read-only or no withdrawing etc.). Of course, 
-   EazeBot bot needs the permission to set and cancel orders for you and to fetch your balance in order to work properly. Also, if you want
-   to use the built-in donation feature, it needs the right to withdraw.
-4. **Run the bot and start a conversation via Telegram.**
-   + On Windows, simply go to the folder where the JSONs were copied to and double-click _startBotScript.py_
-   + On Linux/Mac use the terminal, go to the folder, where the JSONs were copied to (see [Installing_ step](https://github.com/MarcelBeining/EazeBot/blob/master/readme.md#installation) and run this command:
-   ````
-   python3 -m eazebot
-   ````
-   1) Thereafter you should start a conversation with your bot on Telegram.
-   2) The bot will welcome you and show you a menu of things you can do. Everything should be rather self-explanatory as the bot will have a dialog with you on everything you click.
+###Start EazeBot
+Now you can run the bot and start a conversation via Telegram.**
++ On Windows, double-click on _startBot.bat_ in your EazeBot folder.
++ On Linux/Mac use the terminal, go to your EazeBot folder and run this command:
+````
+python3 -m eazebot
+````
+1) Thereafter you should start a conversation with your bot (see 
+[Token creation with bot father](###Obtain the necessary configuration tokens/keys)) on Telegram.
+2) The bot will welcome you and show you a menu of things you can do. Everything should be rather self-explanatory as 
+the bot will have a dialog with you on everything you click.
+3) Enjoy!
 
+
+###Update EazeBot
+From time to time you should update EazeBot:
+1. Stop EazeBot with Telegram by clicking on _Settings_ in the main menu, then \*Stop bot\* and then confirm the stop 
+dialog.
+2. The way of updating depends on your OS and installation:
+    + Windows:
+        + Double-clicking on _updateBot.bat_ in your EazeBot folder
+    + Linux/Mac:
+        + Execute `python -m pip install -U eazebot` when [installed with pip](###With Pip)
+        + Executing `docker-compose pull` when [installed with docker](###With docker)
+3. [Restart the Bot](###Start EazeBot)
 
 ##Help
 
@@ -116,11 +161,6 @@ We have added a [Wiki](https://github.com/MarcelBeining/EazeBot/wiki) with more 
 ##Versioning
 
 For the versions available, see the [tags on this repository](https://github.com/MarcelBeining/eazebot/tags/). 
-
-From time to time you should update EazeBot by
-+ Executing `python -m pip install eazebot --upgrade` on Linux/Mac when [installed with pip](###With Pip)
-+ Double-clicking on updateBot.bat on Windows
-+ Executing `docker-compose pull` on Linux/Mac
 
 ##Authors
 
