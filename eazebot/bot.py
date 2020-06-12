@@ -40,7 +40,7 @@ from telegram.bot import Bot
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
                           ConversationHandler, CallbackQueryHandler, CallbackContext)
 from telegram.error import BadRequest
-from eazebot.tradeHandler import tradeHandler
+from eazebot.tradeHandler import tradeHandler, ValueType
 from eazebot.auxiliaries import clean_data, load_data, save_data, backup_data
 
 MAINMENU, SETTINGS, SYMBOL, NUMBER, TIMING, INFO = range(6)
@@ -338,7 +338,7 @@ class EazeBot:
                     ts = ct.tradeSets[iTs]
                     if only_this_ts is not None and only_this_ts != iTs:
                         continue
-                    if ts['virgin']:
+                    if ts.virgin:
                         markup = InlineKeyboardMarkup(self.buttons_edit_ts(ct, iTs, mode='init'))
                     else:
                         markup = self.make_ts_inline_keyboard(ex, iTs)
@@ -451,7 +451,8 @@ class EazeBot:
                 if symbol and symbol.upper() in ct.exchange.symbols:
                     self.delete_messages(context.user_data, 'dialog')
                     symbol = symbol.upper()
-                    ts, uid_ts = ct.init_trade_set(symbol)
+                    ts = ct.init_trade_set(symbol)
+                    uid_ts = ts.get_uid()
                     ct.update_balance()
                     context.user_data['messages']['dialog'].append(
                         context.bot.send_message(
@@ -502,20 +503,20 @@ class EazeBot:
     def ask_amount(user_data, exch, uid_ts, direction, bot_or_query):
         ct = user_data['trade'][exch]
         ts = ct.tradeSets[uid_ts]
-        coin = ts['coinCurrency']
-        currency = ts['baseCurrency']
+        coin = ts.coinCurrency
+        currency = ts.baseCurrency
         if direction == 'sell':
             # free balance is coins available in trade set minus coins that will be sold plus coins that will be bought
-            bal = ts['coinsAvail'] - ct.sum_sell_amounts(uid_ts, 'notinitiated') + ct.sum_buy_amounts(uid_ts,
+            bal = ts.coinsAvail - ct.sum_sell_amounts(uid_ts, 'notinitiated') + ct.sum_buy_amounts(uid_ts,
                                                                                                       'notfilled',
                                                                                                       subtract_fee=True)
             if user_data['whichCurrency'] == 0:
-                bal = ct.amount2Prec(ts['symbol'], bal)
+                bal = ct.amount2Prec(ts.symbol, bal)
                 cname = coin
                 action = 'sell'
                 bal_text = 'available %s [fee subtracted] is' % coin
             else:
-                bal = ct.cost2Prec(ts['symbol'], bal * user_data['tempTradeSet'][0])
+                bal = ct.cost2Prec(ts.symbol, bal * user_data['tempTradeSet'][0])
                 cname = currency
                 action = 'receive'
                 bal_text = 'return from available %s [fee subtracted] would be' % coin
@@ -529,12 +530,12 @@ class EazeBot:
                 bal = ct.get_balance(currency, 'total') - ct.sum_buy_costs(uid_ts, 'notfilled')
                 unsure = ' (estimated!) '
             if user_data['whichCurrency'] == 0:
-                bal = ct.amount2Prec(ts['symbol'], bal / user_data['tempTradeSet'][0])
+                bal = ct.amount2Prec(ts.symbol, bal / user_data['tempTradeSet'][0])
                 cname = coin
                 action = 'buy'
                 bal_text = f'possible buy amount from your{unsure}remaining free balance is'
             else:
-                bal = ct.cost2Prec(ts['symbol'], bal)
+                bal = ct.cost2Prec(ts.symbol, bal)
                 cname = currency
                 action = 'use'
                 bal_text = '{unsure}remaining free balance is'
@@ -1337,7 +1338,9 @@ class EazeBot:
                                     response = float(response)
                                     if 'rel' in args:
                                         response /= 100
-                                    ct.set_trailing_sl(uid_ts, response, typ='abs' if 'abs' in args else 'rel')
+                                    ct.set_trailing_sl(uid_ts,
+                                                       response,
+                                                       typ=ValueType.ABSOLUTE if 'abs' in args else ValueType.RELATIVE)
                                     self.delete_messages(context.user_data, 'dialog')
                                     self.update_ts_text(update, context, uid_ts, query)
 
@@ -1360,7 +1363,7 @@ class EazeBot:
                         elif command == '3':  # init trade set deletion
                             if 'ok' in args:
                                 query.message.delete()
-                                ct.delete_trade_set(uid_ts, sellAll='yes' in args)
+                                ct.delete_trade_set(uid_ts, sell_all='yes' in args)
                                 query.answer('Trade Set deleted')
                             elif 'yes' in args or 'no' in args:
                                 query.answer('Ok, and are you really sure to delete this trade set?')
