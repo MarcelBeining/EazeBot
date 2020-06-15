@@ -1,5 +1,23 @@
 import argparse
+import logging
+from logging.handlers import RotatingFileHandler
 import os
+
+log_file_name = 'telegramEazeBot'
+
+log_formatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
+logger = logging.getLogger('eazebot')
+logger.handlers = []  # delete old handlers in case bot is restarted but not python kernel
+logger.setLevel('INFO')  # DEBUG
+file_handler = RotatingFileHandler("{0}/{1}.log".format(os.getcwd(), log_file_name),
+                                                    maxBytes=1000000,
+                                                    backupCount=5)
+file_handler.setFormatter(log_formatter)
+logger.addHandler(file_handler)
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+logger.addHandler(console_handler)
+
 
 def check_dir_arg(folder):
     if not os.path.isdir(folder):
@@ -29,10 +47,10 @@ def main(sysargv = None):
         os.chdir(args.user_dir)
 
     if args.init:
-        from eazebot.auxiliaries import copy_init_files
+        from eazebot.auxiliary_methods import copy_init_files
         copy_init_files(warning=args.warning)
     elif args.config:
-        from eazebot.auxiliaries import start_config_dialog
+        from eazebot.auxiliary_methods import start_config_dialog
         start_config_dialog()
     else:
         from eazebot.bot import EazeBot
