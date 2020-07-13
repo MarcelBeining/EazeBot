@@ -39,7 +39,7 @@ steps_to_do = []
 steps_done = []
 
 # Initializing the ChangeLog class
-chglog = ChangeLog(compare_url='https://gitlabci.exxeta.com/mako5/datasciencepipeline/compare',
+chglog = ChangeLog(compare_url='https://github.com/MarcelBeining/EazeBot/compare',
                    version_prefix='v')
 try:
     if branch_of_interest == 'master':
@@ -75,14 +75,14 @@ try:
         git.checkout('HEAD', b=new_branch_name)  # create a new branch
         steps_done.append(steps_to_do.pop(0))
 
-        # change the version in the pipeline (caution if at any time there will be more info in __init__ than just
+        # change the version in the (caution if at any time there will be more info in __init__ than just
         # version!
-        with open('dspipeline/__init__.py', 'w') as fh:
+        with open('eazebot/__init__.py', 'w') as fh:
             fh.write(f"__version__ = '{new_version_string}'\n")
         steps_done.append(steps_to_do.pop(0))
 
         git.add('change_log*')
-        git.add('dspipeline/__init__.py')
+        git.add('eazebot/__init__.py')
         steps_done.append(steps_to_do.pop(0))
         print(git.status())
 
@@ -149,12 +149,12 @@ try:
         steps_done.append(steps_to_do.pop(0))
 
         if new_version_string is not None:
-            # change the version in the pipeline
+            # change the version
             # caution if at any time there will be more info in __init__ than just version
-            with open('dspipeline/__init__.py', 'w') as fh:
+            with open('eazebot/__init__.py', 'w') as fh:
                 fh.write(f"__version__ = '{new_version_string}'\n")
             steps_done.append(steps_to_do.pop(0))
-            git.add('dspipeline/__init__.py')
+            git.add('eazebot/__init__.py')
 
         # commit and push changes
         git.add('change_log*')

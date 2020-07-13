@@ -7,8 +7,8 @@
     ],
     "versions": [
         {
-            "version": "Unreleased",
-            "date": "",
+            "version": "v2.4.0",
+            "date": "2020-07-13 08:57",
             "section": [
                 {
                     "label": "Added",
@@ -45,6 +45,10 @@
                         {
                             "author": "Marcel",
                             "message": "More refactoring"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Updated ccxt and python-telegram-version"
                         }
                     ]
                 },
