@@ -3,5 +3,6 @@
   "telegramUserId": "PLACEHOLDER",
   "updateInterval": 1,
   "extraBackupInterval": 7,
+  "maxBackupFileCount": 12,
   "minBalanceInBTC" : 0.001
 }

@@ -18,6 +18,38 @@ import time
 import importlib
 import warnings
 
+logger = logging.getLogger(__name__)
+
+
+class TelegramHandler(logging.Handler):
+    def __init__(self, bot, level):
+        self.bot = bot
+        super().__init__(level=level)
+        self.addFilter(TelegramFilter())
+
+    def emit(self, record):
+        # return msg to user
+        count = 0
+        while count < 5:
+            try:
+                self.bot.send_message(chat_id=record.chatId, text=self.format(record), parse_mode='markdown')
+                break
+            except TypeError:
+                pass
+            except Exception:
+                count += 1
+                logger.warning(
+                    'Some connection (?) error occured when trying to send a telegram message. Retrying..')
+                time.sleep(1)
+                continue
+        if count >= 5:
+            logger.error('Could not send message to bot')
+
+
+class TelegramFilter(logging.Filter):
+    def filter(self, record):
+        return hasattr(record, 'chatId')
+
 
 def copy_init_files(folder=os.getcwd(), force=0, warning=True):
     template_folder = os.path.join(os.path.dirname(__file__), 'templates')
@@ -179,23 +211,23 @@ def save_data(arg, user_dir: str = 'user_data'):
     try:
         os.remove(os.path.join(user_dir, 'data.bkp'))
     except FileNotFoundError:
-        logging.warning('No backup file found')
+        logger.warning('No backup file found')
         pass
     # rename last save to backup
     try:
         os.rename(os.path.join(user_dir, 'data.pickle'), os.path.join(user_dir, 'data.bkp'))
-        logging.info('Created user data autosave backup')
+        logger.info('Created user data autosave backup')
     except (FileNotFoundError, PermissionError):
-        logging.warning('Could not rename last saved data to backup')
+        logger.warning('Could not rename last saved data to backup')
         pass
     clean_data(user_data)
     # write user data
     with open(os.path.join(user_dir, 'data.pickle'), 'wb') as f:
         dill.dump(user_data, f)
-    logging.info('User data autosaved')
+    logger.info('User data autosaved')
 
 
-def backup_data(arg, user_dir: str = 'user_data'):
+def backup_data(arg, user_dir: str = 'user_data', max_count=12):
     if isinstance(arg, dict):
         user_data = deepcopy(arg)
     else:
@@ -207,7 +239,18 @@ def backup_data(arg, user_dir: str = 'user_data'):
         os.mkdir(os.path.join(user_dir, 'backup'))
     with open(os.path.join(user_dir, 'backup', time.strftime('%Y_%m_%d_data.pickle')), 'wb') as f:
         dill.dump(user_data, f)
-    logging.info('User data backuped')   
+    files = [f for f in os.path.join(user_dir, 'backup') if f.endswith('_data.pickle')]
+    files.sort()
+    n_files = len(files)
+    # removes oldes files (as date is in file name until max count is reached)
+    for n, _ in enumerate(files):
+        if n_files > max_count:
+            os.remove(files[n])
+            n_files -= 1
+        else:
+            break
+
+    logger.info('User data backuped')
     
     
 def convert_data(from_='linux', to_='win', filename='data.pickle', filenameout='data.pickle.new'):
@@ -239,7 +282,7 @@ def load_data(filename='data.pickle', user_dir: str = 'user_data'):
                 os.rename('data.pickle', 'data.old')
         try:
             with open(filename, 'rb') as f:
-                logging.info('Loading user data')
+                logger.info('Loading user data')
                 try:
                     return dill.load(f)
                 except ModuleNotFoundError:
@@ -263,5 +306,5 @@ def load_data(filename='data.pickle', user_dir: str = 'user_data'):
         except Exception as e:
             raise e
     else:
-        logging.error('No autosave file found')
+        logger.error('No autosave file found')
         return defaultdict(dict)    

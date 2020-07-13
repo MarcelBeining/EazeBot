@@ -7,7 +7,7 @@ import re
 import string
 import time
 from enum import Flag, auto
-from typing import Union
+from typing import Union, Dict
 import logging
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -143,14 +143,11 @@ class TrailingSL(BaseSL):
 
 
 class BaseTradeSet:
-    def __init__(self, symbol: str, exchange, trade_handler: 'tradeHandler', uid: str = None, safe_run_func=None):
+    def __init__(self, symbol: str, trade_handler: 'tradeHandler' = None, uid: str = None):
         if uid is None:
             random.seed()
             uid = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
 
-        self.exchange = exchange
-        self.trade_handler = trade_handler
-        self.nf = NumberFormatter(exchange)
         self._uid = uid
         self.InTrades = []
         self.OutTrades = []
@@ -169,21 +166,78 @@ class BaseTradeSet:
         self.__virgin = True
         self.updating = False
         self.waiting = []
-        if safe_run_func is None:
+        self.th = trade_handler
+
+        if self.th is None or self.th.safe_run is None:
             def safe_run_func(x, print_error=None, i_ts=None):
                 return x()
-        self.safe_run = safe_run_func
+            self.safe_run = safe_run_func
+        else:
+            self.safe_run = self.th.safe_run
 
-    def __init__(self, ts_dict: Dict):
-        pass
-    
+    @classmethod
+    def from_dict(cls, ts_dict: Dict, trade_handler: 'tradeHandler'):
+
+        ts = cls(symbol=ts_dict['symbol'], trade_handler=trade_handler, uid=ts_dict['uid'])
+        for key in ts_dict:
+            if key == 'SL':
+                if ts_dict['trailingSL'] != [None, None]:
+                    sl = TrailingSL(ts_dict['trailingSL'][0],
+                                    ValueType.ABSOLUTE if ts_dict['trailingSL'][1] == 'abs'
+                                    else ValueType.RELATIVE)
+                elif ts_dict['weeklycloseSL'] is not None:
+                    sl = WeeklyCloseSL(value=ts_dict['dailycloseSL'])
+                elif ts_dict['dailycloseSL'] is not None:
+                    sl = DailyCloseSL(value=ts_dict['dailycloseSL'])
+                elif ts_dict['SL'] is not None:
+                    sl = BaseSL(value=ts_dict['SL'])
+                else:
+                    sl = None
+                ts.SL = sl
+            elif key in ['trailingSL', 'dailycloseSL', 'weeklycloseSL', 'waiting', 'updating',
+                         'noUpdateAfterEdit', 'uid']:
+                # SLs are handled above, waiting and updating should not be used from a saved trade set
+                continue
+            elif key == 'active':
+                ts.__active = ts_dict[key]
+            elif key == 'virgin':
+                ts.__virgin = ts_dict[key]
+            elif hasattr(ts, key):
+                setattr(ts, key, ts_dict[key])
+            else:
+                raise Exception()
+        return ts
+
+    def __reduce__(self):
+        # function needes for serializing the object
+        return (
+            self.__class__, (self.symbol, None, self.get_uid()),
+            self.__getstate__(),
+            None, None)
+
+    def __setstate__(self, state):
+        self.__active, self.__virgin, self.InTrades, self.OutTrades, self.createdAt, self.costIn, self.costOut, \
+            self.coinsAvail, self.initCoins, self.initPrice, self.SL = state
+
+    def __getstate__(self):
+        return self.__active, self.__virgin, self.InTrades, self.OutTrades, self.createdAt, self.costIn, self.costOut, \
+               self.coinsAvail, self.initCoins, self.initPrice, self.SL
+
+    def set_tradehandler(self, trade_handler: 'tradeHandler'):
+        self.th = trade_handler
+        if self.th is None or self.th.safe_run is None:
+            def safe_run_func(x, print_error=None, i_ts=None):
+                return x()
+            self.safe_run = safe_run_func
+        else:
+            self.safe_run = self.th.safe_run
+
     def is_virgin(self):
         return self.__virgin
 
     def get_uid(self):
         return self._uid
 
-    def _set_active(self):
     def lock_trade_set(self):
         # avoids two processes changing a tradeset at the same time
         count = 0
@@ -197,7 +251,7 @@ class BaseTradeSet:
                 logger.warning(
                     'Waiting for tradeSet update (%s on %s) to finish timed out after 1 min.. '
                     'Resetting updating variable now.' % (
-                        self.symbol, self.exchange.name))
+                        self.symbol, self.th.exchange.name))
                 break
         self.updating = True
         self.waiting.remove(mystamp)
@@ -209,55 +263,55 @@ class BaseTradeSet:
         return self.__active
 
     def activate(self, verbose=True) -> bool:
-        self.trade_handler.update_down_state(True)
+        self.th.update_down_state(True)
         wasactive = self.__active
         # check if symbol is active
-        if not self.exchange.markets[self.symbol]['active']:
+        if not self.th.exchange.markets[self.symbol]['active']:
             logger.error(
                 'Cannot activate trade set because %s was deactivated for trading by the exchange!' % self.symbol,
-                extra=self.trade_handler.logger_extras)
+                extra=self.th.logger_extras)
             return wasactive
         # sanity check of amounts to buy/sell
         if self.sum_sell_amounts('notinitiated') - (self.sum_buy_amounts('notfilled') + self.coinsAvail) > 0:
             logger.error(
                 f"Cannot activate trade set because the total amount you (still) want to sell "
-                f"({self.nf.amount2Prec(self.symbol, self.sum_sell_amounts('notinitiated', True))} "
+                f"({self.th.nf.amount2Prec(self.symbol, self.sum_sell_amounts('notinitiated', True))} "
                 f"{self.coinCurrency}) exceeds the total amount you want to buy "
-                f"({self.nf.amount2Prec(self.symbol, self.sum_buy_amounts('notfilled', True))} {self.coinCurrency} "
+                f"({self.th.nf.amount2Prec(self.symbol, self.sum_buy_amounts('notfilled', True))} {self.coinCurrency} "
                 f"after fee subtraction) and the amount you already have in this trade set "
-                f"({self.nf.amount2Prec(self.symbol, self.coinsAvail)} {self.coinCurrency}). "
-                f"Please adjust the trade set!", extra=self.trade_handler.logger_extras)
+                f"({self.th.nf.amount2Prec(self.symbol, self.coinsAvail)} {self.coinCurrency}). "
+                f"Please adjust the trade set!", extra=self.th.logger_extras)
             return wasactive
         elif self.min_buy_price(order='notfilled') is not None and self.SL is not None and self.SL.value \
                 >= self.min_buy_price(order='notfilled'):
             logger.error(
                 'Cannot activate trade set because the current stop loss price is higher than the lowest non-filled buy'
                 ' order price, which means this buy order could never be reached. Please adjust the trade set!',
-                extra=self.trade_handler.logger_extras)
+                extra=self.th.logger_extras)
             return wasactive
         self.__virgin = False
         self.__active = True
         if verbose and not wasactive:
             total_buy_cost = self.costIn + self.sum_buy_costs('notfilled')
             logger.info('Estimated return if all trades are executed: %s %s' % (
-                self.nf.cost2Prec(self.symbol, self.sum_sell_costs() - total_buy_cost), self.baseCurrency),
-                        extra=self.trade_handler.logger_extras)
+                self.th.nf.cost2Prec(self.symbol, self.sum_sell_costs() - total_buy_cost), self.baseCurrency),
+                        extra=self.th.logger_extras)
             if self.SL is not None or isinstance(self.SL, DailyCloseSL):
                 loss = total_buy_cost - self.costOut - (
                         self.initCoins + self.sum_buy_amounts() - self.sum_sell_amounts('filled')) * self.SL.value
                 logger.info('Estimated %s if buys reach stop-loss before selling: %s %s' % (
-                    '*gain*' if loss < 0 else 'loss', self.nf.cost2Prec(self.symbol, -loss if loss < 0 else loss),
-                    self.baseCurrency), extra=self.trade_handler.logger_extras)
+                    '*gain*' if loss < 0 else 'loss', self.th.nf.cost2Prec(self.symbol, -loss if loss < 0 else loss),
+                    self.baseCurrency), extra=self.th.logger_extras)
         try:
             self.init_buy_orders()
         except InsufficientFunds:
             logger.error('Cannot activate trade set due to insufficient funds!',
-                         extra=self.trade_handler.logger_extras)
+                         extra=self.th.logger_extras)
             self.deactivate()
         return wasactive
 
     def deactivate(self, cancel_orders=0):
-        self.trade_handler.update_down_state(True)
+        self.th.update_down_state(True)
         # cancelOrders can be 0 (not), 1 (cancel), 2 (cancel and delete open orders)
         wasactive = self.__active
         if cancel_orders:
@@ -360,15 +414,15 @@ class BaseTradeSet:
                     [val['amount'] * val['price'] for val in trades if val['oid'] != 'filled'])
             
     def sell_all_now(self, price=None):
-        self.trade_handler.update_down_state(True)
+        self.th.update_down_state(True)
         self.deactivate(2)
         self.SL = None  # necessary to not retrigger SL
         sold = True
-        if self.coinsAvail > 0 and self.trade_handler.check_quantity(self.symbol, 'amount', self.coinsAvail):
-            if self.exchange.has['createMarketOrder']:
+        if self.coinsAvail > 0 and self.th.check_quantity(self.symbol, 'amount', self.coinsAvail):
+            if self.th.exchange.has['createMarketOrder']:
                 try:
                     response = self.safe_run(
-                        lambda: self.exchange.createMarketSellOrder(self.symbol, self.coinsAvail),
+                        lambda: self.th.exchange.createMarketSellOrder(self.symbol, self.coinsAvail),
                         False)
                 except InsufficientFunds:
                     response = self.sell_free_bal()
@@ -376,16 +430,17 @@ class BaseTradeSet:
                     params = {'trading_agreement': 'agree'}  # for kraken api...
                     try:
                         response = self.safe_run(
-                            lambda: self.exchange.createMarketSellOrder(self.symbol, self.coinsAvail, params),
+                            lambda: self.th.exchange.createMarketSellOrder(self.symbol, self.coinsAvail, params),
                             i_ts=self.get_uid())
                     except InsufficientFunds:
                         response = self.sell_free_bal()
             else:
                 if price is None:
-                    price = self.safe_run(lambda: self.exchange.fetch_ticker(self.symbol)['last'], i_ts=self.get_uid())
+                    price = self.safe_run(
+                        lambda: self.th.exchange.fetch_ticker(self.symbol)['last'], i_ts=self.get_uid())
                 try:
                     response = self.safe_run(
-                        lambda: self.exchange.createLimitSellOrder(self.symbol, self.coinsAvail, price * 0.995),
+                        lambda: self.th.exchange.createLimitSellOrder(self.symbol, self.coinsAvail, price * 0.995),
                         i_ts=self.get_uid())
                 except InsufficientFunds:
                     response = self.sell_free_bal()
@@ -394,19 +449,19 @@ class BaseTradeSet:
                 order_info = self.fetch_order(response['id'], 'SELL')
 
                 if order_info['status'] == 'FILLED':
-                    if order_info['type'] == 'market' and self.exchange.has['fetchMyTrades'] is not False:
-                        trades = self.exchange.fetchMyTrades(self.symbol)
+                    if order_info['type'] == 'market' and self.th.exchange.has['fetchMyTrades'] is not False:
+                        trades = self.th.exchange.fetchMyTrades(self.symbol)
                         order_info['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == order_info['id']])
                         order_info['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == order_info['id']])
                     self.costOut += order_info['cost']
                     logger.info('Sold immediately at a price of %s %s: Sold %s %s for %s %s.' % (
-                        self.nf.price2Prec(self.symbol, order_info['price']), self.symbol,
-                        self.nf.amount2Prec(self.symbol, order_info['amount']), self.coinCurrency,
-                        self.nf.cost2Prec(self.symbol, order_info['cost']), self.baseCurrency),
-                                extra=self.trade_handler.logger_extras)
+                        self.th.nf.price2Prec(self.symbol, order_info['price']), self.symbol,
+                        self.th.nf.amount2Prec(self.symbol, order_info['amount']), self.coinCurrency,
+                        self.th.nf.cost2Prec(self.symbol, order_info['cost']), self.baseCurrency),
+                                extra=self.th.logger_extras)
                 else:
                     logger.info('Sell order was not traded immediately, updating status soon.',
-                                extra=self.trade_handler.logger_extras)
+                                extra=self.th.logger_extras)
                     sold = False
                     self.OutTrades.append(
                         {'oid': response['id'], 'price': order_info['price'], 'amount': order_info['amount']})
@@ -415,11 +470,11 @@ class BaseTradeSet:
                 sold = False
         else:
             logger.warning('No coins (or too low amount) to sell from this trade set.',
-                           extra=self.trade_handler.logger_extras)
+                           extra=self.th.logger_extras)
         return sold
 
     def cancel_sell_orders(self, oid=None, delete_orders=False):
-        self.trade_handler.update_down_state(True)
+        self.th.update_down_state(True)
         return_val = 1
         if self.num_sell_levels() > 0:
             count = 0
@@ -439,7 +494,7 @@ class BaseTradeSet:
                         self.coinsAvail += trade['amount']
                         if order_info['filled'] > 0:
                             logger.warning('(Partly?) filled sell order found during canceling. Updating balance',
-                                           extra=self.trade_handler.logger_extras)
+                                           extra=self.th.logger_extras)
                             self.costOut += order_info['price'] * order_info['filled']
                             self.coinsAvail -= order_info['filled']
                             trade['oid'] = 'filled'
@@ -452,12 +507,12 @@ class BaseTradeSet:
                             self.OutTrades.pop(iTrade)
             if count > 0:
                 logger.info('%d sell orders canceled in total for tradeSet %d (%s)' % (
-                    count, list(self.trade_handler.tradeSets.keys()).index(self._uid), self.symbol),
-                            extra=self.trade_handler.logger_extras)
+                    count, list(self.th.tradeSets.keys()).index(self._uid), self.symbol),
+                            extra=self.th.logger_extras)
         return return_val
 
     def cancel_buy_orders(self, oid=None, delete_orders=False):
-        self.trade_handler.update_down_state(True)
+        self.th.update_down_state(True)
         return_val = 1
         if self.num_buy_levels() > 0:
             count = 0
@@ -474,7 +529,7 @@ class BaseTradeSet:
                         order_info = self.fetch_order(trade['oid'], 'BUY')
                         if order_info['filled'] > 0:
                             logger.warning('(Partly?) filled buy order found during canceling. Updating balance',
-                                           extra=self.trade_handler.logger_extras)
+                                           extra=self.th.logger_extras)
                             self.costIn += order_info['price'] * order_info['filled']
                             self.coinsAvail += order_info['filled']
                             trade['oid'] = 'filled'
@@ -487,67 +542,66 @@ class BaseTradeSet:
                             self.InTrades.pop(iTrade)
             if count > 0:
                 logger.info('%d buy orders canceled in total for tradeSet %d (%s)' % (
-                    count, list(self.trade_handler.tradeSets.keys()).index(self._uid), self.symbol),
-                            extra=self.trade_handler.logger_extras)
+                    count, list(self.th.tradeSets.keys()).index(self._uid), self.symbol),
+                            extra=self.th.logger_extras)
         return return_val
 
     def init_buy_orders(self):
-        self.trade_handler.update_down_state(True)
+        self.th.update_down_state(True)
         if self.__active:
             # initialize buy orders
             for iTrade, trade in enumerate(self.InTrades):
                 if trade['oid'] is None and trade['candleAbove'] is None:
                     try:
                         response = self.safe_run(
-                            lambda: self.exchange.createLimitBuyOrder(self.symbol, trade['amount'],
-                                                                      trade['price']))
+                            lambda: self.th.exchange.createLimitBuyOrder(self.symbol, trade['amount'],
+                                                                         trade['price']))
                     except InsufficientFunds as e:
                         self.deactivate()
-                        logger.error(f"Insufficient funds on exchange {self.exchange.name} for trade set "
-                                     f"#{self.exchange.name}. Trade set is deactivated now and not updated anymore "
+                        logger.error(f"Insufficient funds on exchange {self.th.exchange.name} for trade set "
+                                     f"#{self.th.exchange.name}. Trade set is deactivated now and not updated anymore "
                                      f"(open orders are still open)! Free the missing funds and reactivate. \n {e}.",
-                                     extra=self.trade_handler.logger_extras)
+                                     extra=self.th.logger_extras)
                         raise e
                     self.InTrades[iTrade]['oid'] = response['id']
 
     def cancel_order(self, oid, typ):
-        self.trade_handler.update_down_state(True)
+        self.th.update_down_state(True)
         symbol = self.symbol
         try:
-            return self.safe_run(lambda: self.exchange.cancel_order(oid, symbol), False)
+            return self.safe_run(lambda: self.th.exchange.cancel_order(oid, symbol), False)
         except OrderNotFound as e:
             self.unlock_trade_set()
             raise e
         except ExchangeError:
-            return self.safe_run(lambda: self.exchange.cancel_order(oid, symbol, {'type': typ}), i_ts=self.get_uid())
+            return self.safe_run(lambda: self.th.exchange.cancel_order(oid, symbol, {'type': typ}), i_ts=self.get_uid())
 
     def fetch_order(self, oid, typ):
         symbol = self.symbol
         try:
-            return self.safe_run(lambda: self.exchange.fetch_order(oid, symbol), False)
+            return self.safe_run(lambda: self.th.exchange.fetch_order(oid, symbol), False)
         except OrderNotFound as e:
             self.unlock_trade_set()
             raise e
         except ExchangeError:
-            return self.safe_run(lambda: self.exchange.fetch_order(oid, symbol, {'type': typ}), i_ts=self.get_uid())
-
+            return self.safe_run(lambda: self.th.exchange.fetch_order(oid, symbol, {'type': typ}), i_ts=self.get_uid())
 
     def add_init_coins(self, init_coins=0, init_price=None):
-        if self.trade_handler.check_num(init_coins, init_price) or (init_price is None and self.trade_handler.check_num(init_coins)):
+        if self.th.check_num(init_coins, init_price) or (init_price is None and self.th.check_num(init_coins)):
             if init_price is not None and init_price < 0:
                 init_price = None
             # check if free balance is indeed sufficient
-            bal = self.trade_handler.get_balance(self.coinCurrency)
+            bal = self.th.get_balance(self.coinCurrency)
             if bal is None:
                 logger.warning('Free balance could not be determined as exchange does not support this! '
-                               'If free balance does not suffice for initial coins there will be an error when trade set '
-                               'is activated!', extra=self.trade_handler.logger_extras)
+                               'If free balance does not suffice for initial coins there will be an error when trade '
+                               'set is activated!', extra=self.th.logger_extras)
             elif bal < init_coins:
                 logger.error('Adding initial balance failed: %s %s requested but only %s %s are free!' % (
-                    self.nf.amount2Prec(self.symbol, init_coins), self.coinCurrency,
-                    self.nf.amount2Prec(self.symbol, self.trade_handler.get_balance(self.coinCurrency)),
+                    self.th.nf.amount2Prec(self.symbol, init_coins), self.coinCurrency,
+                    self.th.nf.amount2Prec(self.symbol, self.th.get_balance(self.coinCurrency)),
                     self.coinCurrency),
-                             extra=self.trade_handler.logger_extras)
+                             extra=self.th.logger_extras)
                 return 0
             self.lock_trade_set()
 
@@ -566,38 +620,38 @@ class BaseTradeSet:
             raise ValueError('Some input was no number')
 
     def add_buy_level(self, buy_price, buy_amount, candle_above=None):
-        self.trade_handler.update_down_state(True)
-        if self.trade_handler.check_num(buy_price, buy_amount, candle_above) or (
-                candle_above is None and self.trade_handler.check_num(buy_price, buy_amount)):
-            fee = self.exchange.calculate_fee(self.symbol, 'limit', 'buy', buy_amount, buy_price, 'maker')
-            if not self.trade_handler.check_quantity(self.symbol, 'amount', buy_amount):
+        self.th.update_down_state(True)
+        if self.th.check_num(buy_price, buy_amount, candle_above) or (
+                candle_above is None and self.th.check_num(buy_price, buy_amount)):
+            fee = self.th.exchange.calculate_fee(self.symbol, 'limit', 'buy', buy_amount, buy_price, 'maker')
+            if not self.th.check_quantity(self.symbol, 'amount', buy_amount):
                 logger.error('Adding buy level failed, amount is not within the range, the exchange accepts',
-                             extra=self.trade_handler.logger_extras)
+                             extra=self.th.logger_extras)
                 return 0
-            elif not self.trade_handler.check_quantity(self.symbol, 'price', buy_price):
+            elif not self.th.check_quantity(self.symbol, 'price', buy_price):
                 logger.error('Adding buy level failed, price is not within the range, the exchange accepts',
-                             extra=self.trade_handler.logger_extras)
+                             extra=self.th.logger_extras)
                 return 0
-            elif not self.trade_handler.check_quantity(self.symbol, 'cost', buy_price * buy_amount):
+            elif not self.th.check_quantity(self.symbol, 'cost', buy_price * buy_amount):
                 logger.error('Adding buy level failed, cost is not within the range, the exchange accepts',
-                             extra=self.trade_handler.logger_extras)
+                             extra=self.th.logger_extras)
                 return 0
-            bal = self.trade_handler.get_balance(self.baseCurrency)
+            bal = self.th.get_balance(self.baseCurrency)
             if bal is None:
                 logger.error('Free balance could not be determined as exchange does not support this! '
                              'If free balance does not suffice there will be an error when trade set is activated',
-                             'warning', extra=self.trade_handler.logger_extras)
+                             'warning', extra=self.th.logger_extras)
             elif bal < buy_amount * buy_price + (fee['cost'] if fee['currency'] == self.baseCurrency else 0):
                 logger.error('Adding buy level failed, your balance of %s does not suffice to buy this amount%s!' % (
                     self.baseCurrency,
                     ' and pay the trading fee (%s %s)' % (
-                        self.nf.fee2Prec(self.symbol, fee['cost']), self.baseCurrency) if
-                    fee['currency'] == self.baseCurrency else ''), extra=self.trade_handler.logger_extras)
+                        self.th.nf.fee2Prec(self.symbol, fee['cost']), self.baseCurrency) if
+                    fee['currency'] == self.baseCurrency else ''), extra=self.th.logger_extras)
                 return 0
 
             bought_amount = buy_amount
             if fee['currency'] == self.coinCurrency and \
-                    (self.exchange.name.lower() != 'binance' or self.trade_handler.get_balance('BNB') < 0.5):
+                    (self.th.exchange.name.lower() != 'binance' or self.th.get_balance('BNB') < 0.5):
                 # this is a hack, as fees on binance are deduced from BNB if this is activated and there is enough BNB,
                 # however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay
                 # the fee for the trade and thus the fee is not subtracted from the traded coin
@@ -605,7 +659,7 @@ class BaseTradeSet:
             self.lock_trade_set()
             wasactive = self.deactivate()
             self.InTrades.append({'oid': None, 'price': buy_price, 'amount': buy_amount, 'actualAmount': bought_amount,
-                                'candleAbove': candle_above})
+                                  'candleAbove': candle_above})
             if wasactive:
                 self.activate(False)
             self.unlock_trade_set()
@@ -614,8 +668,8 @@ class BaseTradeSet:
             raise ValueError('Some input was no number')
 
     def delete_buy_level(self, i_trade):
-        self.trade_handler.update_down_state(True)
-        if self.trade_handler.check_num(i_trade):
+        self.th.update_down_state(True)
+        if self.th.check_num(i_trade):
             self.lock_trade_set()
             wasactive = self.deactivate()
             if self.InTrades[i_trade]['oid'] is not None and self.InTrades[i_trade]['oid'] != 'filled':
@@ -628,44 +682,44 @@ class BaseTradeSet:
             raise ValueError('Some input was no number')
 
     def set_buy_level(self, i_trade, price, amount):
-        self.trade_handler.update_down_state(True)
-        if self.trade_handler.check_num(i_trade, price, amount):
+        self.th.update_down_state(True)
+        if self.th.check_num(i_trade, price, amount):
             if self.InTrades[i_trade]['oid'] == 'filled':
-                logger.error('This order is already filled! No change possible', extra=self.trade_handler.logger_extras)
+                logger.error('This order is already filled! No change possible', extra=self.th.logger_extras)
                 return 0
             else:
-                fee = self.exchange.calculate_fee(self.symbol, 'limit', 'buy', amount, price, 'maker')
-                if not self.trade_handler.check_quantity(self.symbol, 'amount', amount):
+                fee = self.th.exchange.calculate_fee(self.symbol, 'limit', 'buy', amount, price, 'maker')
+                if not self.th.check_quantity(self.symbol, 'amount', amount):
                     logger.error('Changing buy level failed, amount is not within the range, the exchange accepts',
-                                 extra=self.trade_handler.logger_extras)
+                                 extra=self.th.logger_extras)
                     return 0
-                elif not self.trade_handler.check_quantity(self.symbol, 'price', price):
+                elif not self.th.check_quantity(self.symbol, 'price', price):
                     logger.error('Changing buy level failed, price is not within the range, the exchange accepts',
-                                 extra=self.trade_handler.logger_extras)
+                                 extra=self.th.logger_extras)
                     return 0
-                elif not self.trade_handler.check_quantity(self.symbol, 'cost', price * amount):
+                elif not self.th.check_quantity(self.symbol, 'cost', price * amount):
                     logger.error('Changing buy level failed, cost is not within the range, the exchange accepts',
-                                 extra=self.trade_handler.logger_extras)
+                                 extra=self.th.logger_extras)
                     return 0
-                bal = self.trade_handler.get_balance(self.baseCurrency)
+                bal = self.th.get_balance(self.baseCurrency)
                 if bal is None:
                     logger.warning('Free balance could not be determined as exchange does not support this! '
                                    'If free balance does not suffice there will be an error when tradeset is activated',
-                                   extra=self.trade_handler.logger_extras)
+                                   extra=self.th.logger_extras)
                 elif bal + self.InTrades[i_trade]['amount'] * self.InTrades[i_trade]['price'] < amount * price + \
                         fee['cost'] if fee['currency'] == self.baseCurrency else 0:
                     logger.error(
                         'Changing buy level failed, your balance of %s does not suffice to buy this amount%s!' % (
                             self.baseCurrency, ' and pay the trading fee (%s %s)' % (
-                                self.nf.fee2Prec(self.symbol, fee['cost']), self.baseCurrency)
-                            if fee['currency'] == self.baseCurrency else ''), extra=self.trade_handler.logger_extras)
+                                self.th.nf.fee2Prec(self.symbol, fee['cost']), self.baseCurrency)
+                            if fee['currency'] == self.baseCurrency else ''), extra=self.th.logger_extras)
                     return 0
                 bought_amount = amount
                 # this is a hack, as fees on binance are deduced from BNB if this is activated and there is enough BNB,
                 # however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay
                 # the fee for the trade and thus the fee is not subtracted from the traded coin
                 if fee['currency'] == self.coinCurrency and \
-                        (self.exchange.name.lower() != 'binance' or self.trade_handler.get_balance('BNB') < 0.5):
+                        (self.th.exchange.name.lower() != 'binance' or self.th.get_balance('BNB') < 0.5):
                     bought_amount -= fee['cost']
 
                 wasactive = self.deactivate()
@@ -674,18 +728,18 @@ class BaseTradeSet:
                     return_val = self.cancel_buy_orders(self.InTrades[i_trade]['oid'])
                     self.InTrades[i_trade]['oid'] = None
                     if return_val == 0.5:
-                        bal = self.trade_handler.get_balance(self.baseCurrency)
+                        bal = self.th.get_balance(self.baseCurrency)
                         if bal is None:
                             logger.warning('Free balance could not be determined as exchange does not support this! If '
                                            'free balance doesnt suffice there will be an error on trade set activation',
-                                           extra=self.trade_handler.logger_extras)
+                                           extra=self.th.logger_extras)
                         elif bal + self.InTrades[i_trade]['amount'] * self.InTrades[i_trade]['price'] < amount * price \
                                 + fee['cost'] if fee['currency'] == self.baseCurrency else 0:
                             logger.error(f"Changing buy level failed, your balance of {self.baseCurrency} does not "
-                                         f"suffice to buy this amount%s!" % (
-                                             f" and pay the trading fee ({self.nf.fee2Prec(self.symbol, fee['cost'])} "
-                                             f"{self.baseCurrency})" if fee['currency'] == self.baseCurrency else ''),
-                                         extra=self.trade_handler.logger_extras)
+                                         f"suffice to buy this amount %s!" % (
+                                             f"and pay the trading fee ({self.th.nf.fee2Prec(self.symbol, fee['cost'])}"
+                                             f" {self.baseCurrency})" if fee['currency'] == self.baseCurrency else ''),
+                                         extra=self.th.logger_extras)
                             return 0
                 self.InTrades[i_trade].update({'amount': amount, 'actualAmount': bought_amount, 'price': price})
 
@@ -696,19 +750,19 @@ class BaseTradeSet:
             raise ValueError('Some input was no number')
 
     def add_sell_level(self, sell_price, sell_amount):
-        self.trade_handler.update_down_state(True)
-        if self.trade_handler.check_num(sell_price, sell_amount):
-            if not self.trade_handler.check_quantity(self.symbol, 'amount', sell_amount):
+        self.th.update_down_state(True)
+        if self.th.check_num(sell_price, sell_amount):
+            if not self.th.check_quantity(self.symbol, 'amount', sell_amount):
                 logger.error('Adding sell level failed, amount is not within the range, the exchange accepts',
-                             extra=self.trade_handler.logger_extras)
+                             extra=self.th.logger_extras)
                 return 0
-            elif not self.trade_handler.check_quantity(self.symbol, 'price', sell_price):
+            elif not self.th.check_quantity(self.symbol, 'price', sell_price):
                 logger.error('Adding sell level failed, price is not within the range, the exchange accepts',
-                             extra=self.trade_handler.logger_extras)
+                             extra=self.th.logger_extras)
                 return 0
-            elif not self.trade_handler.check_quantity(self.symbol, 'cost', sell_price * sell_amount):
+            elif not self.th.check_quantity(self.symbol, 'cost', sell_price * sell_amount):
                 logger.error('Adding sell level failed, return is not within the range, the exchange accepts',
-                             extra=self.trade_handler.logger_extras)
+                             extra=self.th.logger_extras)
                 return 0
             self.lock_trade_set()
             wasactive = self.deactivate()
@@ -721,8 +775,8 @@ class BaseTradeSet:
             raise ValueError('Some input was no number')
 
     def delete_sell_level(self, i_trade):
-        self.trade_handler.update_down_state(True)
-        if self.trade_handler.check_num(i_trade):
+        self.th.update_down_state(True)
+        if self.th.check_num(i_trade):
             self.lock_trade_set()
             wasactive = self.deactivate()
             if self.OutTrades[i_trade]['oid'] is not None and self.OutTrades[i_trade]['oid'] != 'filled':
@@ -735,23 +789,23 @@ class BaseTradeSet:
             raise ValueError('Some input was no number')
 
     def set_sell_level(self, i_trade, price, amount):
-        self.trade_handler.update_down_state(True)
-        if self.trade_handler.check_num(i_trade, price, amount):
+        self.th.update_down_state(True)
+        if self.th.check_num(i_trade, price, amount):
             if self.OutTrades[i_trade]['oid'] == 'filled':
-                logger.error('This order is already filled! No change possible', extra=self.trade_handler.logger_extras)
+                logger.error('This order is already filled! No change possible', extra=self.th.logger_extras)
                 return 0
             else:
-                if not self.trade_handler.check_quantity(self.symbol, 'amount', amount):
+                if not self.th.check_quantity(self.symbol, 'amount', amount):
                     logger.error('Changing sell level failed, amount is not within the range, the exchange accepts',
-                                 extra=self.trade_handler.logger_extras)
+                                 extra=self.th.logger_extras)
                     return 0
-                elif not self.trade_handler.check_quantity(self.symbol, 'price', price):
+                elif not self.th.check_quantity(self.symbol, 'price', price):
                     logger.error('Changing sell level failed, price is not within the range, the exchange accepts',
-                                 extra=self.trade_handler.logger_extras)
+                                 extra=self.th.logger_extras)
                     return 0
-                elif not self.trade_handler.check_quantity(self.symbol, 'cost', price * amount):
+                elif not self.th.check_quantity(self.symbol, 'cost', price * amount):
                     logger.error('Changing sell level failed, return is not within the range, the exchange accepts',
-                                 extra=self.trade_handler.logger_extras)
+                                 extra=self.th.logger_extras)
                     return 0
                 wasactive = self.deactivate()
 
@@ -769,24 +823,24 @@ class BaseTradeSet:
             raise ValueError('Some input was no number')
 
     def sell_free_bal(self) -> Union[None, dict]:
-        free_bal = self.trade_handler.get_balance(self.coinCurrency)
+        free_bal = self.th.get_balance(self.coinCurrency)
         if free_bal is None:
             logger.error(f"When selling {self.symbol}, exchange reported insufficient funds and does not allow to "
                          f"determine free balance of {self.coinCurrency}, thus nothing could be sold automatically! "
-                         f"Please sell manually!", extra=self.trade_handler.logger_extras)
+                         f"Please sell manually!", extra=self.th.logger_extras)
             return None
         elif free_bal == 0:
             logger.error(f"When selling {self.symbol}, exchange reported insufficient funds. Please sell manually!",
-                         extra=self.trade_handler.logger_extras)
+                         extra=self.th.logger_extras)
             return None
         else:
             try:
-                response = self.safe_run(lambda: self.exchange.createMarketSellOrder(self.symbol, free_bal), False)
+                response = self.safe_run(lambda: self.th.exchange.createMarketSellOrder(self.symbol, free_bal), False)
             except Exception:
                 logger.warning('There was an error selling %s! Please sell manually!' % self.symbol,
-                               extra=self.trade_handler.logger_extras)
+                               extra=self.th.logger_extras)
                 return None
             logger.warning('When selling %s, only %s %s was found and sold!' % (
-                self.symbol, self.nf.amount2Prec(self.symbol, free_bal), self.coinCurrency),
-                           extra=self.trade_handler.logger_extras)
+                self.symbol, self.th.nf.amount2Prec(self.symbol, free_bal), self.coinCurrency),
+                           extra=self.th.logger_extras)
             return response

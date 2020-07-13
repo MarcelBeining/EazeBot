@@ -16,6 +16,10 @@
                         {
                             "author": "Marcel",
                             "message": "Added change log functionality and improved git manager"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Added upper cap for backup files configurable via maxBackupFileCount in botConfig.json"
                         }
                     ]
                 },
@@ -33,6 +37,23 @@
                         {
                             "author": "Marcel",
                             "message": "Prices are now kept and updated in a price class including time stamp to avoid rest api calls for prices that have already been queries recently"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Modules now communicate with telegram via the Telegram logging handler by handing over the chatId as extra argument"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "More refactoring"
+                        }
+                    ]
+                },
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Typos in dev_utils"
                         }
                     ]
                 }

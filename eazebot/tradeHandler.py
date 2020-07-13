@@ -49,14 +49,7 @@ class tradeHandler:
         self.exchange = getattr(ccxt, exch_name)({'enableRateLimit': True, 'options': {
             'adjustForTimeDifference': True}})  # 'nonce': ccxt.Exchange.milliseconds,
         self.nf = NumberFormatter(exchange=self.exchange)
-        if key:
-            self.exchange.apiKey = key
-        if secret:
-            self.exchange.secret = secret
-        if password:
-            self.exchange.password = password
-        if uid:
-            self.exchange.uid = uid
+
         if logger_extras is None:
             logger_extras = {}
         self.logger_extras = logger_extras
@@ -66,8 +59,8 @@ class tradeHandler:
         self.down = False
         self.authenticated = False
         self.balance = {}
-        if key:
-            self.update_keys(key, secret, password, uid)
+        if key is not None:
+            self.update_keys(key=key, secret=secret, password=password, uid=uid)
 
         if not all([self.exchange.has[x] for x in check_these]):
             text = 'Exchange %s does not support all required features (%s)' % (exch_name, ', '.join(check_these))
@@ -75,11 +68,10 @@ class tradeHandler:
             raise Exception(text)
         self.lastUpdate = time.time() - 10
 
-
     def __reduce__(self):
         # function needes for serializing the object
         return (
-            self.__class__, (self.exchange.__class__.__name__, None, None, None, None),
+            self.__class__, (self.exchange.__class__.__name__, ),
             self.__getstate__(),
             None, None)
 
@@ -89,34 +81,11 @@ class tradeHandler:
         else:
             tshs = []
         for i_ts in state:  # temp fix for old trade sets that do not some of the newer fields
-            if not isinstance(state[i_ts], BaseTradeSet):
-                ts = BaseTradeSet(symbol=state[i_ts]['symbol'], exchange=self.exchange, trade_handler=self, uid=i_ts,
-                                  safe_run_func=self.safe_run)
-                for key in state[i_ts]:
-                    if key == 'SL':
-                        if state[i_ts]['trailingSL'] != [None, None]:
-                            sl = TrailingSL(state[i_ts]['trailingSL'][0],
-                                            ValueType.ABSOLUTE if state[i_ts]['trailingSL'][1] == 'abs'
-                                            else ValueType.RELATIVE)
-                        elif state[i_ts]['weeklycloseSL'] is not None:
-                            sl = WeeklyCloseSL(value=state[i_ts]['dailycloseSL'])
-                        elif state[i_ts]['dailycloseSL'] is not None:
-                            sl = DailyCloseSL(value=state[i_ts]['dailycloseSL'])
-                        elif state[i_ts]['SL'] is not None:
-                            sl = BaseSL(value=state[i_ts]['SL'])
-                        else:
-                            sl = None
-                        ts.SL = sl
-                    elif key in ['trailingSL', 'dailycloseSL', 'weeklycloseSL', 'waiting', 'updating',
-                                 'noUpdateAfterEdit', 'uid']:
-                        # SLs are handled above, waiting and updating should not be used from a saved trade set
-                        continue
-                    elif key in ['active', 'virgin']:
-                        setattr(ts, f'__{key}', state[i_ts][key])
-                    elif hasattr(ts, key):
-                        setattr(ts, key, state[i_ts][key])
-                    else:
-                        raise Exception()
+            if isinstance(state[i_ts], BaseTradeSet):
+                state[i_ts].set_tradehandler(self)
+            else:
+                state[i_ts]['uid'] = i_ts
+                ts = BaseTradeSet.from_dict(state[i_ts], trade_handler=self)
                 state[i_ts] = ts
         self.tradeSets = state
         self.tradeSetHistory = tshs
@@ -147,7 +116,7 @@ class tradeHandler:
                            extra=self.logger_extras)
             return True
 
-    def update_logger_extras(self, logger_extras: Dict):
+    def set_logger_extras(self, logger_extras: Dict):
         if isinstance(logger_extras, dict) and 'chatId' in logger_extras:
             self.logger_extras = logger_extras
         else:
@@ -309,7 +278,7 @@ class tradeHandler:
     def init_trade_set(self, symbol) -> BaseTradeSet:
         self.update_balance()
 
-        ts = BaseTradeSet(symbol=symbol, exchange=self.exchange, trade_handler=self, safe_run_func=self.safe_run)
+        ts = BaseTradeSet(symbol=symbol, trade_handler=self)
         i_ts = ts.get_uid()
         if i_ts in self.tradeSets:
             raise Exception('uid already exists in trade sets!')

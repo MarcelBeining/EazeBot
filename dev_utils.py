@@ -131,16 +131,16 @@ class ChangeLog:
         :return:
         """
         label_dict = {}
-        for n, section in enumerate(version_dict['sections']):
+        for n, section in enumerate(version_dict['section']):
             label_dict[section['label']] = n
         for section in sections:
             label = section['label']
             if label not in label_dict:
                 # create section
-                version_dict['sections'].append({'label': label, 'entries': []})
-                label_dict[label] = len(version_dict['sections']) - 1
+                version_dict['section'].append({'label': label, 'entries': []})
+                label_dict[label] = len(version_dict['section']) - 1
             # add all messages of unrel_dicts section to this section
-            version_dict['sections'][label_dict[label]]['entries'].extend(section['entries'])
+            version_dict['section'][label_dict[label]]['entries'].extend(section['entries'])
         return version_dict
 
     def create_new_version(self, new_version: str, new_sections=None):

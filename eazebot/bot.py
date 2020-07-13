@@ -22,15 +22,13 @@
 
 # %% import modules
 import logging
-import logging.handlers  # necessary if run as main script and not interactively...dunno why
 import re
-import shutil
 import traceback
 import time
 import datetime as dt
 import json
 import signal
-from typing import Union, List
+from typing import Union, List, Dict
 
 import requests
 import base64
@@ -49,40 +47,10 @@ MAINMENU, SETTINGS, SYMBOL, NUMBER, TIMING, INFO = range(6)
 logger = logging.getLogger(__name__)
 
 
-class TelegramHandler(logging.Handler):
-    def __init__(self, bot, level):
-        self.bot = bot
-        super().__init__(level=level)
-        self.addFilter(TelegramFilter())
-
-    def emit(self, record):
-        # return msg to user
-        count = 0
-        while count < 5:
-            try:
-                self.bot.send_message(chat_id=record.chatId, text=self.format(record), parse_mode='markdown')
-                break
-            except TypeError:
-                pass
-            except Exception:
-                count += 1
-                logger.warning(
-                    'Some connection (?) error occured when trying to send a telegram message. Retrying..')
-                time.sleep(1)
-                continue
-        if count >= 5:
-            logger.error('Could not send message to bot')
-
-
-class TelegramFilter(logging.Filter):
-    def filter(self, record):
-        return hasattr(record, 'chatId')
-
-
 class EazeBot:
-    def __init__(self, user_dir: str = 'user_data'):
+    def __init__(self, config: Dict, user_dir: str = 'user_data'):
         self.user_dir = user_dir
-
+        self.__config__ = config
         with open(os.path.join(os.path.dirname(__file__), '__init__.py')) as fh:
             self.thisVersion = re.search(r'(?<=__version__ = \')[0-9.]+', str(fh.read())).group(0)
 
@@ -95,48 +63,9 @@ class EazeBot:
                              ['Add stop-loss', 'Show trade set', 'Done', 'Cancel']]
         self.markupTradeSetMenu = ReplyKeyboardMarkup(self.tradeSetMenu, one_time_keyboard=True)
 
-        # load bot configuration
-        if not os.path.isfile(os.path.join(self.user_dir, "botConfig.json")):
-            if os.path.isfile("botConfig.json"):
-                # backward compatibility movement of files to user folder
-                logger.info('Found user files in main folder. Moving them to new "user_data" folder')
-                if not os.path.isdir(self.user_dir):
-                    os.mkdir(self.user_dir)
-                for file in ["botConfig.json", "APIs.json", 'data.pickle', 'data.bkp', 'backup']:
-                    if os.path.isfile(file) or os.path.isdir(file):
-                        shutil.move(file, self.user_dir)
-            else:
-                raise FileNotFoundError(
-                    f"Json files not found in path {os.getcwd()}! Probably you did not initalize the config"
-                    f"files with command 'python -m eazebot --init'")
-        with open(os.path.join(self.user_dir, "botConfig.json"), "r") as fin:
-            self.__config__ = json.load(fin)
-        if isinstance(self.__config__['telegramUserId'], str) or isinstance(self.__config__['telegramUserId'], int):
-            if self.__config__['telegramUserId'] == 'PLACEHOLDER':
-                raise ValueError('Json files are not configured yet, please configurate them with '
-                                 '"python -m eazebot --config"')
-            self.__config__['telegramUserId'] = [int(self.__config__['telegramUserId'])]
-        elif isinstance(self.__config__['telegramUserId'], list):
-            self.__config__['telegramUserId'] = [int(val) for val in self.__config__['telegramUserId']]
-        if isinstance(self.__config__['updateInterval'], str):
-            self.__config__['updateInterval'] = int(self.__config__['updateInterval'])
-        if 'minBalanceInBTC' not in self.__config__:
-            self.__config__['minBalanceInBTC'] = 0.001
-        if isinstance(self.__config__['minBalanceInBTC'], str):
-            self.__config__['minBalanceInBTC'] = float(self.__config__['minBalanceInBTC'])
-        if 'debug' not in self.__config__:
-            self.__config__['debug'] = False
-        if isinstance(self.__config__['debug'], str):
-            self.__config__['debug'] = bool(int(self.__config__['debug']))
-        if 'extraBackupInterval' not in self.__config__:
-            self.__config__['extraBackupInterval'] = 7
-
         self.updater = Updater(token=self.__config__['telegramAPI'], use_context=True,
                                request_kwargs={'read_timeout': 10, 'connect_timeout': 10})
 
-        telegram_handler = TelegramHandler(self.updater.bot, level='INFO')
-        telegram_handler.setFormatter(logging.Formatter("%(levelname)s:  %(message)s"))
-        logger.addHandler(telegram_handler)
         self.interrupted = False
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGABRT, self.signal_handler)
@@ -264,9 +193,9 @@ class EazeBot:
         if mode == 'full':
             buttons.append([InlineKeyboardButton("Set/Change SL", callback_data='2|%s|%s|SLM' % (exch, uid_ts))])
             buttons.append([InlineKeyboardButton(
-                "%s trade set" % ('Deactivate' if ct.tradeSets[uid_ts]['active'] else 'Activate'),
+                "%s trade set" % ('Deactivate' if ct.tradeSets[uid_ts].is_active() else 'Activate'),
                 callback_data='2|%s|%s|%s|chosen' % (
-                    exch, uid_ts, 'TSstop' if ct.tradeSets[uid_ts]['active'] else 'TSgo')),
+                    exch, uid_ts, 'TSstop' if ct.tradeSets[uid_ts].is_active() else 'TSgo')),
                 InlineKeyboardButton("Delete trade set", callback_data='3|%s|%s' % (exch, uid_ts))])
         elif mode == 'init':
             buttons.append(
@@ -750,8 +679,8 @@ class EazeBot:
         has_secret = list(available_exchanges.keys())
 
         if len(available_exchanges) > 0:
-            logger.info('Found exchanges %s with keys %s, secrets %s, uids %s, password %s' % (
-                available_exchanges, has_key, has_secret, has_uid, has_password))
+            logger.info('Found exchanges with keys %s, secrets %s, uids %s, password %s' % (
+                has_key, has_secret, has_uid, has_password))
             authenticated_exchanges = []
             for exch_name in available_exchanges:
                 exch_params = available_exchanges[exch_name]
@@ -759,7 +688,7 @@ class EazeBot:
                 # if no tradeHandler object has been created yet, create one, but also check for correct authentication
                 if exch_name not in context.user_data['trade']:
                     context.user_data['trade'][exch_name] = tradeHandler(
-                        exch_name, **exch_params)
+                        exch_name, **exch_params, logger_extras={'chatId': context.user_data['chatId']})
                 else:
                     context.user_data['trade'][exch_name].update_keys(**exch_params)
                 if not context.user_data['trade'][exch_name].authenticated and \
@@ -782,6 +711,8 @@ class EazeBot:
         if len(removed_exchanges) > 0:
             context.bot.send_message(
                 context.user_data['chatId'], 'Old exchanges %s with no tradeSets removed' % removed_exchanges)
+        for ct in context.user_data['trade'].values():
+            ct.set_logger_extras({'chatId': context.user_data['chatId']})
 
     @staticmethod
     def get_remote_version():
@@ -1440,10 +1371,13 @@ class EazeBot:
                                                 dt.datetime.now() - dt.datetime.utcnow())).time(),
                                     context=self.updater, name='dailyCheck')
         # start a job saving the user data each 5 minutes
-        self.updater.job_queue.run_repeating(lambda con: save_data(con, user_dir=self.user_dir), interval=5 * 60, context=self.updater)
+        self.updater.job_queue.run_repeating(lambda con: save_data(con, user_dir=self.user_dir), interval=5 * 60,
+                                             context=self.updater)
         # start a job making backup of the user data each x days
-        self.updater.job_queue.run_repeating(backup_data, interval=60 * 60 * 24 * self.__config__['extraBackupInterval'],
-                                        context=self.updater)
+        self.updater.job_queue.run_repeating(
+            lambda con: backup_data(con, max_count=self.__config__["maxBackupFileCount"]),
+            interval=60 * 60 * 24 * self.__config__['extraBackupInterval'],
+            context=self.updater, )
         if not self.__config__['debug']:
             for user in self.__config__['telegramUserId']:
                 try:
