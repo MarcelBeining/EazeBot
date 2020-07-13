@@ -4,5 +4,4 @@ include LICENSE
 include LICENSE.LESSER
 include eazebot/templates/*
 include requirements.txt
-include eazebot/version.txt
 prune eazebot/__pycache__
