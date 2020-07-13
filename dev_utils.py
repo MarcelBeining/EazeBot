@@ -365,7 +365,9 @@ class Github(BaseGitPlattform):
         protected = []
         for br in response:
             if br['protected']:
-                protected.append(br['name'])
+                if 'required_pull_request_reviews' in self._make_request(
+                        f"{self.base_url}/repos/{self.owner}/{self.repo_id}/branches/{br['name']}/protection"):
+                    protected.append(br['name'])
         return protected
 
     def create_merge_request(self, source_branch, target_branch, description):
