@@ -1,0 +1,67 @@
+{
+    "general": [
+        {
+            "title": "Changelog",
+            "description": "All notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)."
+        }
+    ],
+    "versions": [
+        {
+            "version": "v2.4.0",
+            "date": "2020-07-13 08:57",
+            "section": [
+                {
+                    "label": "Added",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Added change log functionality and improved git manager"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Added upper cap for backup files configurable via maxBackupFileCount in botConfig.json"
+                        }
+                    ]
+                },
+                {
+                    "label": "Changed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Transformed trade set dictionaries into class"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Transformed SL dictionaries into classes"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Prices are now kept and updated in a price class including time stamp to avoid rest api calls for prices that have already been queries recently"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Modules now communicate with telegram via the Telegram logging handler by handing over the chatId as extra argument"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "More refactoring"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Updated ccxt and python-telegram-version"
+                        }
+                    ]
+                },
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Typos in dev_utils"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

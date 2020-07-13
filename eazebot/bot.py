@@ -22,15 +22,13 @@
 
 # %% import modules
 import logging
-import logging.handlers  # necessary if run as main script and not interactively...dunno why
 import re
-import shutil
 import traceback
 import time
 import datetime as dt
 import json
 import signal
-from typing import Union, List
+from typing import Union, List, Dict
 
 import requests
 import base64
@@ -41,29 +39,18 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
                           ConversationHandler, CallbackQueryHandler, CallbackContext)
 from telegram.error import BadRequest
 from eazebot.tradeHandler import tradeHandler
-from eazebot.auxiliaries import clean_data, load_data, save_data, backup_data
+from eazebot.handling import ValueType
+from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data
 
 MAINMENU, SETTINGS, SYMBOL, NUMBER, TIMING, INFO = range(6)
 
+logger = logging.getLogger(__name__)
+
 
 class EazeBot:
-    def __init__(self, user_dir: str = 'user_data'):
+    def __init__(self, config: Dict, user_dir: str = 'user_data'):
         self.user_dir = user_dir
-        log_file_name = 'telegramEazeBot'
-
-        log_formatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
-        self.root_logger = logging.getLogger()
-        self.root_logger.handlers = []  # delete old handlers in case bot is restarted but not python kernel
-        self.root_logger.setLevel('INFO')  # DEBUG
-        file_handler = logging.handlers.RotatingFileHandler("{0}/{1}.log".format(os.getcwd(), log_file_name),
-                                                           maxBytes=1000000,
-                                                           backupCount=5)
-        file_handler.setFormatter(log_formatter)
-        self.root_logger.addHandler(file_handler)
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(log_formatter)
-        self.root_logger.addHandler(console_handler)
-
+        self.__config__ = config
         with open(os.path.join(os.path.dirname(__file__), '__init__.py')) as fh:
             self.thisVersion = re.search(r'(?<=__version__ = \')[0-9.]+', str(fh.read())).group(0)
 
@@ -76,41 +63,8 @@ class EazeBot:
                              ['Add stop-loss', 'Show trade set', 'Done', 'Cancel']]
         self.markupTradeSetMenu = ReplyKeyboardMarkup(self.tradeSetMenu, one_time_keyboard=True)
 
-        # load bot configuration
-        if not os.path.isfile(os.path.join(self.user_dir, "botConfig.json")):
-            if os.path.isfile("botConfig.json"):
-                # backward compatibility movement of files to user folder
-                self.root_logger.info('Found user files in main folder. Moving them to new "user_data" folder')
-                if not os.path.isdir(self.user_dir):
-                    os.mkdir(self.user_dir)
-                for file in ["botConfig.json", "APIs.json", 'data.pickle', 'data.bkp', 'backup']:
-                    if os.path.isfile(file) or os.path.isdir(file):
-                        shutil.move(file, self.user_dir)
-            else:
-                raise FileNotFoundError(
-                    f"Json files not found in path {os.getcwd()}! Probably you did not initalize the config"
-                    f"files with command 'python -m eazebot --init'")
-        with open(os.path.join(self.user_dir, "botConfig.json"), "r") as fin:
-            self.__config__ = json.load(fin)
-        if isinstance(self.__config__['telegramUserId'], str) or isinstance(self.__config__['telegramUserId'], int):
-            if self.__config__['telegramUserId'] == 'PLACEHOLDER':
-                raise ValueError('Json files are not configured yet, please configurate them with '
-                                 '"python -m eazebot --config"')
-            self.__config__['telegramUserId'] = [int(self.__config__['telegramUserId'])]
-        elif isinstance(self.__config__['telegramUserId'], list):
-            self.__config__['telegramUserId'] = [int(val) for val in self.__config__['telegramUserId']]
-        if isinstance(self.__config__['updateInterval'], str):
-            self.__config__['updateInterval'] = int(self.__config__['updateInterval'])
-        if 'minBalanceInBTC' not in self.__config__:
-            self.__config__['minBalanceInBTC'] = 0.001
-        if isinstance(self.__config__['minBalanceInBTC'], str):
-            self.__config__['minBalanceInBTC'] = float(self.__config__['minBalanceInBTC'])
-        if 'debug' not in self.__config__:
-            self.__config__['debug'] = False
-        if isinstance(self.__config__['debug'], str):
-            self.__config__['debug'] = bool(int(self.__config__['debug']))
-        if 'extraBackupInterval' not in self.__config__:
-            self.__config__['extraBackupInterval'] = 7
+        self.updater = Updater(token=self.__config__['telegramAPI'], use_context=True,
+                               request_kwargs={'read_timeout': 10, 'connect_timeout': 10})
 
         self.interrupted = False
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -124,28 +78,7 @@ class EazeBot:
     def done_cmd(self, update: Update, context: CallbackContext):
         self.interrupted = True
         chat_obj = context.bot.get_chat(context.user_data['chatId'])
-        logging.info('User %s (id: %s) ends the bot!' % (chat_obj.first_name, chat_obj.id))
-
-    def broadcast_msg(self, bot, user_id, msg, level='info'):
-        # put msg into log with userId
-        getattr(self.root_logger, level.lower())('User %d: %s' % (user_id, msg))
-        if self.__config__['debug'] or level.lower() != 'debug':
-            # return msg to user
-            count = 0
-            while count < 5:
-                try:
-                    bot.send_message(chat_id=user_id, text=level + ': ' + msg, parse_mode='markdown')
-                    break
-                except TypeError:
-                    pass
-                except Exception:
-                    count += 1
-                    logging.warning(
-                        'Some connection (?) error occured when trying to send a telegram message. Retrying..')
-                    time.sleep(1)
-                    continue
-            if count >= 5:
-                logging.error('Could not send message to bot')
+        logger.info('User %s (id: %s) ends the bot!' % (chat_obj.first_name, chat_obj.id))
 
     @staticmethod
     def noncomprende(update, context, what):
@@ -196,13 +129,13 @@ class EazeBot:
             context.bot.send_message(
                 update.message.from_user.id,
                 'Sorry your Telegram ID (%d) is not recognized! Bye!' % update.message.from_user.id)
-            logging.warning('Unknown user %s %s (username: %s, id: %s) tried to start the bot!' % (
+            logger.warning('Unknown user %s %s (username: %s, id: %s) tried to start the bot!' % (
                 update.message.from_user.first_name, update.message.from_user.last_name,
                 update.message.from_user.username,
                 update.message.from_user.id))
             return
         else:
-            logging.info('User %s %s (username: %s, id: %s) (re)started the bot' % (
+            logger.info('User %s %s (username: %s, id: %s) (re)started the bot' % (
                 update.message.from_user.first_name, update.message.from_user.last_name,
                 update.message.from_user.username,
                 update.message.from_user.id))
@@ -243,14 +176,14 @@ class EazeBot:
         exch = ct.exchange.name.lower()
         buttons = [[InlineKeyboardButton("Add buy level", callback_data='2|%s|%s|buyAdd|chosen' % (exch, uid_ts)),
                     InlineKeyboardButton("Add sell level", callback_data='2|%s|%s|sellAdd|chosen' % (exch, uid_ts))]]
-        for i, trade in enumerate(ct.tradeSets[uid_ts]['InTrades']):
+        for i, trade in enumerate(ct.tradeSets[uid_ts].InTrades):
             if trade['oid'] == 'filled':
                 buttons.append([InlineKeyboardButton("Readd BuyOrder from level #%d" % i,
                                                      callback_data='2|%s|%s|buyReAdd%d|chosen' % (exch, uid_ts, i))])
             else:
                 buttons.append([InlineKeyboardButton("Delete Buy level #%d" % i,
                                                      callback_data='2|%s|%s|BLD%d|chosen' % (exch, uid_ts, i))])
-        for i, trade in enumerate(ct.tradeSets[uid_ts]['OutTrades']):
+        for i, trade in enumerate(ct.tradeSets[uid_ts].OutTrades):
             if trade['oid'] == 'filled':
                 buttons.append([InlineKeyboardButton("Readd SellOrder from level #%d" % i,
                                                      callback_data='2|%s|%s|sellReAdd%d|chosen' % (exch, uid_ts, i))])
@@ -260,9 +193,9 @@ class EazeBot:
         if mode == 'full':
             buttons.append([InlineKeyboardButton("Set/Change SL", callback_data='2|%s|%s|SLM' % (exch, uid_ts))])
             buttons.append([InlineKeyboardButton(
-                "%s trade set" % ('Deactivate' if ct.tradeSets[uid_ts]['active'] else 'Activate'),
+                "%s trade set" % ('Deactivate' if ct.tradeSets[uid_ts].is_active() else 'Activate'),
                 callback_data='2|%s|%s|%s|chosen' % (
-                    exch, uid_ts, 'TSstop' if ct.tradeSets[uid_ts]['active'] else 'TSgo')),
+                    exch, uid_ts, 'TSstop' if ct.tradeSets[uid_ts].is_active() else 'TSgo')),
                 InlineKeyboardButton("Delete trade set", callback_data='3|%s|%s' % (exch, uid_ts))])
         elif mode == 'init':
             buttons.append(
@@ -282,7 +215,7 @@ class EazeBot:
                    [InlineKeyboardButton("Change/Delete SL", callback_data='2|%s|%s|SLC|chosen' % (exch, uid_ts))],
                    [InlineKeyboardButton("Set daily-close SL", callback_data='2|%s|%s|DCSL|chosen' % (exch, uid_ts))],
                    [InlineKeyboardButton("Set weekly-close SL", callback_data='2|%s|%s|WCSL|chosen' % (exch, uid_ts))]]
-        if ct.num_buy_levels(uid_ts, 'notfilled') == 0:  # only show trailing SL option if all buy orders are filled
+        if ct.tradeSets[uid_ts].num_buy_levels('notfilled') == 0:  # only show trailing SL option if all buy orders are filled
             buttons.append(
                 [InlineKeyboardButton("Set trailing SL", callback_data='2|%s|%s|TSL|chosen' % (exch, uid_ts))])
         buttons.append([InlineKeyboardButton("Back", callback_data='2|%s|%s|back|chosen' % (exch, uid_ts))])
@@ -338,7 +271,7 @@ class EazeBot:
                     ts = ct.tradeSets[iTs]
                     if only_this_ts is not None and only_this_ts != iTs:
                         continue
-                    if ts['virgin']:
+                    if ts.is_virgin():
                         markup = InlineKeyboardMarkup(self.buttons_edit_ts(ct, iTs, mode='init'))
                     else:
                         markup = self.make_ts_inline_keyboard(ex, iTs)
@@ -351,7 +284,7 @@ class EazeBot:
                                                   'showProfitIn']),
                         reply_markup=markup, parse_mode='markdown')
                 except Exception as e:
-                    logging.error(traceback.print_exc())
+                    logger.error(traceback.print_exc())
                     pass
             if count == 0:
                 context.user_data['messages']['status']['1'] = context.bot.send_message(
@@ -451,7 +384,8 @@ class EazeBot:
                 if symbol and symbol.upper() in ct.exchange.symbols:
                     self.delete_messages(context.user_data, 'dialog')
                     symbol = symbol.upper()
-                    ts, uid_ts = ct.init_trade_set(symbol)
+                    ts = ct.init_trade_set(symbol)
+                    uid_ts = ts.get_uid()
                     ct.update_balance()
                     context.user_data['messages']['dialog'].append(
                         context.bot.send_message(
@@ -502,39 +436,38 @@ class EazeBot:
     def ask_amount(user_data, exch, uid_ts, direction, bot_or_query):
         ct = user_data['trade'][exch]
         ts = ct.tradeSets[uid_ts]
-        coin = ts['coinCurrency']
-        currency = ts['baseCurrency']
+        coin = ts.coinCurrency
+        currency = ts.baseCurrency
         if direction == 'sell':
             # free balance is coins available in trade set minus coins that will be sold plus coins that will be bought
-            bal = ts['coinsAvail'] - ct.sum_sell_amounts(uid_ts, 'notinitiated') + ct.sum_buy_amounts(uid_ts,
-                                                                                                      'notfilled',
-                                                                                                      subtract_fee=True)
+            bal = ts.coinsAvail - ct.tradeSets[uid_ts].sum_sell_amounts('notinitiated') + \
+                  ct.tradeSets[uid_ts].sum_buy_amounts('notfilled', subtract_fee=True)
             if user_data['whichCurrency'] == 0:
-                bal = ct.amount2Prec(ts['symbol'], bal)
+                bal = ct.amount2Prec(ts.symbol, bal)
                 cname = coin
                 action = 'sell'
                 bal_text = 'available %s [fee subtracted] is' % coin
             else:
-                bal = ct.cost2Prec(ts['symbol'], bal * user_data['tempTradeSet'][0])
+                bal = ct.cost2Prec(ts.symbol, bal * user_data['tempTradeSet'][0])
                 cname = currency
                 action = 'receive'
                 bal_text = 'return from available %s [fee subtracted] would be' % coin
         elif direction == 'buy':
             # free balance is free currency minus cost for coins that will be bought
             if ct.get_balance(currency) is not None:
-                bal = ct.get_balance(currency) - ct.sum_buy_costs(uid_ts, 'notinitiated')
+                bal = ct.get_balance(currency) - ct.tradeSets[uid_ts].sum_buy_costs('notinitiated')
                 unsure = ' '
             else:
                 # estimate the amount of free coins... this is wrong if more than one trade uses this coin
-                bal = ct.get_balance(currency, 'total') - ct.sum_buy_costs(uid_ts, 'notfilled')
+                bal = ct.get_balance(currency, 'total') - ct.tradeSets[uid_ts].sum_buy_costs('notfilled')
                 unsure = ' (estimated!) '
             if user_data['whichCurrency'] == 0:
-                bal = ct.amount2Prec(ts['symbol'], bal / user_data['tempTradeSet'][0])
+                bal = ct.amount2Prec(ts.symbol, bal / user_data['tempTradeSet'][0])
                 cname = coin
                 action = 'buy'
                 bal_text = f'possible buy amount from your{unsure}remaining free balance is'
             else:
-                bal = ct.cost2Prec(ts['symbol'], bal)
+                bal = ct.cost2Prec(ts.symbol, bal)
                 cname = currency
                 action = 'use'
                 bal_text = '{unsure}remaining free balance is'
@@ -620,7 +553,7 @@ class EazeBot:
             else:
                 ct.add_init_coins(uid_ts, user_data['tempTradeSet'][0], user_data['tempTradeSet'][1])
         except Exception as e:
-            self.broadcast_msg(bot, user_data['chatId'], str(e), 'error')
+            logger.error(str(e), extra={'chatId': user_data['chatId']})
         user_data['tempTradeSet'] = [None, None, None]
         if fct:
             fct()
@@ -746,26 +679,21 @@ class EazeBot:
         has_secret = list(available_exchanges.keys())
 
         if len(available_exchanges) > 0:
-            logging.info('Found exchanges %s with keys %s, secrets %s, uids %s, password %s' % (
-                available_exchanges, has_key, has_secret, has_uid, has_password))
+            logger.info('Found exchanges with keys %s, secrets %s, uids %s, password %s' % (
+                has_key, has_secret, has_uid, has_password))
             authenticated_exchanges = []
             for exch_name in available_exchanges:
                 exch_params = available_exchanges[exch_name]
                 exch_params.pop('exchange')
                 # if no tradeHandler object has been created yet, create one, but also check for correct authentication
-                messager_fct = lambda msg, lvl='info': self.broadcast_msg(context.bot, context.user_data['chatId'], msg,
-                                                                          lvl)
                 if exch_name not in context.user_data['trade']:
                     context.user_data['trade'][exch_name] = tradeHandler(
-                        exch_name, **exch_params,
-                        messager_fct=messager_fct,
-                        logger=self.root_logger)
+                        exch_name, **exch_params, logger_extras={'chatId': context.user_data['chatId']})
                 else:
                     context.user_data['trade'][exch_name].update_keys(**exch_params)
-                    context.user_data['trade'][exch_name].update_messager_fct(messager_fct)
                 if not context.user_data['trade'][exch_name].authenticated and \
                         not context.user_data['trade'][exch_name].tradeSets:
-                    logging.warning('Authentication failed for %s' % exch_name)
+                    logger.warning('Authentication failed for %s' % exch_name)
                     context.user_data['trade'].pop(exch_name)
                 else:
                     authenticated_exchanges.append(exch_name)
@@ -783,6 +711,8 @@ class EazeBot:
         if len(removed_exchanges) > 0:
             context.bot.send_message(
                 context.user_data['chatId'], 'Old exchanges %s with no tradeSets removed' % removed_exchanges)
+        for ct in context.user_data['trade'].values():
+            ct.set_logger_extras({'chatId': context.user_data['chatId']})
 
     @staticmethod
     def get_remote_version():
@@ -821,55 +751,55 @@ class EazeBot:
 
     # job functions
     def check_for_updates_and_tax(self, context):
-        updater = context.job.context
+        self.updater = context.job.context
         remote_version, version_message, on_py_pi = self.get_remote_version()
         if remote_version != self.thisVersion and all(
                 [int(a) >= int(b) for a, b in zip(remote_version.split('.'), self.thisVersion.split('.'))]):
-            for user in updater.dispatcher.user_data:
-                if 'chatId' in updater.dispatcher.user_data[user]:
-                    updater.dispatcher.user_data[user]['messages']['botInfo'].append(
+            for user in self.updater.dispatcher.user_data:
+                if 'chatId' in self.updater.dispatcher.user_data[user]:
+                    self.updater.dispatcher.user_data[user]['messages']['botInfo'].append(
                         context.bot.send_message(
-                            updater.dispatcher.user_data[user]['chatId'],
+                            self.updater.dispatcher.user_data[user]['chatId'],
                             f"There is a new version of EazeBot available on git (v{remote_version}) "
                             f"{'and PyPi' if on_py_pi else '(not yet on PyPi)'} with these changes:\n{version_message}"))
 
-        for user in updater.dispatcher.user_data:
+        for user in self.updater.dispatcher.user_data:
             if user in self.__config__['telegramUserId']:
-                if updater.dispatcher.user_data[user]['settings']['taxWarn']:
-                    logging.info('Checking 1 year buy period limit')
-                    for iex, ex in enumerate(updater.dispatcher.user_data[user]['trade']):
-                        updater.dispatcher.user_data[user]['trade'][ex].update(special_check=2)
+                if self.updater.dispatcher.user_data[user]['settings']['taxWarn']:
+                    logger.info('Checking 1 year buy period limit')
+                    for iex, ex in enumerate(self.updater.dispatcher.user_data[user]['trade']):
+                        self.updater.dispatcher.user_data[user]['trade'][ex].update(special_check=2)
 
     def update_trade_sets(self, context):
-        updater = context.job.context
-        logging.info('Updating trade sets...')
-        for user in updater.dispatcher.user_data:
-            if user in self.__config__['telegramUserId'] and 'trade' in updater.dispatcher.user_data[user]:
-                for iex, ex in enumerate(updater.dispatcher.user_data[user]['trade']):
+        self.updater = context.job.context
+        logger.info('Updating trade sets...')
+        for user in self.updater.dispatcher.user_data:
+            if user in self.__config__['telegramUserId'] and 'trade' in self.updater.dispatcher.user_data[user]:
+                for iex, ex in enumerate(self.updater.dispatcher.user_data[user]['trade']):
                     try:  # make sure other exchanges are checked too, even if one has a problem
-                        updater.dispatcher.user_data[user]['trade'][ex].update()
+                        self.updater.dispatcher.user_data[user]['trade'][ex].update()
                     except Exception as e:
-                        logging.error(traceback.print_exc())
-        logging.info('Finished updating trade sets...')
+                        logger.error(traceback.print_exc())
+        logger.info('Finished updating trade sets...')
 
     def update_balance(self, context):
-        updater = context.job.context
-        logging.info('Updating balances...')
-        for user in updater.dispatcher.user_data:
-            if user in self.__config__['telegramUserId'] and 'trade' in updater.dispatcher.user_data[user]:
-                for iex, ex in enumerate(updater.dispatcher.user_data[user]['trade']):
-                    updater.dispatcher.user_data[user]['trade'][ex].update_balance()
-        logging.info('Finished updating balances...')
+        self.updater = context.job.context
+        logger.info('Updating balances...')
+        for user in self.updater.dispatcher.user_data:
+            if user in self.__config__['telegramUserId'] and 'trade' in self.updater.dispatcher.user_data[user]:
+                for iex, ex in enumerate(self.updater.dispatcher.user_data[user]['trade']):
+                    self.updater.dispatcher.user_data[user]['trade'][ex].update_balance()
+        logger.info('Finished updating balances...')
 
     def check_candle(self, context, which=1):
-        updater = context.job.context
-        logging.info('Checking candles for all trade sets...')
-        for user in updater.dispatcher.user_data:
+        self.updater = context.job.context
+        logger.info('Checking candles for all trade sets...')
+        for user in self.updater.dispatcher.user_data:
             if user in self.__config__['telegramUserId']:
-                for iex, ex in enumerate(updater.dispatcher.user_data[user]['trade']):
+                for iex, ex in enumerate(self.updater.dispatcher.user_data[user]['trade']):
                     # avoid to hit it during updating
-                    updater.dispatcher.user_data[user]['trade'][ex].update(special_check=which)
-        logging.info('Finished checking candles for all trade sets...')
+                    self.updater.dispatcher.user_data[user]['trade'][ex].update(special_check=which)
+        logger.info('Finished checking candles for all trade sets...')
 
     def timing_callback(self, update: Update, context: CallbackContext, query=None, response=None):
         if query is None:
@@ -1192,17 +1122,17 @@ class EazeBot:
                                     self.update_ts_text(update, context, uid_ts, query)
 
                             elif any(['buyReAdd' in val for val in args]):
-                                logging.info(args)
+                                logger.info(args)
                                 level = int([re.search(r'(?<=^buyReAdd)\d+', val).group(0) for val in args if
                                              isinstance(val, str) and 'buyReAdd' in val][0])
-                                trade = ct.tradeSets[uid_ts]['InTrades'][level]
+                                trade = ct.tradeSets[uid_ts].InTrades[level]
                                 ct.add_buy_level(uid_ts, trade['price'], trade['amount'], trade['candleAbove'])
                                 self.update_ts_text(update, context, uid_ts, query)
 
                             elif any(['sellReAdd' in val for val in args]):
                                 level = int([re.search(r'(?<=^sellReAdd)\d+', val).group(0) for val in args if
                                              isinstance(val, str) and 'sellReAdd' in val][0])
-                                trade = ct.tradeSets[uid_ts]['OutTrades'][level]
+                                trade = ct.tradeSets[uid_ts].OutTrades[level]
                                 ct.add_sell_level(uid_ts, trade['price'], trade['amount'])
                                 self.update_ts_text(update, context, uid_ts, query)
 
@@ -1215,12 +1145,12 @@ class EazeBot:
                                                                                                  uid_ts))
 
                             elif 'TSgo' in args:
-                                ct.activate_trade_set(uid_ts)
+                                ct.activate(uid_ts)
                                 self.update_ts_text(update, context, uid_ts, query)
                                 query.answer('Trade set activated')
 
                             elif 'TSstop' in args:
-                                ct.deactivate_trade_set(uid_ts, 1)
+                                ct.deactivate(uid_ts, 1)
                                 self.update_ts_text(update, context, uid_ts, query)
                                 query.answer('Trade set deactivated!')
 
@@ -1337,7 +1267,9 @@ class EazeBot:
                                     response = float(response)
                                     if 'rel' in args:
                                         response /= 100
-                                    ct.set_trailing_sl(uid_ts, response, typ='abs' if 'abs' in args else 'rel')
+                                    ct.set_trailing_sl(uid_ts,
+                                                       response,
+                                                       typ=ValueType.ABSOLUTE if 'abs' in args else ValueType.RELATIVE)
                                     self.delete_messages(context.user_data, 'dialog')
                                     self.update_ts_text(update, context, uid_ts, query)
 
@@ -1360,7 +1292,7 @@ class EazeBot:
                         elif command == '3':  # init trade set deletion
                             if 'ok' in args:
                                 query.message.delete()
-                                ct.delete_trade_set(uid_ts, sellAll='yes' in args)
+                                ct.delete_trade_set(uid_ts, sell_all='yes' in args)
                                 query.answer('Trade Set deleted')
                             elif 'yes' in args or 'no' in args:
                                 query.answer('Ok, and are you really sure to delete this trade set?')
@@ -1415,52 +1347,53 @@ class EazeBot:
         unknown_handler = MessageHandler(Filters.command, lambda u, c: self.noncomprende(u, c, 'unknownCmd'))
 
         # %% start telegram API, add handlers to dispatcher and start bot
-        updater = Updater(token=self.__config__['telegramAPI'], use_context=True, request_kwargs={'read_timeout': 10,
-                                                                                                  'connect_timeout': 10}
-                          )
-        updater.dispatcher.add_handler(conv_handler)
-        updater.dispatcher.add_handler(unknown_handler)
-        updater.dispatcher.user_data = clean_data(load_data(), self.__config__['telegramUserId'])
+        self.updater.dispatcher.add_handler(conv_handler)
+        self.updater.dispatcher.add_handler(unknown_handler)
+        self.updater.dispatcher.user_data = clean_data(load_data(), self.__config__['telegramUserId'])
 
         for user in self.__config__['telegramUserId']:
-            if user in updater.dispatcher.user_data and len(updater.dispatcher.user_data[user]) > 0:
-                context = CallbackContext(updater.dispatcher)
-                context._user_data = updater.dispatcher.user_data[user]
+            if user in self.updater.dispatcher.user_data and len(self.updater.dispatcher.user_data[user]) > 0:
+                context = CallbackContext(self.updater.dispatcher)
+                context._user_data = self.updater.dispatcher.user_data[user]
                 time.sleep(2)  # wait because of possibility of temporary exchange lockout
                 self.add_exchanges(None, context)
 
         # start a job updating the trade sets each interval
-        updater.job_queue.run_repeating(self.update_trade_sets, interval=60 * self.__config__['updateInterval'],
+        self.updater.job_queue.run_repeating(self.update_trade_sets, interval=60 * self.__config__['updateInterval'],
                                         first=5,
-                                        context=updater)
+                                        context=self.updater)
         # start a job checking for updates once a day
-        updater.job_queue.run_repeating(self.check_for_updates_and_tax, interval=60 * 60 * 24, first=0, context=updater)
+        self.updater.job_queue.run_repeating(self.check_for_updates_and_tax, interval=60 * 60 * 24, first=0,
+                                             context=self.updater)
         # start a job checking every day 10 sec after midnight (UTC time)
-        updater.job_queue.run_daily(lambda cont: self.check_candle(cont, 1),
+        self.updater.job_queue.run_daily(lambda cont: self.check_candle(cont, 1),
                                     (dt.datetime(1900, 5, 5, 0, 0, 10) + (
                                                 dt.datetime.now() - dt.datetime.utcnow())).time(),
-                                    context=updater, name='dailyCheck')
+                                    context=self.updater, name='dailyCheck')
         # start a job saving the user data each 5 minutes
-        updater.job_queue.run_repeating(lambda con: save_data(con, user_dir=self.user_dir), interval=5 * 60, context=updater)
+        self.updater.job_queue.run_repeating(lambda con: save_data(con, user_dir=self.user_dir), interval=5 * 60,
+                                             context=self.updater)
         # start a job making backup of the user data each x days
-        updater.job_queue.run_repeating(backup_data, interval=60 * 60 * 24 * self.__config__['extraBackupInterval'],
-                                        context=updater)
+        self.updater.job_queue.run_repeating(
+            lambda con: backup_data(con, max_count=self.__config__["maxBackupFileCount"]),
+            interval=60 * 60 * 24 * self.__config__['extraBackupInterval'],
+            context=self.updater, )
         if not self.__config__['debug']:
             for user in self.__config__['telegramUserId']:
                 try:
-                    updater.bot.send_message(user, 'Bot was restarted.\n Please press /start to continue.',
+                    self.updater.bot.send_message(user, 'Bot was restarted.\n Please press /start to continue.',
                                              reply_markup=ReplyKeyboardMarkup([['/start']]), one_time_keyboard=True)
                 except Exception:
                     pass
-            updater.start_polling()
+            self.updater.start_polling()
             while True:
                 time.sleep(1)
                 if self.interrupted:
-                    updater.stop()
+                    self.updater.stop()
                     for user in self.__config__['telegramUserId']:
-                        chat_obj = updater.bot.get_chat(user)
+                        chat_obj = self.updater.bot.get_chat(user)
                         try:
-                            updater.bot.send_message(user,
+                            self.updater.bot.send_message(user,
                                                      f"Bot was stopped! "
                                                      f"Trades are not surveilled until bot is started again! "
                                                      f"See you soon {chat_obj.first_name}!")
@@ -1468,6 +1401,6 @@ class EazeBot:
                             pass
                     break
 
-            save_data(updater.dispatcher.user_data, user_dir=self.user_dir)  # last data save when finishing
+            save_data(self.updater.dispatcher.user_data, user_dir=self.user_dir)  # last data save when finishing
         else:
-            return updater
+            return self.updater
