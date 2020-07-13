@@ -7,6 +7,21 @@
     ],
     "versions": [
         {
+            "version": "v2.4.2",
+            "date": "2020-07-13 11:45",
+            "section": [
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed bug with precision calculation during balance fetching"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.4.1",
             "date": "2020-07-13 09:08",
             "section": [
