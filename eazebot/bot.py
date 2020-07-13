@@ -324,20 +324,20 @@ class EazeBot:
                 if ct.balance['total'][c] > 0:
                     if c == 'BTC' and ct.balance['total'][c] > self.__config__['minBalanceInBTC']:
                         string += '*%s:* %s _(free: %s)_\n' % (
-                            c, ct.cost2Prec('ETH/BTC', ct.balance['total'][c]),
-                            ct.cost2Prec('ETH/BTC', ct.balance['free'][c]))
+                            c, ct.nf.cost2Prec('ETH/BTC', ct.balance['total'][c]),
+                            ct.nf.cost2Prec('ETH/BTC', ct.balance['free'][c]))
                     elif btc_pair2 in ct.exchange.symbols and ct.exchange.markets[btc_pair2]['active']:
                         last_price = func(btc_pair2)['last']
                         if last_price is not None and ct.balance['total'][c] / last_price > self.__config__[
                                 'minBalanceInBTC']:
-                            string += '*%s:* %s _(free: %s)_\n' % (c, ct.cost2Prec(btc_pair2, ct.balance['total'][c]),
-                                                                   ct.cost2Prec(btc_pair2, ct.balance['free'][c]))
+                            string += '*%s:* %s _(free: %s)_\n' % (c, ct.nf.cost2Prec(btc_pair2, ct.balance['total'][c]),
+                                                                   ct.nf.cost2Prec(btc_pair2, ct.balance['free'][c]))
                     elif btc_pair in ct.exchange.symbols and ct.exchange.markets[btc_pair]['active']:
                         last_price = func(btc_pair)['last']
                         if last_price is not None and last_price * ct.balance['total'][c] > self.__config__[
                                 'minBalanceInBTC']:
-                            string += '*%s:* %s _(free: %s)_\n' % (c, ct.amount2Prec(btc_pair, ct.balance['total'][c]),
-                                                                   ct.amount2Prec(btc_pair, ct.balance['free'][c]))
+                            string += '*%s:* %s _(free: %s)_\n' % (c, ct.nf.amount2Prec(btc_pair, ct.balance['total'][c]),
+                                                                   ct.nf.amount2Prec(btc_pair, ct.balance['free'][c]))
                     elif not (btc_pair2 in ct.exchange.symbols and ct.exchange.markets[btc_pair2]['active']) and not (
                             btc_pair in ct.exchange.symbols and ct.exchange.markets[btc_pair]['active']):
                         # handles cases where BTCpair and BTCpair2 do not exist or are not active
@@ -443,12 +443,12 @@ class EazeBot:
             bal = ts.coinsAvail - ct.tradeSets[uid_ts].sum_sell_amounts('notinitiated') + \
                   ct.tradeSets[uid_ts].sum_buy_amounts('notfilled', subtract_fee=True)
             if user_data['whichCurrency'] == 0:
-                bal = ct.amount2Prec(ts.symbol, bal)
+                bal = ct.nf.amount2Prec(ts.symbol, bal)
                 cname = coin
                 action = 'sell'
                 bal_text = 'available %s [fee subtracted] is' % coin
             else:
-                bal = ct.cost2Prec(ts.symbol, bal * user_data['tempTradeSet'][0])
+                bal = ct.nf.cost2Prec(ts.symbol, bal * user_data['tempTradeSet'][0])
                 cname = currency
                 action = 'receive'
                 bal_text = 'return from available %s [fee subtracted] would be' % coin
@@ -462,12 +462,12 @@ class EazeBot:
                 bal = ct.get_balance(currency, 'total') - ct.tradeSets[uid_ts].sum_buy_costs('notfilled')
                 unsure = ' (estimated!) '
             if user_data['whichCurrency'] == 0:
-                bal = ct.amount2Prec(ts.symbol, bal / user_data['tempTradeSet'][0])
+                bal = ct.nf.amount2Prec(ts.symbol, bal / user_data['tempTradeSet'][0])
                 cname = coin
                 action = 'buy'
                 bal_text = f'possible buy amount from your{unsure}remaining free balance is'
             else:
-                bal = ct.cost2Prec(ts.symbol, bal)
+                bal = ct.nf.cost2Prec(ts.symbol, bal)
                 cname = currency
                 action = 'use'
                 bal_text = '{unsure}remaining free balance is'
