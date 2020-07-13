@@ -6,7 +6,7 @@ import json
 import re
 from os import path
 from setuptools import setup
-
+from eazebot import __version__
 
 def requirements():
     """Build the requirements list for this project"""
@@ -20,9 +20,6 @@ def requirements():
 packages = ['eazebot']
 
 with codecs.open('readme.md', 'r', 'utf-8') as fd:
-    fn = path.join('eazebot/version.txt')
-    with open(fn) as fh:
-        __version__ = re.search('(?<=version = ).+', str(fh.read())).group(0)
     with open(path.join('eazebot/templates/botConfig.json.tmp'), 'r') as fh:
         if json.load(fh)['telegramAPI'] != 'PLACEHOLDER':
             raise Exception('Modified config template files!')

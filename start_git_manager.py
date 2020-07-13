@@ -24,7 +24,7 @@ def increase_version(version_parsed, version_type: int):
 current_version_parsed = [int(x) for x in current_version.split('.')]
 print(f'Current version: {current_version}')
 
-# initialize Repo object, add all relevant files (py and version.txt) and print the git status
+# initialize Repo object, add all relevant files (py) and print the git status
 repo = Repo(os.path.dirname(__file__))
 assert repo.bare is False, 'Folder is no existing Git repository!'
 git = repo.git
@@ -247,7 +247,7 @@ try:
 
             for main_branch in branches_to_merge:
                 if main_branch in protected_branches:
-                    print(f'******{main_branch} is a protected branch on Gitlab! Creating merge request...******')
+                    print(f'******{main_branch} is a protected branch on Remote! Creating merge request...******')
                     if descr is None:
                         descr = input(f'Enter some description for the merge to {main_branch} '
                                       f'(adding all git commit messages if nothing entered)\n')
@@ -268,7 +268,6 @@ try:
                     git.merge(['--no-ff', branch_of_interest])
                     steps_done.append(steps_to_do.pop(0))
                     if main_branch == 'master':
-                        # remove this as soon as the gitlab yml supports tagging master branch online
                         git.execute(['git', 'tag', f'v{current_version}'])  # -a x -m "{commit_message}\"
                         git_remote.git_push(main_branch, tag=f'v{current_version}')
                     git_remote.git_push(main_branch)
@@ -324,7 +323,7 @@ try:
                 # fill steps to do list
                 steps_to_do.append(f'Create merge request for branch {branch_of_interest} into dev')
 
-                print('******Dev is a protected branch on Gitlab! Creating merge request...******')
+                print('******Dev is a protected branch on Remote! Creating merge request...******')
                 descr = input(f'Enter some description for the merge to dev (git commit history if nothing entered)\n')
                 if len(descr) <= 1:
                     commit_history = git.execute([
