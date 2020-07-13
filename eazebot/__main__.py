@@ -7,5 +7,6 @@ To launch EazeBot as a module
 
 from eazebot import main
 
+
 if __name__ == '__main__':
     main.main()
