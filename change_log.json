@@ -7,6 +7,25 @@
     ],
     "versions": [
         {
+            "version": "Unreleased",
+            "date": "",
+            "section": [
+                {
+                    "label": "Added",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Adding a new type of buy (regular buy) to buy with some interval"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "New option to hide filled orders (option within each trade set)"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.4.2",
             "date": "2020-07-13 11:45",
             "section": [
