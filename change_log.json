@@ -7,6 +7,21 @@
     ],
     "versions": [
         {
+            "version": "v2.4.3",
+            "date": "2020-07-26 06:38",
+            "section": [
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed old attribute calls"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.4.2",
             "date": "2020-07-13 11:45",
             "section": [
