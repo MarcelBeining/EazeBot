@@ -440,8 +440,8 @@ class EazeBot:
         currency = ts.baseCurrency
         if direction == 'sell':
             # free balance is coins available in trade set minus coins that will be sold plus coins that will be bought
-            bal = ts.coinsAvail - ct.tradeSets[uid_ts].sum_sell_amounts('notinitiated') + \
-                  ct.tradeSets[uid_ts].sum_buy_amounts('notfilled', subtract_fee=True)
+            bal = ts.coinsAvail - ts.sum_sell_amounts('notinitiated') + \
+                  ts.sum_buy_amounts('notfilled', subtract_fee=True)
             if user_data['whichCurrency'] == 0:
                 bal = ct.nf.amount2Prec(ts.symbol, bal)
                 cname = coin
@@ -455,11 +455,11 @@ class EazeBot:
         elif direction == 'buy':
             # free balance is free currency minus cost for coins that will be bought
             if ct.get_balance(currency) is not None:
-                bal = ct.get_balance(currency) - ct.tradeSets[uid_ts].sum_buy_costs('notinitiated')
+                bal = ct.get_balance(currency) - ts.sum_buy_costs('notinitiated')
                 unsure = ' '
             else:
                 # estimate the amount of free coins... this is wrong if more than one trade uses this coin
-                bal = ct.get_balance(currency, 'total') - ct.tradeSets[uid_ts].sum_buy_costs('notfilled')
+                bal = ct.get_balance(currency, 'total') - ts.sum_buy_costs('notfilled')
                 unsure = ' (estimated!) '
             if user_data['whichCurrency'] == 0:
                 bal = ct.nf.amount2Prec(ts.symbol, bal / user_data['tempTradeSet'][0])
@@ -508,14 +508,14 @@ class EazeBot:
         if input_type is None:
             user_data['lastFct'].append(lambda res: self.add_init_balance(bot, user_data, exch, uid_ts, 'initCoins',
                                                                           res, fct))
-            bal = ct.get_balance(ct.tradeSets[uid_ts]['coinCurrency'])
+            bal = ct.get_balance(ct.tradeSets[uid_ts].coinCurrency)
             user_data['messages']['dialog'].append(bot.send_message(
                 user_data['chatId'],
                 "You already have %s that you want to add to the trade set? "
                 "How much is it (found %s free %s on %s)?" % (
-                    ct.tradeSets[uid_ts]['coinCurrency'],
+                    ct.tradeSets[uid_ts].coinCurrency,
                     f'{bal:.5g}' if bal is not None else 'N/A',
-                    ct.tradeSets[uid_ts]['coinCurrency'], exch),
+                    ct.tradeSets[uid_ts].coinCurrency, exch),
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton(
                         "Cancel",
@@ -528,7 +528,7 @@ class EazeBot:
             user_data['messages']['dialog'].append(
                 bot.send_message(
                     user_data['chatId'],
-                    f"What was the average price {ct.tradeSets[uid_ts]['symbol']} you bought it for? "
+                    f"What was the average price {ct.tradeSets[uid_ts].symbol} you bought it for? "
                     "Type 0 if received for free and a negative number if you do not know?",
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton(
@@ -560,7 +560,7 @@ class EazeBot:
 
     def ask_pos(self, bot, user_data, exch, uid_ts, direction, apply_fct=None, input_type=None, response=None):
         ct = user_data['trade'][exch]
-        symbol = ct.tradeSets[uid_ts]['symbol']
+        symbol = ct.tradeSets[uid_ts].symbol
         if input_type is None:
             user_data['tempTradeSet'] = [None, None, None]
             user_data['lastFct'].append(lambda r: self.ask_pos(bot, user_data, exch, uid_ts, direction, apply_fct,
