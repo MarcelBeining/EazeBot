@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased] - 
 
+## [v2.4.3] - 2020-07-26 06:38
+
 ## [v2.4.2] - 2020-07-13 11:45
 
 ## [v2.4.1] - 2020-07-13 09:08
@@ -18,3 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.1...dev>
 ## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.0...dev>
+* **[v2.4.3]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.2...v2.4.3>
+## Changes comparison
+* **[v2.4.3]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.1...v2.4.3>
+## Changes comparison
+* **[v2.4.3]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.0...v2.4.3>

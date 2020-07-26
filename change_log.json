@@ -20,6 +20,21 @@
                         {
                             "author": "Marcel",
                             "message": "New option to hide filled orders (option within each trade set)"
+						}
+                    ]
+                }
+            ]
+        },
+        {
+            "version": "v2.4.3",
+            "date": "2020-07-26 06:38",
+            "section": [
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed old attribute calls"
                         }
                     ]
                 }
