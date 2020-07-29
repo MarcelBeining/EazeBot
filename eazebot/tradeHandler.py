@@ -20,7 +20,6 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This class is used to control trading sets"""
 import logging
-from typing import Dict
 import ccxt
 from json import JSONDecodeError
 from inspect import getsourcefile, getsourcelines
@@ -33,47 +32,41 @@ from ccxt.base.errors import (AuthenticationError, NetworkError, OrderNotFound, 
                               InsufficientFunds)
 
 from eazebot.handling import ValueType, Price, BaseSL, DailyCloseSL, WeeklyCloseSL, TrailingSL, BaseTradeSet, \
-    NumberFormatter
+    NumberFormatter, ExchContainer, OrderType
 
 logger = logging.getLogger(__name__)
 
 
 class tradeHandler:
-    def __init__(self, exch_name, key=None, secret=None, password=None, uid=None, logger_extras: Dict = None):
+    def __init__(self, exch_name: str, user: str = None, *args):
 
-        check_these = ['cancelOrder', 'createLimitOrder', 'fetchBalance', 'fetchTicker']
+        self.check_these = ['cancelOrder', 'createLimitOrder', 'fetchBalance', 'fetchTicker']
         self.tradeSets = {}
         self.tradeSetHistory = []
         if exch_name == 'kucoin2':
-            exch_name = exch_name.replace('kucoin2', 'kucoin')
-        self.exchange = getattr(ccxt, exch_name)({'enableRateLimit': True, 'options': {
-            'adjustForTimeDifference': True}})  # 'nonce': ccxt.Exchange.milliseconds,
-        self.nf = NumberFormatter(exchange=self.exchange)
-
-        if logger_extras is None:
-            logger_extras = {}
-        self.logger_extras = logger_extras
+            exch_name = 'kucoin'
+        self.exch_name = exch_name
         self.price_dict = {}
         self.updating = False
         self.waiting = []
         self.down = False
         self.authenticated = False
         self.balance = {}
-        if key is not None:
-            self.update_keys(key=key, secret=secret, password=password, uid=uid)
-
-        if not all([self.exchange.has[x] for x in check_these]):
-            text = 'Exchange %s does not support all required features (%s)' % (exch_name, ', '.join(check_these))
-            logger.error(text, extra=self.logger_extras)
-            raise Exception(text)
         self.lastUpdate = time.time() - 10
+        self.set_user(user)
 
     def __reduce__(self):
         # function needes for serializing the object
-        return (
-            self.__class__, (self.exchange.__class__.__name__, ),
-            self.__getstate__(),
-            None, None)
+        if hasattr(self, 'exchange'):
+            return (
+                self.__class__, (self.exchange.__class__.__name__, ),
+                self.__getstate__(),
+                None, None)
+        else:
+            return (
+                self.__class__, (self.exch_name,),
+                self.__getstate__(),
+                None, None)
 
     def __setstate__(self, state):
         if isinstance(state, tuple):
@@ -116,11 +109,26 @@ class tradeHandler:
                            extra=self.logger_extras)
             return True
 
-    def set_logger_extras(self, logger_extras: Dict):
-        if isinstance(logger_extras, dict) and 'chatId' in logger_extras:
-            self.logger_extras = logger_extras
+    def set_user(self, user: str):
+        """
+        Method required for backward compatibility if pickled tradeHandler is loaded which had no user info
+
+        :param user: telegram chat ID of the user as string
+        :return:
+        """
+        self.user = user
+        if user is not None:
+            self.exchange = ExchContainer(user).get(self.exch_name)
+            self.nf = NumberFormatter(exchange=self.exchange)
+
+            if not all([self.exchange.has[x] for x in self.check_these]):
+                text = f"Exchange {self.exch_name} does not support all required features {', '.join(self.check_these)}"
+                logger.error(text, extra=self.logger_extras)
+                raise Exception(text)
+            self.check_keys()
+            self.logger_extras = {'chatId': user}
         else:
-            raise TypeError('Logger extras needs to be a dict with chatId as entry')
+            self.logger_extras = {}
 
     def safe_run(self, func, print_error=True, i_ts=None):
         count = 0
@@ -221,7 +229,7 @@ class tradeHandler:
     def get_price_obj(self, symbol: str):
         if symbol not in self.price_dict:
             ticker = self.safe_run(lambda: self.exchange.fetchTicker(symbol))
-            self.price_dict[symbol] = Price(current=ticker['last'], high=ticker['high'], low=ticker['low'])
+            self.price_dict[symbol] = Price(symbol, current=ticker['last'], high=ticker['high'], low=ticker['low'])
         elif (datetime.datetime.now() - self.price_dict[symbol].time).seconds > 5:
             # update price
             ticker = self.safe_run(lambda: self.exchange.fetchTicker(symbol))
@@ -230,7 +238,7 @@ class tradeHandler:
 
     def update_balance(self):
         self.update_down_state(True)
-        # reloads the exchange market and private balance and, if successul, sets the exchange as authenticated
+        # reloads the exchange market and private balance and, if successful, sets the exchange as authenticated
         self.safe_run(self.exchange.loadMarkets)
         self.balance = self.safe_run(self.exchange.fetch_balance)
         self.authenticated = True
@@ -242,15 +250,7 @@ class tradeHandler:
         else:
             return 0
 
-    def update_keys(self, key=None, secret=None, password=None, uid=None):
-        if key:
-            self.exchange.apiKey = key
-        if secret:
-            self.exchange.secret = secret
-        if password:
-            self.exchange.password = password
-        if uid:
-            self.exchange.uid = uid
+    def check_keys(self):
         try:  # check if keys work
             self.update_balance()
         except AuthenticationError:  #
@@ -348,7 +348,7 @@ class tradeHandler:
         for n, _ in enumerate(buy_levels):
             ts.add_buy_level(buy_levels[n], buy_amounts[n], candle_above[n])
 
-        ts.add_init_coins(init_coins, init_price)
+        ts.add_init_coins(init_price, init_coins)
         self.set_sl(i_ts, sl)
         # create the sell orders
         for n, _ in enumerate(sell_levels):
@@ -365,6 +365,7 @@ class tradeHandler:
                                                         ' (DOWN !!!) ' if self.down else '', ts.symbol)
         filled_buys = []
         filled_sells = []
+
         for iTrade, trade in enumerate(ts.InTrades):
             tmpstr = '*Buy level %d:* Price %s , Amount %s %s   ' % (
                 iTrade, self.nf.price2Prec(ts.symbol, trade['price']), self.nf.amount2Prec(ts.symbol, trade['amount']),
@@ -379,8 +380,10 @@ class tradeHandler:
                 filled_buys.append([trade['actualAmount'], trade['price']])
             else:
                 tmpstr = tmpstr + '_Open order_\n'
-            prt_str += tmpstr
+            if ts.show_filled_orders or trade['oid'] != 'filled':
+                prt_str += tmpstr
         prt_str += '\n'
+
         for iTrade, trade in enumerate(ts.OutTrades):
             tmpstr = '*Sell level %d:* Price %s , Amount %s %s   ' % (
                 iTrade, self.nf.price2Prec(ts.symbol, trade['price']), self.nf.amount2Prec(ts.symbol, trade['amount']),
@@ -392,7 +395,8 @@ class tradeHandler:
                 filled_sells.append([trade['amount'], trade['price']])
             else:
                 tmpstr = tmpstr + '_Open order_\n'
-            prt_str += tmpstr
+            if ts.show_filled_orders or trade['oid'] != 'filled':
+                prt_str += tmpstr
         if ts.SL is not None:
             prt_str += '\n*Stop-loss* set at %s%s\n\n' % (self.nf.price2Prec(ts.symbol, ts.SL.value),
                                                           '' if not isinstance(ts.SL, TrailingSL) else (
@@ -528,86 +532,6 @@ class tradeHandler:
         else:
             self.tradeSets[i_ts].unlock_trade_set()
 
-    def set_trailing_sl(self, i_ts, value, typ: ValueType = ValueType.ABSOLUTE):
-        self.update_down_state(True)
-        ts = self.tradeSets[i_ts]
-        if self.check_num(value):
-            if ts.num_buy_levels('notfilled') > 0:
-                raise Exception('Trailing SL cannot be set as there are non-filled buy orders still')
-            ts.SL = TrailingSL(delta=value, kind=typ, price_obj=self.get_price_obj(ts.symbol))
-        elif value is None:
-            ts.SL = None
-        else:
-            raise ValueError('Input was no number')
-
-    def set_weekly_close_sl(self, i_ts, value):
-        ts = self.tradeSets[i_ts]
-        if self.check_num(value):
-            ts.SL = WeeklyCloseSL(value=value)
-            if self.get_price_obj(ts.symbol).get_current_price() <= value:
-                logger.warning('Weekly-close SL is set but be aware that it is higher than the current market price!',
-                               extra=self.logger_extras)
-
-        elif value is None:
-            ts.SL = None
-        else:
-            raise ValueError('Input was no number')
-
-    def set_daily_close_sl(self, i_ts, value):
-        ts = self.tradeSets[i_ts]
-        if self.check_num(value):
-            ts.SL = DailyCloseSL(value=value)
-            if self.get_price_obj(ts.symbol).get_current_price() <= value:
-                logger.warning('Daily-close SL is set but be aware that it is higher than the current market price!',
-                               extra=self.logger_extras)
-        elif value is None:
-            ts.SL = None
-        else:
-            raise ValueError('Input was no number')
-
-    def set_sl(self, i_ts, value):
-        ts = self.tradeSets[i_ts]
-        if self.check_num(value):
-            try:
-                ts.SL = BaseSL(value=value)
-            except Exception as e:
-                logger.error(str(e), extra=self.logger_extras)
-        elif value is None:
-            ts.SL = None
-        else:
-            raise ValueError('Input was no number')
-
-    def set_sl_break_even(self, i_ts):
-        self.update_down_state(True)
-        ts = self.tradeSets[i_ts]
-        if ts.initCoins > 0 and ts.initPrice is None:
-            logger.error(f"Break even SL cannot be set as you this trade set contains {ts.coinCurrency} that you "
-                         f"obtained beforehand and no buy price information was given.", extra=self.logger_extras)
-            return 0
-        elif ts.costOut - ts.costIn > 0:
-            logger.error(
-                'Break even SL cannot be set as your sold coins of this trade already outweigh your buy expenses '
-                '(congrats!)! You might choose to sell everything immediately if this is what you want.',
-                extra=self.logger_extras)
-            return 0
-        elif ts.costOut - ts.costIn == 0:
-            logger.error('Break even SL cannot be set as there are no unsold %s coins right now' % ts.coinCurrency,
-                         extra=self.logger_extras)
-            return 0
-        else:
-            break_even_price = (ts.costIn - ts.costOut) / ((1 - self.exchange.fees['trading']['taker']) * (
-                    ts.coinsAvail + sum([trade['amount'] for trade in ts.OutTrades if
-                                         trade['oid'] != 'filled' and trade['oid'] is not None])))
-            price_obj = self.get_price_obj(ts.symbol)
-            if price_obj.get_current_price() < break_even_price:
-                logger.error('Break even SL of %s cannot be set as the current market price is lower (%s)!' % tuple(
-                    [self.nf.price2Prec(ts.symbol, val) for val in [break_even_price, price_obj.get_current_price()]]),
-                             extra=self.logger_extras)
-                return 0
-            else:
-                self.set_sl(i_ts, break_even_price)
-                return 1
-
     def update_down_state(self, raise_error=False):
         if self.down:
             self.safe_run(self.exchange.loadMarkets, print_error=False)
@@ -684,6 +608,31 @@ class tradeHandler:
                                     f"after which gains/losses are not eligible for reporting in the tax report in most"
                                     f" countries!", extra=self.logger_extras)
                         continue
+
+                    if ts.regular_buy is not None:
+                        rb = ts.regular_buy
+                        if rb.next_order_due():
+                            msg = f"Time due for next regular buy. "
+                            if rb.currency == ts.coinCurrency:
+                                msg += f"Buying {rb.amount} {rb.currency} from {ts.symbol}"
+                            else:
+                                msg += f"Using {rb.amount} {rb.currency} to buy {ts.coinCurrency}"
+
+                            if rb.order_type == OrderType.MARKET:
+                                logger.info(f"{msg} at market price.")
+                                ts.do_market_buy(amount=rb.amount, currency=rb.currency, lock=False)
+                            elif rb.order_type == OrderType.LIMIT:
+                                logger.info(f"{msg} with near-to-market-price limit order.")
+                                # try to buy with a 0.2% discount from current price to avoid maker fee
+                                price = price_obj.get_current_price() * 0.998
+                                if rb.currency == ts.coinCurrency:
+                                    amount = rb.amount
+                                else:
+                                    amount = rb.amount / price
+                                ts.add_buy_level(buy_price=price, buy_amount=amount, lock=False)
+                            else:
+                                raise ValueError('Unknown order type')
+
                     order_executed = 0
                     # go through buy trades 
                     for iTrade, trade in enumerate(ts.InTrades):
@@ -707,6 +656,15 @@ class tradeHandler:
                                     trades = self.exchange.fetchMyTrades(ts.symbol)
                                     order_info['cost'] = sum(
                                         [tr['cost'] for tr in trades if tr['order'] == order_info['id']])
+
+                                    if order_info['type'].lower() == 'market':
+                                            amount = sum([tr['amount'] for tr in trades if tr['order'] == order_info['id']])
+                                            fee = sum(
+                                                [tr['fee']['cost'] for tr in trades if trade['order'] ==
+                                                 order_info['id'] and tr['fee']['currency'] == ts.coinCurrency])
+                                            trade['amount'] = amount
+                                            trade['actualAmount'] = amount - fee
+
                                     if order_info['cost'] == 0:
                                         order_info['price'] = None
                                     else:
@@ -714,11 +672,20 @@ class tradeHandler:
                                             [tr['price'] for tr in trades if tr['order'] == order_info['id']])
                                 else:
                                     trades = None
+                                    if order_info['type'].lower() == 'market':
+                                        # update the values of the market order as they depended on the market price.
+                                        # checking the trades is better but if it is not available, use what is there...
+                                        trade['amount'] = order_info['amount']
+                                        trade['actualAmount'] = order_info['amount']
+                                        if order_info['fee']['currency'] == ts.coinCurrency:
+                                            trade['actualAmount'] -= order_info['fee']['cost']
+                                        order_info['price'] = order_info['average']
+
                                 if order_info['status'].lower() in ['closed', 'filled']:
                                     order_executed = 1
-                                    ts.InTrades[iTrade]['oid'] = 'filled'
-                                    ts.InTrades[iTrade]['time'] = datetime.datetime.now()
-                                    ts.InTrades[iTrade]['price'] = order_info['price']
+                                    trade['oid'] = 'filled'
+                                    trade['time'] = datetime.datetime.now()
+                                    trade['price'] = order_info['price']
                                     ts.costIn += order_info['cost']
                                     logger.info('Buy level of %s %s reached on %s! Bought %s %s for %s %s.' % (
                                         self.nf.price2Prec(ts.symbol, order_info['price']), ts.symbol,

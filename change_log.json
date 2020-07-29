@@ -7,6 +7,25 @@
     ],
     "versions": [
         {
+            "version": "v2.5.0",
+            "date": "2020-07-29 10:27",
+            "section": [
+                {
+                    "label": "Added",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Adding prerequisites for a new type of buy (regular buy) to buy with some interval"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Adding prerequisites for a new option to hide filled orders (option within each trade set)"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.4.3",
             "date": "2020-07-26 06:38",
             "section": [
