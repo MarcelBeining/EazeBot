@@ -1,5 +1,5 @@
 ccxt >= 1.30.87
 dill
-numpy
+numpy >= 1.18.4
 python-telegram-bot >= 12.8
 requests

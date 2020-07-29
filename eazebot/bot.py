@@ -39,10 +39,10 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
                           ConversationHandler, CallbackQueryHandler, CallbackContext)
 from telegram.error import BadRequest
 from eazebot.tradeHandler import tradeHandler
-from eazebot.handling import ValueType
+from eazebot.handling import ValueType, ExchContainer, DateFilter, TempTradeSet
 from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data
 
-MAINMENU, SETTINGS, SYMBOL, NUMBER, TIMING, INFO = range(6)
+MAINMENU, SETTINGS, SYMBOL, NUMBER, DAILY_CANDLE, INFO, DATE = range(7)
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +58,6 @@ class EazeBot:
         self.mainMenu = [['Status of Trade Sets', 'New Trade Set', 'Trade History'], ['Check Balance', 'Bot Info'],
                          ['Add/update exchanges (APIs.json)', 'Settings']]
         self.markupMainMenu = ReplyKeyboardMarkup(self.mainMenu)  # , one_time_keyboard=True)
-
-        self.tradeSetMenu = [['Add buy position', 'Add sell position', 'Add initial coins'],
-                             ['Add stop-loss', 'Show trade set', 'Done', 'Cancel']]
-        self.markupTradeSetMenu = ReplyKeyboardMarkup(self.tradeSetMenu, one_time_keyboard=True)
 
         self.updater = Updater(token=self.__config__['telegramAPI'], use_context=True,
                                request_kwargs={'read_timeout': 10, 'connect_timeout': 10})
@@ -88,6 +84,8 @@ class EazeBot:
             txt = "Sorry, the currency pair is not in the form COINA/COINB. Retry!"
         elif what == 'noNumber':
             txt = "Sorry, you did not enter a number! Retry!"
+        elif what == 'noDate':
+            txt = "Sorry, the date you entered could not be parsed! Try a standard format such as YYYY-MM-DDTHH:MM!"
         elif what == 'noValueRequested':
             txt = "Sorry, I did not ask for anything at the moment, and unfortunately I have no KI (yet) ;-)"
         else:
@@ -122,6 +120,32 @@ class EazeBot:
             context.bot.send_message(context.user_data['chatId'], 'Unknown previous error, returning to main menu')
             return MAINMENU
 
+    @staticmethod
+    def received_date(update: Update, context: CallbackContext):
+        if len(context.user_data['lastFct']) > 0:
+            return context.user_data['lastFct'].pop()(float(update.message.text))
+        else:
+            context.bot.send_message(context.user_data['chatId'], 'Unknown previous error, returning to main menu')
+            return MAINMENU
+
+    @staticmethod
+    def daily_candle_callback(update: Update, context: CallbackContext, query=None, response=None):
+        if query is None:
+            query = update.callback_query
+        if query is None:
+            return 0
+        query.message.delete()
+        if 'Yes' in query.data:
+            query.answer(
+                'Please give the price above which the daily candle should close in order to initiate the buy!')
+            return NUMBER
+        else:
+            query.answer()
+            if len(context.user_data['lastFct']) > 0:
+                return context.user_data['lastFct'].pop()(None)
+            else:
+                return MAINMENU
+
     # define menu function
     def start_cmd(self, update: Update, context: CallbackContext):
         # initiate user_data if it does not exist yet
@@ -144,7 +168,6 @@ class EazeBot:
             self.delete_messages(context.user_data)
             context.user_data.update({'lastFct': [],
                                       'whichCurrency': 0,
-                                      'tempTradeSet': [None, None, None],
                                       'messages': {'status': {}, 'dialog': [], 'botInfo': [], 'settings': [],
                                                    'history': []}}
                                      )
@@ -155,7 +178,6 @@ class EazeBot:
                 'settings': {'fiat': [], 'showProfitIn': None},
                 'lastFct': [],
                 'whichCurrency': 0,
-                'tempTradeSet': [None, None, None],
                 'messages': {'status': {}, 'dialog': [], 'botInfo': [], 'settings': [], 'history': []}})
 
         context.bot.send_message(context.user_data['chatId'],
@@ -175,27 +197,31 @@ class EazeBot:
     def buttons_edit_ts(ct, uid_ts, mode='full'):
         exch = ct.exchange.name.lower()
         buttons = [[InlineKeyboardButton("Add buy level", callback_data='2|%s|%s|buyAdd|chosen' % (exch, uid_ts)),
+                    # InlineKeyboardButton("Add regular buy", callback_data='2|%s|%s|buyRegAdd|chosen' % (exch, uid_ts)),
                     InlineKeyboardButton("Add sell level", callback_data='2|%s|%s|sellAdd|chosen' % (exch, uid_ts))]]
-        for i, trade in enumerate(ct.tradeSets[uid_ts].InTrades):
+        ts = ct.tradeSets[uid_ts]
+        for i, trade in enumerate(ts.InTrades):
             if trade['oid'] == 'filled':
-                buttons.append([InlineKeyboardButton("Readd BuyOrder from level #%d" % i,
-                                                     callback_data='2|%s|%s|buyReAdd%d|chosen' % (exch, uid_ts, i))])
+                if ts.show_filled_orders:
+                    buttons.append([InlineKeyboardButton("Readd BuyOrder from level #%d" % i,
+                                                         callback_data='2|%s|%s|buyReAdd%d|chosen' % (exch, uid_ts, i))])
             else:
                 buttons.append([InlineKeyboardButton("Delete Buy level #%d" % i,
                                                      callback_data='2|%s|%s|BLD%d|chosen' % (exch, uid_ts, i))])
-        for i, trade in enumerate(ct.tradeSets[uid_ts].OutTrades):
+        for i, trade in enumerate(ts.OutTrades):
             if trade['oid'] == 'filled':
-                buttons.append([InlineKeyboardButton("Readd SellOrder from level #%d" % i,
-                                                     callback_data='2|%s|%s|sellReAdd%d|chosen' % (exch, uid_ts, i))])
+                if ts.show_filled_orders:
+                    buttons.append([InlineKeyboardButton("Readd SellOrder from level #%d" % i,
+                                                         callback_data='2|%s|%s|sellReAdd%d|chosen' % (exch, uid_ts, i))])
             else:
                 buttons.append([InlineKeyboardButton("Delete Sell level #%d" % i,
                                                      callback_data='2|%s|%s|SLD%d|chosen' % (exch, uid_ts, i))])
         if mode == 'full':
             buttons.append([InlineKeyboardButton("Set/Change SL", callback_data='2|%s|%s|SLM' % (exch, uid_ts))])
             buttons.append([InlineKeyboardButton(
-                "%s trade set" % ('Deactivate' if ct.tradeSets[uid_ts].is_active() else 'Activate'),
+                "%s trade set" % ('Deactivate' if ts.is_active() else 'Activate'),
                 callback_data='2|%s|%s|%s|chosen' % (
-                    exch, uid_ts, 'TSstop' if ct.tradeSets[uid_ts].is_active() else 'TSgo')),
+                    exch, uid_ts, 'TSstop' if ts.is_active() else 'TSgo')),
                 InlineKeyboardButton("Delete trade set", callback_data='3|%s|%s' % (exch, uid_ts))])
         elif mode == 'init':
             buttons.append(
@@ -259,7 +285,7 @@ class EazeBot:
                 user_data['messages'][t] = []
         return 1
 
-    def print_trade_status(self, update: Update, context: CallbackContext, only_this_ts=None):
+    def print_trade_status(self, update: Union[Update, None], context: CallbackContext, only_this_ts=None):
         self.delete_messages(context.user_data, 'status', i_ts=only_this_ts)
         for iex, ex in enumerate(context.user_data['trade']):
             ct = context.user_data['trade'][ex]
@@ -390,7 +416,7 @@ class EazeBot:
                     context.user_data['messages']['dialog'].append(
                         context.bot.send_message(
                             context.user_data['chatId'], 'Thank you, now let us begin setting the trade set'))
-                    self.print_trade_status(update, context, uid_ts)
+                    self.print_trade_status(None, context, uid_ts)
                     return MAINMENU
                 else:
                     if symbol:
@@ -503,11 +529,12 @@ class EazeBot:
                  [InlineKeyboardButton("Cancel", callback_data='askAmount|cancel')]]))
             bot_or_query.answer('Currency switched')
 
-    def add_init_balance(self, bot, user_data, exch, uid_ts, input_type=None, response=None, fct=None):
+    def add_init_balance(self, bot, user_data, exch, uid_ts, input_type=None, response=None, fct=None, temp_ts=None):
         ct = user_data['trade'][exch]
         if input_type is None:
+            temp_ts = TempTradeSet()
             user_data['lastFct'].append(lambda res: self.add_init_balance(bot, user_data, exch, uid_ts, 'initCoins',
-                                                                          res, fct))
+                                                                          res, fct, temp_ts))
             bal = ct.get_balance(ct.tradeSets[uid_ts].coinCurrency)
             user_data['messages']['dialog'].append(bot.send_message(
                 user_data['chatId'],
@@ -522,9 +549,9 @@ class EazeBot:
                         callback_data='addInitBal|cancel')]])))
             return NUMBER
         elif input_type == 'initCoins':
-            user_data['tempTradeSet'][0] = response
+            temp_ts.amount = response
             user_data['lastFct'].append(lambda res: self.add_init_balance(bot, user_data, exch, uid_ts, 'initPrice',
-                                                                          res, fct))
+                                                                          res, fct, temp_ts))
             user_data['messages']['dialog'].append(
                 bot.send_message(
                     user_data['chatId'],
@@ -538,33 +565,33 @@ class EazeBot:
         elif input_type == 'initPrice':
             self.delete_messages(user_data, 'dialog')
             if response >= 0:
-                user_data['tempTradeSet'][1] = response
-            self.add_pos(bot, user_data, exch, uid_ts, 'init', fct)
+                temp_ts.price = response
+            self.add_pos(user_data, ct.tradeSets[uid_ts], 'init', temp_ts, fct)
             return MAINMENU
 
-    def add_pos(self, bot, user_data, exch, uid_ts, direction, fct=None):
-        ct = user_data['trade'][exch]
+    @staticmethod
+    def add_pos(user_data, ts, direction, temp_ts, fct=None):
         try:
             if direction == 'buy':
-                ct.add_buy_level(uid_ts, user_data['tempTradeSet'][0], user_data['tempTradeSet'][1],
-                                 user_data['tempTradeSet'][2])
+                ts.add_buy_level(temp_ts.price, temp_ts.amount, **temp_ts.add_param)
             elif direction == 'sell':
-                ct.add_sell_level(uid_ts, user_data['tempTradeSet'][0], user_data['tempTradeSet'][1])
-            else:
-                ct.add_init_coins(uid_ts, user_data['tempTradeSet'][0], user_data['tempTradeSet'][1])
+                ts.add_sell_level(temp_ts.price, temp_ts.amount, **temp_ts.add_param)
+            elif direction == 'init':
+                ts.add_init_coins(temp_ts.price, temp_ts.amount)
         except Exception as e:
             logger.error(str(e), extra={'chatId': user_data['chatId']})
-        user_data['tempTradeSet'] = [None, None, None]
-        if fct:
+
+        if fct is not None:
             fct()
 
-    def ask_pos(self, bot, user_data, exch, uid_ts, direction, apply_fct=None, input_type=None, response=None):
+    def ask_pos(self, context, exch, uid_ts, direction, input_type=None, response=None, temp_ts=None):
+        bot = context.bot
+        user_data = context.user_data
         ct = user_data['trade'][exch]
         symbol = ct.tradeSets[uid_ts].symbol
         if input_type is None:
-            user_data['tempTradeSet'] = [None, None, None]
-            user_data['lastFct'].append(lambda r: self.ask_pos(bot, user_data, exch, uid_ts, direction, apply_fct,
-                                                               'price', r))
+            temp_ts = TempTradeSet()
+            user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'price', r, temp_ts))
             user_data['messages']['dialog'].append(
                 bot.send_message(user_data['chatId'], "At which price do you want to %s %s" % (direction, symbol),
                                  reply_markup=InlineKeyboardMarkup(
@@ -573,16 +600,16 @@ class EazeBot:
         elif input_type == 'price':
             if response == 0:
                 user_data['lastFct'].append(
-                    lambda res: self.ask_pos(bot, user_data, exch, uid_ts, direction, apply_fct, 'price', res))
+                    lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, temp_ts))
                 user_data['messages']['dialog'].append(
                     bot.send_message(user_data['chatId'], "Zero not allowed, please retry."))
                 return NUMBER
             else:
                 price = ct.safe_run(lambda: ct.exchange.fetchTicker(symbol))['last']
-                if direction == 'buy':
+                if 'buy' in direction:
                     if response > 1.1 * price:
                         user_data['lastFct'].append(
-                            lambda res: self.ask_pos(bot, user_data, exch, uid_ts, direction, apply_fct, 'price', res))
+                            lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, temp_ts))
                         user_data['messages']['dialog'].append(
                             bot.send_message(
                                 user_data['chatId'],
@@ -592,7 +619,7 @@ class EazeBot:
                 else:
                     if response < 0.9 * price:
                         user_data['lastFct'].append(
-                            lambda res: self.ask_pos(bot, user_data, exch, uid_ts, direction, apply_fct, 'price', res))
+                            lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, temp_ts))
                         user_data['messages']['dialog'].append(
                             bot.send_message(
                                 user_data['chatId'],
@@ -600,19 +627,18 @@ class EazeBot:
                                 "Please use instant sell or specify smaller price."))
                         return NUMBER
             response = float(user_data['trade'][exch].exchange.priceToPrecision(symbol, response))
-            user_data['tempTradeSet'][0] = response
-            user_data['lastFct'].append(lambda r: self.ask_pos(bot, user_data, exch, uid_ts, direction, apply_fct,
-                                                               'amount', r))
+            temp_ts.price = response
+            user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'amount', r, temp_ts))
             self.ask_amount(user_data, exch, uid_ts, direction, bot)
             return NUMBER
         elif input_type == 'amount':
             if user_data['whichCurrency'] == 1:
-                response = response / user_data['tempTradeSet'][0]
+                response = response / temp_ts.price
             response = float(user_data['trade'][exch].exchange.amountToPrecision(symbol, response))
-            user_data['tempTradeSet'][1] = response
-            if direction == 'buy':
+            temp_ts.amount = response
+            if 'buy' in direction:
                 user_data['lastFct'].append(
-                    lambda res: self.ask_pos(bot, user_data, exch, uid_ts, direction, apply_fct, 'candleAbove', res))
+                    lambda res: self.ask_pos(context, exch, uid_ts, direction, 'candleAbove', res, temp_ts))
                 user_data['messages']['dialog'].append(
                     bot.send_message(
                         user_data['chatId'],
@@ -628,18 +654,17 @@ class EazeBot:
                                 InlineKeyboardButton(
                                     "Cancel",
                                     callback_data='askPos|cancel')]])))
-                return TIMING
+                return DAILY_CANDLE
             else:
                 input_type = 'apply'
         if input_type == 'candleAbove':
-            user_data['tempTradeSet'][2] = response
+            temp_ts.add_param['candle_above'] = response
             input_type = 'apply'
         if input_type == 'apply':
             self.delete_messages(user_data, 'dialog')
-            if apply_fct is None:
-                return self.add_pos(bot, user_data, exch, uid_ts, direction)
-            else:
-                return apply_fct()
+            self.add_pos(user_data, ct.tradeSets[uid_ts], direction, temp_ts)
+        self.update_ts_text(context, uid_ts)
+        return MAINMENU
 
     def add_exchanges(self, update, context: CallbackContext):
         idx = [i for i, x in enumerate(self.__config__['telegramUserId']) if x == context.user_data['chatId']][0] + 1
@@ -679,18 +704,18 @@ class EazeBot:
         has_secret = list(available_exchanges.keys())
 
         if len(available_exchanges) > 0:
+            exch_container = ExchContainer(context.user_data['chatId'])
             logger.info('Found exchanges with keys %s, secrets %s, uids %s, password %s' % (
                 has_key, has_secret, has_uid, has_password))
             authenticated_exchanges = []
             for exch_name in available_exchanges:
                 exch_params = available_exchanges[exch_name]
                 exch_params.pop('exchange')
+                exch_container.add(exch_name, **exch_params)
                 # if no tradeHandler object has been created yet, create one, but also check for correct authentication
                 if exch_name not in context.user_data['trade']:
-                    context.user_data['trade'][exch_name] = tradeHandler(
-                        exch_name, **exch_params, logger_extras={'chatId': context.user_data['chatId']})
-                else:
-                    context.user_data['trade'][exch_name].update_keys(**exch_params)
+                    context.user_data['trade'][exch_name] = tradeHandler(exch_name, user=context.user_data['chatId'])
+
                 if not context.user_data['trade'][exch_name].authenticated and \
                         not context.user_data['trade'][exch_name].tradeSets:
                     logger.warning('Authentication failed for %s' % exch_name)
@@ -712,7 +737,8 @@ class EazeBot:
             context.bot.send_message(
                 context.user_data['chatId'], 'Old exchanges %s with no tradeSets removed' % removed_exchanges)
         for ct in context.user_data['trade'].values():
-            ct.set_logger_extras({'chatId': context.user_data['chatId']})
+            # necessary for backward compatibility
+            ct.set_user(context.user_data['chatId'])
 
     @staticmethod
     def get_remote_version():
@@ -801,19 +827,6 @@ class EazeBot:
                     self.updater.dispatcher.user_data[user]['trade'][ex].update(special_check=which)
         logger.info('Finished checking candles for all trade sets...')
 
-    def timing_callback(self, update: Update, context: CallbackContext, query=None, response=None):
-        if query is None:
-            query = update.callback_query
-        if query is None:
-            return 0
-        query.message.delete()
-        if 'Yes' in query.data:
-            query.answer(
-                'Please give the price above which the daily candle should close in order to initiate the buy!')
-            return NUMBER
-        else:
-            query.answer()
-            return context.user_data['lastFct'].pop()(None)
 
     @staticmethod
     def show_settings(update: Update, context: CallbackContext, bot_or_query=None):
@@ -845,13 +858,13 @@ class EazeBot:
                     context.bot.send_message(context.user_data['chatId'], string, parse_mode='markdown',
                                              reply_markup=InlineKeyboardMarkup(setting_buttons)))
 
-    def update_ts_text(self, update: Update, context: CallbackContext, uid_ts, query=None):
+    def update_ts_text(self, context: CallbackContext, uid_ts, query=None):
         if query:
             try:
                 query.message.delete()
             except Exception:
                 pass
-        self.print_trade_status(update, context, uid_ts)
+        self.print_trade_status(None, context, uid_ts)
 
     def inline_button_callback(self, update: Update, context: CallbackContext, query=None, response=None):
         if query is None:
@@ -865,7 +878,6 @@ class EazeBot:
             query.data = '|'.join(tmp)
 
         if 'cancel' in args:
-            context.user_data['tempTradeSet'] = [None, None, None]
             self.delete_messages(context.user_data, ['dialog', 'botInfo', 'settings'])
         else:
             if command == 'settings':
@@ -1069,6 +1081,7 @@ class EazeBot:
                         query.edit_message_text('This trade set is not found anymore. Probably it was deleted')
                     else:
                         ct = context.user_data['trade'][exch]
+                        ts = context.user_data['trade'][exch].tradeSets[uid_ts]
                         if command == '2':  # edit trade set
                             if 'chosen' in args:
                                 try:
@@ -1081,77 +1094,60 @@ class EazeBot:
                                 query.answer('')
 
                             elif any(['BLD' in val for val in args]):
-                                ct.delete_buy_level(uid_ts,
-                                                    int([re.search(r'(?<=^BLD)\d+', val).group(0) for val in args if
+                                ts.delete_buy_level(int([re.search(r'(?<=^BLD)\d+', val).group(0) for val in args if
                                                          isinstance(val, str) and 'BLD' in val][0]))
-                                self.update_ts_text(update, context, uid_ts, query)
+                                self.update_ts_text(context, uid_ts, query)
                                 query.answer('Deleted buy level')
 
                             elif any(['SLD' in val for val in args]):
-                                ct.delete_sell_level(uid_ts,
-                                                     int([re.search(r'(?<=^SLD)\d+', val).group(0) for val in args if
+                                ts.delete_sell_level(int([re.search(r'(?<=^SLD)\d+', val).group(0) for val in args if
                                                           isinstance(val, str) and 'SLD' in val][0]))
-                                self.update_ts_text(update, context, uid_ts, query)
+                                self.update_ts_text(context, uid_ts, query)
                                 query.answer('Deleted sell level')
 
+                            elif 'buyRegAdd' in args:
+                                query.answer('Adding new regular buy')
+                                return self.ask_pos(context, exch, uid_ts, direction='reg_buy')
+
                             elif 'buyAdd' in args:
-                                if response is None:
-                                    query.answer('Adding new buy level')
-                                    return self.ask_pos(context.bot, context.user_data, exch, uid_ts, direction='buy',
-                                                        apply_fct=lambda: self.inline_button_callback(update, context,
-                                                                                                      query,
-                                                                                                      'continue'))
-                                else:
-                                    ct.add_buy_level(uid_ts, context.user_data['tempTradeSet'][0],
-                                                     context.user_data['tempTradeSet'][1],
-                                                     context.user_data['tempTradeSet'][2])
-                                    context.user_data['tempTradeSet'] = [None, None, None]
-                                    self.update_ts_text(update, context, uid_ts, query)
+                                query.answer('Adding new buy level')
+                                return self.ask_pos(context, exch, uid_ts, direction='buy')
 
                             elif 'sellAdd' in args:
-                                if response is None:
-                                    query.answer('Adding new sell level')
-                                    return self.ask_pos(context.bot, context.user_data, exch, uid_ts, direction='sell',
-                                                        apply_fct=lambda: self.inline_button_callback(update, context,
-                                                                                                      query,
-                                                                                                      'continue'))
-                                else:
-                                    ct.add_sell_level(uid_ts, context.user_data['tempTradeSet'][0],
-                                                      context.user_data['tempTradeSet'][1])
-                                    context.user_data['tempTradeSet'] = [None, None, None]
-                                    self.update_ts_text(update, context, uid_ts, query)
+                                query.answer('Adding new sell level')
+                                return self.ask_pos(context, exch, uid_ts, direction='sell')
 
                             elif any(['buyReAdd' in val for val in args]):
                                 logger.info(args)
                                 level = int([re.search(r'(?<=^buyReAdd)\d+', val).group(0) for val in args if
                                              isinstance(val, str) and 'buyReAdd' in val][0])
-                                trade = ct.tradeSets[uid_ts].InTrades[level]
-                                ct.add_buy_level(uid_ts, trade['price'], trade['amount'], trade['candleAbove'])
-                                self.update_ts_text(update, context, uid_ts, query)
+                                trade = ts.InTrades[level]
+                                ts.add_buy_level(trade['price'], trade['amount'], trade['candleAbove'])
+                                self.update_ts_text(context, uid_ts, query)
 
                             elif any(['sellReAdd' in val for val in args]):
                                 level = int([re.search(r'(?<=^sellReAdd)\d+', val).group(0) for val in args if
                                              isinstance(val, str) and 'sellReAdd' in val][0])
-                                trade = ct.tradeSets[uid_ts].OutTrades[level]
-                                ct.add_sell_level(uid_ts, trade['price'], trade['amount'])
-                                self.update_ts_text(update, context, uid_ts, query)
+                                trade = ts.OutTrades[level]
+                                ts.add_sell_level(uid_ts, trade['price'], trade['amount'])
+                                self.update_ts_text(context, uid_ts, query)
 
                             elif 'AIC' in args:
                                 query.answer('Adding initial coins')
                                 return self.add_init_balance(context.bot, context.user_data, exch, uid_ts,
                                                              input_type=None,
                                                              response=None,
-                                                             fct=lambda: self.print_trade_status(update, context,
+                                                             fct=lambda: self.print_trade_status(None, context,
                                                                                                  uid_ts))
 
                             elif 'TSgo' in args:
-                                ct.activate(uid_ts)
-                                self.update_ts_text(update, context, uid_ts, query)
+                                ts.activate()
+                                self.update_ts_text(context, uid_ts, query)
                                 query.answer('Trade set activated')
 
                             elif 'TSstop' in args:
-                                ct.deactivate(uid_ts, 1)
-                                self.update_ts_text(update, context, uid_ts, query)
+                                ts.deactivate(cancel_orders=1)
+                                self.update_ts_text(context, uid_ts, query)
                                 query.answer('Trade set deactivated!')
 
                             elif 'SLM' in args:
@@ -1160,12 +1156,12 @@ class EazeBot:
                                 query.answer('Choose an option')
 
                             elif 'SLBE' in args:
-                                ans = ct.set_sl_break_even(uid_ts)
+                                ans = ts.set_sl_break_even()
                                 if ans:
                                     query.answer('SL set break even')
                                 else:
                                     query.answer('SL break even failed to set')
-                                self.update_ts_text(update, context, uid_ts, query)
+                                self.update_ts_text(context, uid_ts, query)
 
                             elif 'DCSL' in args:
                                 # set a daily-close SL
@@ -1200,9 +1196,9 @@ class EazeBot:
                                                                 exch,
                                                                 uid_ts))]])))
                                 else:
-                                    ct.set_daily_close_sl(uid_ts, response)
+                                    ts.set_daily_close_sl(response)
                                     self.delete_messages(context.user_data, 'dialog')
-                                    self.update_ts_text(update, context, uid_ts, query)
+                                    self.update_ts_text(context, uid_ts, query)
 
                             elif 'WCSL' in args:
                                 # set a daily-close SL
@@ -1233,9 +1229,9 @@ class EazeBot:
                                                                 "Cancel",
                                                                 callback_data='2|%s|%s|cancel' % (exch, uid_ts))]])))
                                 else:
-                                    ct.set_weekly_close_sl(uid_ts, response)
+                                    ts.set_weekly_close_sl(response)
                                     self.delete_messages(context.user_data, 'dialog')
-                                    self.update_ts_text(update, context, uid_ts, query)
+                                    self.update_ts_text(context, uid_ts, query)
 
                             elif 'TSL' in args:
                                 # set a trailing stop-loss
@@ -1267,11 +1263,10 @@ class EazeBot:
                                     response = float(response)
                                     if 'rel' in args:
                                         response /= 100
-                                    ct.set_trailing_sl(uid_ts,
-                                                       response,
+                                    ts.set_trailing_sl(response,
                                                        typ=ValueType.ABSOLUTE if 'abs' in args else ValueType.RELATIVE)
                                     self.delete_messages(context.user_data, 'dialog')
-                                    self.update_ts_text(update, context, uid_ts, query)
+                                    self.update_ts_text(context, uid_ts, query)
 
                             elif 'SLC' in args:
                                 if response is None:
@@ -1283,8 +1278,8 @@ class EazeBot:
                                     response = float(response)
                                     if response == 0:
                                         response = None
-                                    ct.set_sl(uid_ts, response)
-                                    self.update_ts_text(update, context, uid_ts, query)
+                                    ts.set_sl(response)
+                                    self.update_ts_text(context, uid_ts, query)
                             else:
                                 buttons = self.buttons_edit_ts(ct, uid_ts, 'full')
                                 query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
@@ -1292,7 +1287,7 @@ class EazeBot:
                         elif command == '3':  # init trade set deletion
                             if 'ok' in args:
                                 query.message.delete()
-                                ct.delete_trade_set(uid_ts, sell_all='yes' in args)
+                                ts.delete_trade_set(sell_all='yes' in args)
                                 query.answer('Trade Set deleted')
                             elif 'yes' in args or 'no' in args:
                                 query.answer('Ok, and are you really sure to delete this trade set?')
@@ -1339,8 +1334,11 @@ class EazeBot:
                 NUMBER: [MessageHandler(Filters.regex(r'^[\+,\-]?\d+\.?\d*$'), self.received_float),
                          MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'noNumber')),
                          CallbackQueryHandler(self.inline_button_callback)],
-                TIMING: [CallbackQueryHandler(self.timing_callback),
+                DATE: [MessageHandler(DateFilter(), self.received_date),
+                         MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'noDate')),
                          CallbackQueryHandler(self.inline_button_callback)],
+                DAILY_CANDLE: [CallbackQueryHandler(self.daily_candle_callback),
+                               CallbackQueryHandler(self.inline_button_callback)],
                 INFO: [MessageHandler(Filters.regex(r'\w+'), self.received_info)]
             },
             fallbacks=[CommandHandler('exit', self.done_cmd)], allow_reentry=True)  # , per_message = True)
