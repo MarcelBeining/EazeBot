@@ -7,8 +7,8 @@
     ],
     "versions": [
         {
-            "version": "Unreleased",
-            "date": "",
+            "version": "v2.5.0",
+            "date": "2020-07-29 10:27",
             "section": [
                 {
                     "label": "Added",
@@ -20,7 +20,7 @@
                         {
                             "author": "Marcel",
                             "message": "Adding prerequisites for a new option to hide filled orders (option within each trade set)"
-						}
+                        }
                     ]
                 }
             ]
