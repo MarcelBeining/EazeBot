@@ -15,11 +15,11 @@
                     "entries": [
                         {
                             "author": "Marcel",
-                            "message": "Adding a new type of buy (regular buy) to buy with some interval"
+                            "message": "Adding prerequisites for a new type of buy (regular buy) to buy with some interval"
                         },
                         {
                             "author": "Marcel",
-                            "message": "New option to hide filled orders (option within each trade set)"
+                            "message": "Adding prerequisites for a new option to hide filled orders (option within each trade set)"
 						}
                     ]
                 }
