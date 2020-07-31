@@ -7,6 +7,21 @@
     ],
     "versions": [
         {
+            "version": "v2.5.2",
+            "date": "2020-07-31 10:07",
+            "section": [
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed typo that prevented trade set deletion"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.5.1",
             "date": "2020-07-29 19:23",
             "section": [
