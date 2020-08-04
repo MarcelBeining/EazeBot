@@ -365,6 +365,16 @@ class tradeHandler:
                                                         ' (DOWN !!!) ' if self.down else '', ts.symbol)
         filled_buys = []
         filled_sells = []
+        if ts.regular_buy is not None:
+            rb =ts.regular_buy
+            if rb.interval.months:
+                interval = 'month'
+            elif rb.interval.weeks:
+                interval = 'week'
+            else:
+                interval = 'day'
+            prt_str += f"*Regular buy:* {rb.amount} {rb.currency} each {interval} using " \
+                f"{rb.order_type.name.lower()} order. Next buy on **{rb.next_time.isoformat()}**\n"
 
         for iTrade, trade in enumerate(ts.InTrades):
             tmpstr = '*Buy level %d:* Price %s , Amount %s %s   ' % (
@@ -619,17 +629,20 @@ class tradeHandler:
                                 msg += f"Using {rb.amount} {rb.currency} to buy {ts.coinCurrency}"
 
                             if rb.order_type == OrderType.MARKET:
-                                logger.info(f"{msg} at market price.")
-                                ts.do_market_buy(amount=rb.amount, currency=rb.currency, lock=False)
+                                logger.info(f"{msg} at market price.", extra=self.logger_extras)
+                                ts.do_market_buy(amount=float(self.exchange.amountToPrecision(ts.symbol, rb.amount)),
+                                                 currency=rb.currency, lock=False)
                             elif rb.order_type == OrderType.LIMIT:
-                                logger.info(f"{msg} with near-to-market-price limit order.")
+                                logger.info(f"{msg} with near-to-market-price limit order.", extra=self.logger_extras)
                                 # try to buy with a 0.2% discount from current price to avoid maker fee
                                 price = price_obj.get_current_price() * 0.998
                                 if rb.currency == ts.coinCurrency:
                                     amount = rb.amount
                                 else:
                                     amount = rb.amount / price
-                                ts.add_buy_level(buy_price=price, buy_amount=amount, lock=False)
+                                ts.add_buy_level(buy_price=price,
+                                                 buy_amount=float(self.exchange.amountToPrecision(ts.symbol, amount)),
+                                                 lock=False)
                             else:
                                 raise ValueError('Unknown order type')
 
@@ -660,7 +673,7 @@ class tradeHandler:
                                     if order_info['type'].lower() == 'market':
                                             amount = sum([tr['amount'] for tr in trades if tr['order'] == order_info['id']])
                                             fee = sum(
-                                                [tr['fee']['cost'] for tr in trades if trade['order'] ==
+                                                [tr['fee']['cost'] for tr in trades if tr['order'] ==
                                                  order_info['id'] and tr['fee']['currency'] == ts.coinCurrency])
                                             trade['amount'] = amount
                                             trade['actualAmount'] = amount - fee

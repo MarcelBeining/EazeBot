@@ -22,6 +22,15 @@
                             "message": "Activated \"hide filled orders\" feature"
                         }
                     ]
+                },
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed empty change log"
+                        }
+                    ]
                 }
             ]
         },

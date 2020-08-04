@@ -22,14 +22,17 @@
 
 # %% import modules
 import logging
+import random
 import re
+import string
 import traceback
 import time
 import datetime as dt
 import json
 import signal
 from typing import Union, List, Dict
-
+from dateutil.relativedelta import relativedelta
+from dateparser import parse as dateparse
 import requests
 import base64
 import os
@@ -39,7 +42,7 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
                           ConversationHandler, CallbackQueryHandler, CallbackContext)
 from telegram.error import BadRequest
 from eazebot.tradeHandler import tradeHandler
-from eazebot.handling import ValueType, ExchContainer, DateFilter, TempTradeSet
+from eazebot.handling import ValueType, ExchContainer, DateFilter, TempTradeSet, BaseTradeSet, RegularBuy, OrderType
 from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data
 
 MAINMENU, SETTINGS, SYMBOL, NUMBER, DAILY_CANDLE, INFO, DATE = range(7)
@@ -51,6 +54,7 @@ class EazeBot:
     def __init__(self, config: Dict, user_dir: str = 'user_data'):
         self.user_dir = user_dir
         self.__config__ = config
+        self.temp_ts = {}
         with open(os.path.join(os.path.dirname(__file__), '__init__.py')) as fh:
             self.thisVersion = re.search(r'(?<=__version__ = \')[0-9.]+', str(fh.read())).group(0)
 
@@ -123,7 +127,7 @@ class EazeBot:
     @staticmethod
     def received_date(update: Update, context: CallbackContext):
         if len(context.user_data['lastFct']) > 0:
-            return context.user_data['lastFct'].pop()(float(update.message.text))
+            return context.user_data['lastFct'].pop()(dateparse(update.message.text))
         else:
             context.bot.send_message(context.user_data['chatId'], 'Unknown previous error, returning to main menu')
             return MAINMENU
@@ -167,7 +171,6 @@ class EazeBot:
             washere = 'back '
             self.delete_messages(context.user_data)
             context.user_data.update({'lastFct': [],
-                                      'whichCurrency': 0,
                                       'messages': {'status': {}, 'dialog': [], 'botInfo': [], 'settings': [],
                                                    'history': []}}
                                      )
@@ -177,7 +180,6 @@ class EazeBot:
                 'chatId': update.message.chat_id, 'trade': {},
                 'settings': {'fiat': [], 'showProfitIn': None},
                 'lastFct': [],
-                'whichCurrency': 0,
                 'messages': {'status': {}, 'dialog': [], 'botInfo': [], 'settings': [], 'history': []}})
 
         context.bot.send_message(context.user_data['chatId'],
@@ -197,7 +199,7 @@ class EazeBot:
     def buttons_edit_ts(ct, uid_ts, mode='full'):
         exch = ct.exchange.name.lower()
         buttons = [[InlineKeyboardButton("Add buy level", callback_data='2|%s|%s|buyAdd|chosen' % (exch, uid_ts)),
-                    # InlineKeyboardButton("Add regular buy", callback_data='2|%s|%s|buyRegAdd|chosen' % (exch, uid_ts)),
+                    InlineKeyboardButton("Add regular buy", callback_data='2|%s|%s|buyRegAdd|chosen' % (exch, uid_ts)),
                     InlineKeyboardButton("Add sell level", callback_data='2|%s|%s|sellAdd|chosen' % (exch, uid_ts))]]
         ts = ct.tradeSets[uid_ts]
         for i, trade in enumerate(ts.InTrades):
@@ -217,7 +219,9 @@ class EazeBot:
                 buttons.append([InlineKeyboardButton("Delete Sell level #%d" % i,
                                                      callback_data='2|%s|%s|SLD%d|chosen' % (exch, uid_ts, i))])
         if mode == 'full':
+            text = 'Hide' if ts.show_filled_orders else 'Show'
             buttons.append([InlineKeyboardButton("Set/Change SL", callback_data='2|%s|%s|SLM' % (exch, uid_ts))])
+            buttons.append([InlineKeyboardButton(f"{text} filled orders", callback_data='2|%s|%s|TFO' % (exch, uid_ts))])
             buttons.append([InlineKeyboardButton(
                 "%s trade set" % ('Deactivate' if ts.is_active() else 'Activate'),
                 callback_data='2|%s|%s|%s|chosen' % (
@@ -458,26 +462,26 @@ class EazeBot:
                     'No authenticated exchanges found for your account! Please click "Add exchanges"'))
             return MAINMENU
 
-    @staticmethod
-    def ask_amount(user_data, exch, uid_ts, direction, bot_or_query):
+    def ask_amount(self, user_data, exch, uid_ts, utid, direction, bot_or_query):
         ct = user_data['trade'][exch]
         ts = ct.tradeSets[uid_ts]
+        temp_ts = self.temp_ts[utid]
         coin = ts.coinCurrency
         currency = ts.baseCurrency
         if direction == 'sell':
             # free balance is coins available in trade set minus coins that will be sold plus coins that will be bought
             bal = ts.coinsAvail - ts.sum_sell_amounts('notinitiated') + \
                   ts.sum_buy_amounts('notfilled', subtract_fee=True)
-            if user_data['whichCurrency'] == 0:
+            if temp_ts.coin_or_base == 0:
                 bal = ct.nf.amount2Prec(ts.symbol, bal)
                 cname = coin
                 action = 'sell'
-                bal_text = 'available %s [fee subtracted] is' % coin
+                bal_text = f' (available {coin} [fee subtracted] is ~{bal})'
             else:
-                bal = ct.nf.cost2Prec(ts.symbol, bal * user_data['tempTradeSet'][0])
+                bal = ct.nf.cost2Prec(ts.symbol, bal * temp_ts.price)
                 cname = currency
                 action = 'receive'
-                bal_text = 'return from available %s [fee subtracted] would be' % coin
+                bal_text = f' (return from available {coin} [fee subtracted] would be ~ {bal})'
         elif direction == 'buy':
             # free balance is free currency minus cost for coins that will be bought
             if ct.get_balance(currency) is not None:
@@ -487,54 +491,65 @@ class EazeBot:
                 # estimate the amount of free coins... this is wrong if more than one trade uses this coin
                 bal = ct.get_balance(currency, 'total') - ts.sum_buy_costs('notfilled')
                 unsure = ' (estimated!) '
-            if user_data['whichCurrency'] == 0:
-                bal = ct.nf.amount2Prec(ts.symbol, bal / user_data['tempTradeSet'][0])
+            if temp_ts.coin_or_base == 0:
+                bal = ct.nf.amount2Prec(ts.symbol, bal / temp_ts.price)
                 cname = coin
                 action = 'buy'
-                bal_text = f'possible buy amount from your{unsure}remaining free balance is'
+                bal_text = f' ( possible buy amount from your{unsure}remaining free balance is ~{bal})'
             else:
                 bal = ct.nf.cost2Prec(ts.symbol, bal)
                 cname = currency
                 action = 'use'
-                bal_text = '{unsure}remaining free balance is'
+                bal_text = f' ( {unsure}remaining free balance is ~{bal})'
+        elif direction == 'reg_buy':
+            bal_text = ''
+            if temp_ts.coin_or_base == 0:
+                cname = coin
+                action = 'buy'
+            else:
+                cname = currency
+                action = 'use'
         else:
             raise ValueError('Unknown direction specification')
 
-        text = "What amount of %s do you want to %s (%s ~%s)?" % (cname, action, bal_text, bal)
+        text = f"What amount of {cname} do you want to {action}{bal_text}?"
+
+        buttons = [
+            [
+                            InlineKeyboardButton(
+                                "Toggle currency",
+                                callback_data='toggleCurrency|%s|%s|%s|%s' % (
+                                    exch,
+                                    uid_ts,
+                                    utid,
+                                    direction))],
+                        [
+                            InlineKeyboardButton(
+                                "Cancel",
+                                callback_data='askAmount|cancel')]
+        ]
+
+        if direction != 'reg_buy':
+            buttons.insert(0, [InlineKeyboardButton("Choose max amount", callback_data='maxAmount|%s' % bal)])
+
         if isinstance(bot_or_query, Bot):
             user_data['messages']['dialog'].append(
                 bot_or_query.send_message(
                     user_data['chatId'],
                     text,
-                    reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton(
-                            "Choose max amount",
-                            callback_data='maxAmount|%s' % bal)],
-                        [
-                            InlineKeyboardButton(
-                                "Toggle currency",
-                                callback_data='toggleCurrency|%s|%s|%s' % (
-                                    exch,
-                                    uid_ts,
-                                    direction))],
-                        [
-                            InlineKeyboardButton(
-                                "Cancel",
-                                callback_data='askAmount|cancel')]])))
+                    reply_markup=InlineKeyboardMarkup(buttons)))
         else:
-            bot_or_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("Choose max amount", callback_data='maxAmount|%s' % bal)], [
-                    InlineKeyboardButton("Toggle currency",
-                                         callback_data='toggleCurrency|%s|%s|%s' % (exch, uid_ts, direction))],
-                 [InlineKeyboardButton("Cancel", callback_data='askAmount|cancel')]]))
+            bot_or_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
             bot_or_query.answer('Currency switched')
 
-    def add_init_balance(self, bot, user_data, exch, uid_ts, input_type=None, response=None, fct=None, temp_ts=None):
+    def add_init_balance(self, bot, user_data, exch, uid_ts, input_type=None, response=None, fct=None, utid=None):
         ct = user_data['trade'][exch]
         if input_type is None:
-            temp_ts = TempTradeSet()
+            random.seed()
+            utid = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
+            self.temp_ts[utid] = TempTradeSet()
             user_data['lastFct'].append(lambda res: self.add_init_balance(bot, user_data, exch, uid_ts, 'initCoins',
-                                                                          res, fct, temp_ts))
+                                                                          res, fct, utid))
             bal = ct.get_balance(ct.tradeSets[uid_ts].coinCurrency)
             user_data['messages']['dialog'].append(bot.send_message(
                 user_data['chatId'],
@@ -549,9 +564,9 @@ class EazeBot:
                         callback_data='addInitBal|cancel')]])))
             return NUMBER
         elif input_type == 'initCoins':
-            temp_ts.amount = response
+            self.temp_ts[utid].amount = response
             user_data['lastFct'].append(lambda res: self.add_init_balance(bot, user_data, exch, uid_ts, 'initPrice',
-                                                                          res, fct, temp_ts))
+                                                                          res, fct, utid))
             user_data['messages']['dialog'].append(
                 bot.send_message(
                     user_data['chatId'],
@@ -565,17 +580,23 @@ class EazeBot:
         elif input_type == 'initPrice':
             self.delete_messages(user_data, 'dialog')
             if response >= 0:
-                temp_ts.price = response
-            self.add_pos(user_data, ct.tradeSets[uid_ts], 'init', temp_ts, fct)
+                self.temp_ts[utid].price = response
+            self.add_pos(user_data, ct.tradeSets[uid_ts], 'init', utid, fct)
             return MAINMENU
 
-    @staticmethod
-    def add_pos(user_data, ts, direction, temp_ts, fct=None):
+    def add_pos(self, user_data, ts: BaseTradeSet, direction, utid, fct=None):
+        temp_ts = self.temp_ts.pop(utid)
         try:
-            if direction == 'buy':
-                ts.add_buy_level(temp_ts.price, temp_ts.amount, **temp_ts.add_param)
+            if direction == 'reg_buy':
+                currency = ts.coinCurrency if temp_ts.coin_or_base == 0 else ts.baseCurrency
+                ts.regular_buy = RegularBuy(amount=temp_ts.amount, currency=currency,
+                                            order_type=temp_ts.add_params['order_type'],
+                                            interval=temp_ts.add_params['interval'],
+                                            start=temp_ts.add_params['start'])
+            elif direction == 'buy':
+                ts.add_buy_level(temp_ts.price, temp_ts.amount, **temp_ts.add_params)
             elif direction == 'sell':
-                ts.add_sell_level(temp_ts.price, temp_ts.amount, **temp_ts.add_param)
+                ts.add_sell_level(temp_ts.price, temp_ts.amount)
             elif direction == 'init':
                 ts.add_init_coins(temp_ts.price, temp_ts.amount)
         except Exception as e:
@@ -584,23 +605,30 @@ class EazeBot:
         if fct is not None:
             fct()
 
-    def ask_pos(self, context, exch, uid_ts, direction, input_type=None, response=None, temp_ts=None):
+    def ask_pos(self, context, exch, uid_ts, direction, input_type=None, response=None, utid=None):
         bot = context.bot
         user_data = context.user_data
         ct = user_data['trade'][exch]
         symbol = ct.tradeSets[uid_ts].symbol
         if input_type is None:
-            temp_ts = TempTradeSet()
-            user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'price', r, temp_ts))
-            user_data['messages']['dialog'].append(
-                bot.send_message(user_data['chatId'], "At which price do you want to %s %s" % (direction, symbol),
-                                 reply_markup=InlineKeyboardMarkup(
-                                     [[InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])))
+            random.seed()
+            utid = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
+            self.temp_ts[utid] = TempTradeSet()
+            if direction == 'reg_buy':
+                self.temp_ts[utid].reg_buy = True
+                user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'amount', r, utid))
+                self.ask_amount(user_data, exch, uid_ts, utid, direction, bot)
+            else:
+                user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'price', r, utid))
+                user_data['messages']['dialog'].append(
+                    bot.send_message(user_data['chatId'], "At which price do you want to %s %s" % (direction, symbol),
+                                     reply_markup=InlineKeyboardMarkup(
+                                         [[InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])))
             return NUMBER
         elif input_type == 'price':
             if response == 0:
                 user_data['lastFct'].append(
-                    lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, temp_ts))
+                    lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, utid))
                 user_data['messages']['dialog'].append(
                     bot.send_message(user_data['chatId'], "Zero not allowed, please retry."))
                 return NUMBER
@@ -609,7 +637,7 @@ class EazeBot:
                 if 'buy' in direction:
                     if response > 1.1 * price:
                         user_data['lastFct'].append(
-                            lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, temp_ts))
+                            lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, utid))
                         user_data['messages']['dialog'].append(
                             bot.send_message(
                                 user_data['chatId'],
@@ -619,7 +647,7 @@ class EazeBot:
                 else:
                     if response < 0.9 * price:
                         user_data['lastFct'].append(
-                            lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, temp_ts))
+                            lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, utid))
                         user_data['messages']['dialog'].append(
                             bot.send_message(
                                 user_data['chatId'],
@@ -627,18 +655,19 @@ class EazeBot:
                                 "Please use instant sell or specify smaller price."))
                         return NUMBER
             response = float(user_data['trade'][exch].exchange.priceToPrecision(symbol, response))
-            temp_ts.price = response
-            user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'amount', r, temp_ts))
-            self.ask_amount(user_data, exch, uid_ts, direction, bot)
+            self.temp_ts[utid].price = response
+            user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'amount', r, utid))
+            self.ask_amount(user_data, exch, uid_ts, utid, direction, bot)
             return NUMBER
         elif input_type == 'amount':
-            if user_data['whichCurrency'] == 1:
-                response = response / temp_ts.price
-            response = float(user_data['trade'][exch].exchange.amountToPrecision(symbol, response))
-            temp_ts.amount = response
-            if 'buy' in direction:
+            if self.temp_ts[utid].reg_buy is False:
+                if self.temp_ts[utid].coin_or_base == 1:
+                    response = response / utid.price
+                response = float(user_data['trade'][exch].exchange.amountToPrecision(symbol, response))
+            self.temp_ts[utid].amount = response
+            if direction == 'buy':
                 user_data['lastFct'].append(
-                    lambda res: self.ask_pos(context, exch, uid_ts, direction, 'candleAbove', res, temp_ts))
+                    lambda res: self.ask_pos(context, exch, uid_ts, direction, 'candleAbove', res, utid))
                 user_data['messages']['dialog'].append(
                     bot.send_message(
                         user_data['chatId'],
@@ -655,14 +684,67 @@ class EazeBot:
                                     "Cancel",
                                     callback_data='askPos|cancel')]])))
                 return DAILY_CANDLE
+            elif self.temp_ts[utid].reg_buy:
+                user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'order_type', r,
+                                                                   utid))
+                user_data['messages']['dialog'].append(
+                    bot.send_message(user_data['chatId'], "Do you want to buy using market or limit order?\n"
+                                                          "Note that market order fees are usually higher, while it "
+                                                          r"cannot be guaranteed that the limit order (set at 0.02 % "
+                                                          "below the market price at the date of buy) will be filled!",
+                                     reply_markup=InlineKeyboardMarkup(
+                                         [[InlineKeyboardButton("Market", callback_data='askPos|market'),
+                                           InlineKeyboardButton("Limit", callback_data='askPos|limit')],
+                                          [InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])))
+                return MAINMENU
             else:
                 input_type = 'apply'
+        elif input_type == 'order_type':
+            if response == 'market':
+                self.temp_ts[utid].add_params['order_type'] = OrderType.MARKET
+            else:
+                self.temp_ts[utid].add_params['order_type'] = OrderType.LIMIT
+
+            user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'interval', r,
+                                                               utid))
+            user_data['messages']['dialog'].append(
+                bot.send_message(user_data['chatId'], "At which interval do you want to buy regularly?",
+                                 reply_markup=InlineKeyboardMarkup(
+                                     [[InlineKeyboardButton("Daily", callback_data='askPos|daily'),
+                                       InlineKeyboardButton("Weekly", callback_data='askPos|weekly')],
+                                      [InlineKeyboardButton("Monthly", callback_data='askPos|monthly'),
+                                      InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])))
+            return MAINMENU
+        elif input_type == 'interval':
+            if response == 'daily':
+                self.temp_ts[utid].add_params['interval'] = relativedelta(days=1)
+            elif response == 'weekly':
+                self.temp_ts[utid].add_params['interval'] = relativedelta(weeks=1)
+            elif response == 'monthly':
+                self.temp_ts[utid].add_params['interval'] = relativedelta(months=1)
+            else:
+                logger.error(f"Unknown interval {response}, returning to main menu.")
+                return MAINMENU
+
+            user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'start', r,
+                                                               utid))
+            user_data['messages']['dialog'].append(
+                bot.send_message(user_data['chatId'], "When do you want to start with the buys? Type in a valid date "
+                                                      "(e.g. YYYY-MM-DD HH:mm) or press the 'Now' button",
+                                 reply_markup=InlineKeyboardMarkup(
+                                     [[InlineKeyboardButton("Now", callback_data='askPos|now'),
+                                       InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])))
+            return DATE
+        elif input_type == 'start':
+            self.temp_ts[utid].add_params['start'] = response
+            input_type = 'apply'
+
         if input_type == 'candleAbove':
-            temp_ts.add_param['candle_above'] = response
+            self.temp_ts[utid].add_params['candle_above'] = response
             input_type = 'apply'
         if input_type == 'apply':
             self.delete_messages(user_data, 'dialog')
-            self.add_pos(user_data, ct.tradeSets[uid_ts], direction, temp_ts)
+            self.add_pos(user_data, ct.tradeSets[uid_ts], direction, utid)
         self.update_ts_text(context, uid_ts)
         return MAINMENU
 
@@ -878,6 +960,7 @@ class EazeBot:
             query.data = '|'.join(tmp)
 
         if 'cancel' in args:
+            self.temp_ts = {}
             self.delete_messages(context.user_data, ['dialog', 'botInfo', 'settings'])
         else:
             if command == 'settings':
@@ -930,12 +1013,26 @@ class EazeBot:
                 else:
                     query.answer('An error occured, please type in the number')
                     return NUMBER
+            elif command == 'askPos':
+                subcommand = args.pop(0)
+                if subcommand in ['limit', 'market']:
+                    query.answer(f'{subcommand} order type chosen')
+                elif subcommand in ['daily', 'weekly', 'monthly']:
+                    query.answer(f'{subcommand} interval chosen')
+                elif subcommand == 'now':
+                    query.answer(f'Regular buy starting now chosen')
+                    subcommand = dt.datetime.now()
+                else:
+                    query.answer('Unknown command')
+                    return MAINMENU
+                return context.user_data['lastFct'].pop()(subcommand)
             else:
                 exch = args.pop(0)
                 uid_ts = args.pop(0)
                 if command == 'toggleCurrency':
-                    context.user_data['whichCurrency'] = (context.user_data['whichCurrency'] + 1) % 2
-                    return self.ask_amount(context.user_data, exch, uid_ts, args[0], query)
+                    utid = args.pop(0)
+                    self.temp_ts[utid].coin_or_base = (self.temp_ts[utid].coin_or_base + 1) % 2
+                    return self.ask_amount(context.user_data, exch, uid_ts, utid, args[0], query)
                 elif command == 'showSymbols':
                     syms = [val for val in context.user_data['trade'][exch].exchange.symbols if '.d' not in val]
                     buttons = list()
@@ -1280,6 +1377,10 @@ class EazeBot:
                                         response = None
                                     ts.set_sl(response)
                                     self.update_ts_text(context, uid_ts, query)
+                            elif 'TFO' in args:
+                                # toggle filled orders
+                                ts.show_filled_orders = (ts.show_filled_orders + 1) % 2
+                                self.update_ts_text(context, uid_ts, query)
                             else:
                                 buttons = self.buttons_edit_ts(ct, uid_ts, 'full')
                                 query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
