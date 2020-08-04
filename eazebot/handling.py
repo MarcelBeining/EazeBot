@@ -57,8 +57,32 @@ class ExchContainer:
 class TempTradeSet:
     def __init__(self):
         self.amount = None
-        self.price = None
-        self.add_param = {}
+        self.coin_or_base = 0
+        self.__price = None
+        self.__reg_buy = False
+        self.add_params = {}
+
+    @property
+    def reg_buy(self):
+        return self.__reg_buy
+
+    @reg_buy.setter
+    def reg_buy(self, reg_buy):
+        if self.price is None or reg_buy is False:
+            self.__reg_buy = reg_buy
+        else:
+            raise ValueError('Regular buy cannot be set, if price is already set')
+
+    @property
+    def price(self):
+        return self.__price
+
+    @price.setter
+    def price(self, price):
+        if self.reg_buy is False or price is None:
+            self.__price = price
+        else:
+            raise ValueError('Price cannot be set, if regular buy is True')
 
 
 class DateFilter(BaseFilter):
@@ -275,6 +299,7 @@ class RegularBuy:
             return True
         return False
 
+
 class BaseTradeSet:
     def __init__(self, symbol: str, trade_handler: 'tradeHandler' = None, uid: str = None):
         if uid is None:
@@ -344,7 +369,7 @@ class BaseTradeSet:
         return ts
 
     def __reduce__(self):
-        # function needes for serializing the object
+        # function needed for serializing the object
         return (
             self.__class__, (self.symbol, None, self.get_uid()),
             self.__getstate__(),
@@ -352,15 +377,15 @@ class BaseTradeSet:
 
     def __setstate__(self, state):
         # supplement with default values
-        defaults = (False, False, [], [], time.time(), 0, 0, 0, 0, None, None, True)
+        defaults = (False, False, [], [], time.time(), 0, 0, 0, 0, None, None, True, None)
         state = state + defaults[len(state):]
         # assign states
         self.__active, self.__virgin, self.InTrades, self.OutTrades, self.createdAt, self.costIn, self.costOut, \
-            self.coinsAvail, self.initCoins, self.initPrice, self.SL, self.show_filled_orders = state
+            self.coinsAvail, self.initCoins, self.initPrice, self.SL, self.show_filled_orders, self.regular_buy = state
 
     def __getstate__(self):
         return self.__active, self.__virgin, self.InTrades, self.OutTrades, self.createdAt, self.costIn, self.costOut, \
-               self.coinsAvail, self.initCoins, self.initPrice, self.SL, self.show_filled_orders
+               self.coinsAvail, self.initCoins, self.initPrice, self.SL, self.show_filled_orders, self.regular_buy
 
     def set_tradehandler(self, trade_handler: 'tradeHandler'):
         self.th = trade_handler
