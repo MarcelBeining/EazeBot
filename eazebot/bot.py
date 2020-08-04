@@ -1287,7 +1287,7 @@ class EazeBot:
                         elif command == '3':  # init trade set deletion
                             if 'ok' in args:
                                 query.message.delete()
-                                ct.delete_trade_set(sell_all='yes' in args)
+                                ct.delete_trade_set(uid_ts, sell_all='yes' in args)
                                 query.answer('Trade Set deleted')
                             elif 'yes' in args or 'no' in args:
                                 query.answer('Ok, and are you really sure to delete this trade set?')
