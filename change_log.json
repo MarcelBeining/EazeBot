@@ -7,6 +7,34 @@
     ],
     "versions": [
         {
+            "version": "Unreleased",
+            "date": "",
+            "section": [
+                {
+                    "label": "Added",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Activated regular buy feature"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Activated \"hide filled orders\" feature"
+                        }
+                    ]
+                },
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed empty change log"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.5.3",
             "date": "2020-08-04 09:39",
             "section": [

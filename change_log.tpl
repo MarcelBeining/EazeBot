@@ -5,13 +5,13 @@
 {{/general}}
 {{#versions}}
 ## [{{{version}}}] - {{{date}}}
-{{#sections}}
+{{#section}}
 ### {{{label}}}
 {{#entries}}
 * {{{message}}} [{{{author}}}]
 {{/entries}}
 
-{{/sections}}
+{{/section}}
 
 {{/versions}}
 
