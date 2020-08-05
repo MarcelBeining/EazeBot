@@ -198,10 +198,11 @@ class EazeBot:
     @staticmethod
     def buttons_edit_ts(ct, uid_ts, mode='full'):
         exch = ct.exchange.name.lower()
-        buttons = [[InlineKeyboardButton("Add buy level", callback_data='2|%s|%s|buyAdd|chosen' % (exch, uid_ts)),
-                    InlineKeyboardButton("Add regular buy", callback_data='2|%s|%s|buyRegAdd|chosen' % (exch, uid_ts)),
-                    InlineKeyboardButton("Add sell level", callback_data='2|%s|%s|sellAdd|chosen' % (exch, uid_ts))]]
         ts = ct.tradeSets[uid_ts]
+
+        buttons = [[InlineKeyboardButton("Add buy level", callback_data='2|%s|%s|buyAdd|chosen' % (exch, uid_ts)),
+                    InlineKeyboardButton("Add sell level", callback_data='2|%s|%s|sellAdd|chosen' % (exch, uid_ts))]]
+
         for i, trade in enumerate(ts.InTrades):
             if trade['oid'] == 'filled':
                 if ts.show_filled_orders:
@@ -218,6 +219,13 @@ class EazeBot:
             else:
                 buttons.append([InlineKeyboardButton("Delete Sell level #%d" % i,
                                                      callback_data='2|%s|%s|SLD%d|chosen' % (exch, uid_ts, i))])
+
+        if ts.regular_buy is None:
+            buttons.append([InlineKeyboardButton(
+                "Add regular buy", callback_data='2|%s|%s|buyRegAdd|chosen' % (exch, uid_ts))])
+        else:
+            buttons.append([InlineKeyboardButton(
+                "Delete regular buy", callback_data='2|%s|%s|buyRegDel|chosen' % (exch, uid_ts))])
         if mode == 'full':
             text = 'Hide' if ts.show_filled_orders else 'Show'
             buttons.append([InlineKeyboardButton("Set/Change SL", callback_data='2|%s|%s|SLM' % (exch, uid_ts))])
@@ -662,7 +670,7 @@ class EazeBot:
         elif input_type == 'amount':
             if self.temp_ts[utid].reg_buy is False:
                 if self.temp_ts[utid].coin_or_base == 1:
-                    response = response / utid.price
+                    response = response / self.temp_ts[utid].price
                 response = float(user_data['trade'][exch].exchange.amountToPrecision(symbol, response))
             self.temp_ts[utid].amount = response
             if direction == 'buy':
@@ -1205,6 +1213,11 @@ class EazeBot:
                             elif 'buyRegAdd' in args:
                                 query.answer('Adding new regular buy')
                                 return self.ask_pos(context, exch, uid_ts, direction='reg_buy')
+
+                            elif 'buyRegDel' in args:
+                                ts.regular_buy = None
+                                query.answer('Deleted regular buy')
+                                self.update_ts_text(context, uid_ts, query)
 
                             elif 'buyAdd' in args:
                                 query.answer('Adding new buy level')
