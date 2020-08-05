@@ -206,8 +206,7 @@ class ChangeLog:
                 self._add_sections(version_dict, new_sections)
 
         if not found:
-            raise Exception(f"No entry found for version {version}! If you want to create a new version, use method "
-                            'create_new_version!')
+            self.create_new_version(new_version=version, new_sections=new_sections)
 
         # update the json file
         self.write_json()
