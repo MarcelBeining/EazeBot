@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 
+### Added
+* Added scripts and hooks for automated multi-arch building on docker hub [Marcel]
+
+
 ## [vUnreleased] - 2020-08-05 10:03
 ### Fixed
 * Fixed error when using base currency during defining buy/sell level [Marcel]
@@ -77,22 +82,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 
 ## Changes comparison
-* **[vUnreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.1...vUnreleased>
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/vUnreleased...dev>
 ## Changes comparison
-* **[vUnreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.0...vUnreleased>
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.1...dev>
 ## Changes comparison
-* **[vUnreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.3...vUnreleased>
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.0...dev>
 ## Changes comparison
-* **[vUnreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.2...vUnreleased>
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.3...dev>
 ## Changes comparison
-* **[vUnreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.1...vUnreleased>
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.2...dev>
 ## Changes comparison
-* **[vUnreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.0...vUnreleased>
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.1...dev>
 ## Changes comparison
-* **[vUnreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.3...vUnreleased>
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.0...dev>
 ## Changes comparison
-* **[vUnreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.2...vUnreleased>
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.3...dev>
 ## Changes comparison
-* **[vUnreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.1...vUnreleased>
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.2...dev>
 ## Changes comparison
-* **[vUnreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.0...vUnreleased>
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.1...dev>
+## Changes comparison
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.0...dev>

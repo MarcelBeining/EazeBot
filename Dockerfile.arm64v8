@@ -1,5 +1,15 @@
+# First build stage: get gemu for multi-arch building
+FROM alpine AS qemu
+
+#QEMU Download
+ENV QEMU_URL https://github.com/balena-io/qemu/releases/download/v3.0.0%2Bresin/qemu-3.0.0+resin-aarch64.tar.gz
+RUN apk add curl && curl -L ${QEMU_URL} | tar zxvf - -C . --strip-components 1
+
 # New build stage: Basis-Image
-FROM python:3.8.2-slim-buster
+FROM arm64v8/python:3.8.2-slim-buster
+
+# Provide QEMU for this stage of docker build
+COPY --from=qemu qemu-aarch64-static /usr/bin
 
 LABEL maintainer="marcel.beining@gmail.com"
 
