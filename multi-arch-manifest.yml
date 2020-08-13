@@ -1,0 +1,16 @@
+image: mbeining/eazebot:latest
+manifests:
+  - image: mbeining/eazebot:latest-amd64
+    platform:
+      architecture: amd64
+      os: linux
+  - image: mbeining/eazebot:latest-arm64v8
+    platform:
+      architecture: arm64
+      os: linux
+      variant: v8
+  - image: mbeining/eazebot:latest-arm32v7
+    platform:
+      architecture: arm
+      os: linux
+      variant: v7
