@@ -7,6 +7,21 @@
     ],
     "versions": [
         {
+            "version": "Unreleased",
+            "date": "",
+            "section": [
+                {
+                    "label": "Added",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Added scripts and hooks for automated multi-arch building on docker hub"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "vUnreleased",
             "date": "2020-08-05 10:03",
             "section": [
