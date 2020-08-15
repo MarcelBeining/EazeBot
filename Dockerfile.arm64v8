@@ -14,9 +14,9 @@ COPY --from=qemu qemu-aarch64-static /usr/bin
 LABEL maintainer="marcel.beining@gmail.com"
 
 RUN apt-get update \
+	&& apt-get -y install curl build-essential libgfortran5 \
     && apt-get clean \
     && pip install --upgrade pip
-# && apt-get -y install curl build-essential libssl-dev \
 
 # Prepare environment
 WORKDIR /eazebot_docker
@@ -36,4 +36,3 @@ RUN pip install -e /eazebot_docker --no-cache-dir
 ENTRYPOINT ["python", "/eazebot_docker/eazebot/main.py"]
 
 CMD []
-

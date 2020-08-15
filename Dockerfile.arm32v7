@@ -15,8 +15,8 @@ LABEL maintainer="marcel.beining@gmail.com"
 
 RUN apt-get update \
     && apt-get clean \
+	&& apt-get -y install curl build-essential libgfortran5 \
     && pip install --upgrade pip
-# && apt-get -y install curl build-essential libssl-dev \
 
 # Prepare environment
 WORKDIR /eazebot_docker
