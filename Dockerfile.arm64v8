@@ -14,7 +14,7 @@ COPY --from=qemu qemu-aarch64-static /usr/bin
 LABEL maintainer="marcel.beining@gmail.com"
 
 RUN apt-get update \
-	&& apt-get -y install curl build-essential python-dev libffi-dev \
+	&& apt-get -y install curl build-essential libssl-dev python-dev libffi-dev \
     && apt-get clean \
     && pip install --upgrade pip
 
