@@ -188,7 +188,7 @@ try:
             else:
                 ask_sections = [Sections.added, Sections.changed, Sections.fixed]
             section_list = chglog.ask_for_changes(user_name, ask_sections)
-            chglog.add_to_version(None, section_list)
+            chglog.add_to_version(current_version, section_list)
             chglog.write_log()
             steps_done.append(steps_to_do.pop(0))
             git.add('change_log*')
