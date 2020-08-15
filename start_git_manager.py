@@ -170,9 +170,9 @@ try:
 
     elif 'hotfix/' in branch_of_interest or 'release/' in branch_of_interest:
         answer = input(f"Add more change log information? (0)\n"
-                       f"Merge branch {branch_of_interest} into:\n- Dev? (1)\n- Dev & Master? (2)\n"
+                       f"Merge branch {branch_of_interest} into:\n- Dev? (1)\n- Master? (2)\n- Dev & Master? (3)\n"
                        f"Please choose a number.")
-        if re.match('^[0-2]$', answer) is None:
+        if re.match('^[0-3]$', answer) is None:
             print(f"Answer was {answer}, aborting...")
             exit(0)
 
@@ -203,10 +203,17 @@ try:
         else:
             # fill steps to do list
             steps_to_do.extend(['Create new wheels using create_dist.bat',
-                                'Merge branch into dev & master (directly+pushing or via merge request)'])
+                                'Merge branch into dev / master (directly+pushing or via merge request)'])
 
-            branches_to_merge = ['dev']
-            if answer == '2':
+            if answer == '1':
+                branches_to_merge = ['dev']
+            elif answer == '2':
+                branches_to_merge = ['master']
+            else:
+                branches_to_merge = ['dev', 'master']
+
+            commit_history = {}
+            if 'master' in branches_to_merge:
                 # fill steps to do list
                 steps_to_do.insert(0, f"Check if latest commit on master is in your branch {branch_of_interest}")
                 branches_to_merge.append('master')
@@ -221,12 +228,12 @@ try:
                     raise GitManagerError(f"Your branch {branch_of_interest} does not include the latest commit from "
                                           f"master! Please merge master into your current branch and manually correct "
                                           f"the version numbers accordingly!")
-                commit_history = git.execute([
+                commit_history['master'] = git.execute([
                     'git', 'log', '--pretty=format:"%h%x09%an:%x09%s"', f'{last_master_commit}..HEAD'])
-            else:
+            if 'dev' in branches_to_merge:
                 last_dev_commit = git.execute(['git', 'rev-parse', 'origin/dev'])
-                commit_history = git.execute(['git', 'log', '--pretty=format:"%h%x09%an:%x09%s"',
-                                             f'{last_dev_commit}..HEAD'])
+                commit_history['dev'] = git.execute(['git', 'log', '--pretty=format:"%h%x09%an:%x09%s"',
+                                                    f'{last_dev_commit}..HEAD'])
 
             protected_branches = git_remote.get_protected_branches()
             descr = None
@@ -252,10 +259,10 @@ try:
                         descr = input(f'Enter some description for the merge to {main_branch} '
                                       f'(adding all git commit messages if nothing entered)\n')
                         if len(descr) <= 1:
-                            commit_history = '* ' + '* '.join(commit_history.splitlines(True))
+                            text = '* ' + '* '.join(commit_history[main_branch].splitlines(True))
 
                             def descr(br):
-                                return f"Merge of {branch_of_interest} into {br}.\n\nGit history:\n\n{commit_history}"
+                                return f"Merge of {branch_of_interest} into {br}.\n\nGit history:\n\n{text}"
                     git_remote.create_merge_request(
                         source_branch=branch_of_interest,
                         target_branch=main_branch,
