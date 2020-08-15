@@ -590,8 +590,8 @@ class BaseTradeSet:
 
                 try:
                     response = self.safe_run(
-                        lambda: self.th.exchange.createMarketSellOrder(self.symbol, self.coinsAvail, params,
-                                                                       i_ts=self.get_uid()))
+                        lambda: self.th.exchange.createMarketSellOrder(self.symbol, self.coinsAvail, params),
+                                                                       i_ts=self.get_uid())
                 except InsufficientFunds:
                     response = self.sell_free_bal()
             else:

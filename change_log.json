@@ -7,6 +7,25 @@
     ],
     "versions": [
         {
+            "version": "v2.6.2",
+            "date": "2020-08-15 10:01",
+            "section": [
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Bug during SL trigger"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Bug with trailing SLs"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "vUnreleased",
             "date": "2020-08-05 10:03",
             "section": [
