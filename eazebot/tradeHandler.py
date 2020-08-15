@@ -412,7 +412,7 @@ class tradeHandler:
                                                           '' if not isinstance(ts.SL, TrailingSL) else (
                                                               ' (trailing with offset %.5g)' % ts.SL.delta if
                                                               ts.SL.kind == ValueType.ABSOLUTE else
-                                                              ' (trailing with offset %.2g %%)' % (ts.delta * 100)))
+                                                              ' (trailing with offset %.2g %%)' % (ts.SL.delta * 100)))
         elif isinstance(ts.SL, DailyCloseSL):
             prt_str += '\n*Stop-loss* set at daily close < %s\n\n' % (self.nf.price2Prec(ts.symbol, ts.SL.value))
         elif isinstance(ts.SL, WeeklyCloseSL):
