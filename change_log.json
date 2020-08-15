@@ -22,15 +22,27 @@
             ]
         },
         {
-            "version": "vUnreleased",
-            "date": "2020-08-05 10:03",
+            "version": "v2.6.2",
+            "date": "2020-08-15 10:01",
             "section": [
                 {
                     "label": "Fixed",
                     "entries": [
                         {
                             "author": "Marcel",
-                            "message": "Fixed error when using base currency during defining buy/sell level"
+                            "message": "Bug during SL trigger"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Bug with trailing SLs"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Allow merge into master only"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Fix version text bug"
                         }
                     ]
                 }
@@ -46,6 +58,10 @@
                         {
                             "author": "Marcel",
                             "message": "Added possibility to delete regular buying plan"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed error when using base currency during defining buy/sell level"
                         }
                     ]
                 }

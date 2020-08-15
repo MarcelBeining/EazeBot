@@ -151,7 +151,7 @@ class ChangeLog:
         :param new_sections: A formatted list of new_sections, obtained from method ask_for_changes
         :return:
         """
-        if new_version is None:
+        if new_version is None or new_version == 'Unreleased':
             new_version = 'Unreleased'
         else:
             new_version = self.version_prefix + new_version
@@ -193,7 +193,7 @@ class ChangeLog:
         :param new_sections: A formatted list of new_sections, obtained from method ask_for_changes
         :return:
         """
-        if version is None:
+        if version is None or version == 'Unreleased':
             version = 'Unreleased'
         else:
             version = self.version_prefix + version

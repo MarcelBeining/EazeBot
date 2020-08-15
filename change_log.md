@@ -8,14 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 * Added scripts and hooks for automated multi-arch building on docker hub [Marcel]
 
 
-## [vUnreleased] - 2020-08-05 10:03
+## [v2.6.2] - 2020-08-15 10:01
 ### Fixed
-* Fixed error when using base currency during defining buy/sell level [Marcel]
+* Bug during SL trigger [Marcel]
+* Bug with trailing SLs [Marcel]
+* Allow merge into master only [Marcel]
+* Fix version text bug [Marcel]
 
 
 ## [v2.6.1] - 2020-08-05 09:10
 ### Fixed
 * Added possibility to delete regular buying plan [Marcel]
+* Fixed error when using base currency during defining buy/sell level [Marcel]
 
 
 ## [v2.6.0] - 2020-08-04 19:35
@@ -82,6 +86,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 
 ## Changes comparison
+<<<<<<< HEAD
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/vUnreleased...dev>
 ## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.1...dev>
@@ -103,3 +108,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.1...dev>
 ## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.0...dev>
+=======
+* **[v2.6.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.1...v2.6.2>
+## Changes comparison
+* **[v2.6.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.0...v2.6.2>
+## Changes comparison
+* **[v2.6.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.3...v2.6.2>
+## Changes comparison
+* **[v2.6.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.2...v2.6.2>
+## Changes comparison
+* **[v2.6.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.1...v2.6.2>
+## Changes comparison
+* **[v2.6.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.0...v2.6.2>
+## Changes comparison
+* **[v2.6.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.3...v2.6.2>
+## Changes comparison
+* **[v2.6.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.2...v2.6.2>
+## Changes comparison
+* **[v2.6.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.1...v2.6.2>
+## Changes comparison
+* **[v2.6.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.0...v2.6.2>
+>>>>>>> origin/master
