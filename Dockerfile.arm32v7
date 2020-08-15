@@ -9,13 +9,13 @@ RUN apk add curl && curl -L ${QEMU_URL} | tar zxvf - -C . --strip-components 1
 FROM arm32v7/python:3.8.2-slim-buster
 
 # Provide QEMU for this stage of docker build
-COPY --from=qemu qemu-aarch64-static /usr/bin
+COPY --from=qemu /usr/bin/qemu-aarch64-static /usr/bin/qemu-aarch64-static
 
 LABEL maintainer="marcel.beining@gmail.com"
 
 RUN apt-get update \
     && apt-get clean \
-	&& apt-get -y install curl build-essential libgfortran5 \
+	&& apt-get -y install curl build-essential python-dev libffi-dev \
     && pip install --upgrade pip
 
 # Prepare environment
