@@ -2,15 +2,14 @@
 FROM alpine AS qemu
 
 #QEMU Download
-# ENV QEMU_URL https://github.com/balena-io/qemu/releases/download/v4.0.0%2Bbalena2/qemu-4.0.0.balena2-aarch64.tar.gz
-# RUN apk add curl && curl -L ${QEMU_URL} | tar zxvf - -C . --strip-components 1
-RUN apk add qemu qemu-user-static qemu-user binfmt-support
+ENV QEMU_URL https://github.com/balena-io/qemu/releases/download/v4.0.0%2Bbalena2/qemu-4.0.0.balena2-arm.tar.gz
+RUN apk add curl && curl -L ${QEMU_URL} | tar zxvf - -C . --strip-components 1
 
 # New build stage: Basis-Image
 FROM arm32v7/python:3.8.2-slim-buster
 
 # Provide QEMU for this stage of docker build
-COPY --from=qemu /usr/bin/qemu-aarch64-static /usr/bin/qemu-aarch64-static
+COPY --from=qemu qemu-arm-static /usr/bin
 
 LABEL maintainer="marcel.beining@gmail.com"
 
