@@ -3,4 +3,4 @@ curl -Lo manifest-tool https://github.com/estesp/manifest-tool/releases/download
 chmod +x manifest-tool
 
 #./manifest-tool push from-spec multi-arch-manifest_latest.yml
-./manifest-tool push from-spec multi-arch-manifest_develop.yml
+./manifest-tool push from-spec multi-arch-manifest_develop.yml --ignore-missing
