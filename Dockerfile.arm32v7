@@ -13,10 +13,9 @@ COPY --from=qemu qemu-arm-static /usr/bin
 
 LABEL maintainer="marcel.beining@gmail.com"
 
-RUN apt-get update
-RUN apt-get -y install curl build-essential libssl-dev python-dev libffi-dev
-RUN apt-get clean
-RUN pip install --upgrade pip
+RUN apt-get update && \
+	apt-get -y install curl build-essential libssl-dev python-dev libffi-dev && \
+	apt-get clean && pip install --upgrade pip
 
 # Prepare environment
 WORKDIR /eazebot_docker
