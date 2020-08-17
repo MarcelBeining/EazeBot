@@ -7,8 +7,8 @@
     ],
     "versions": [
         {
-            "version": "Unreleased",
-            "date": "",
+            "version": "v2.7.0",
+            "date": "2020-08-17 08:35",
             "section": [
                 {
                     "label": "Added",
