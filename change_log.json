@@ -7,6 +7,21 @@
     ],
     "versions": [
         {
+            "version": "v2.7.0",
+            "date": "2020-08-17 08:35",
+            "section": [
+                {
+                    "label": "Added",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Added scripts and hooks for automated multi-arch building on docker hub"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.6.2",
             "date": "2020-08-15 10:01",
             "section": [
