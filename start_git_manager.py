@@ -216,7 +216,6 @@ try:
             if 'master' in branches_to_merge:
                 # fill steps to do list
                 steps_to_do.insert(0, f"Check if latest commit on master is in your branch {branch_of_interest}")
-                branches_to_merge.append('master')
                 # only do the commit check if there will be merge into master
                 # find last common ancestor between current and branch master
                 common_commit = git.execute(['git', 'merge-base', 'HEAD', 'origin/master'])
