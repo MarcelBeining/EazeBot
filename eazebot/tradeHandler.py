@@ -478,8 +478,7 @@ class tradeHandler:
             else:
                 gain_usd = None
             self.tradeSetHistory.append({'time': time.time(),
-                                         'days': None if 'createdAt' not in ts
-                                         else (time.time() - ts.createdAt) / 60 / 60 / 24,
+                                         'days': (time.time() - ts.createdAt) / 60 / 60 / 24,
                                          'symbol': ts.symbol, 'gain': gain,
                                          'gainRel': gain / ts.costIn * 100 if ts.costIn > 0 else None,
                                          'quote': ts.baseCurrency, 'gainBTC': gain_btc, 'gainUSD': gain_usd})
