@@ -7,6 +7,29 @@
     ],
     "versions": [
         {
+            "version": "v2.7.1",
+            "date": "2020-08-25 17:57",
+            "section": [
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed double master push in dev tools"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed iteration over trade set object during deletion of trade set"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Docker image does not restart automatically anymore"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.7.0",
             "date": "2020-08-17 08:35",
             "section": [
