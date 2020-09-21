@@ -3,6 +3,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.7.2] - 2020-09-21 12:45
+### Fixed
+* Exchanges are added directly, if a new user starts the bot [Marcel]
+* Bug with missing taxWarn setting for new user fixed [Marcel]
+
+
 ## [v2.7.1] - 2020-08-25 17:57
 ### Fixed
 * Fixed double master push in dev tools [Marcel]
@@ -93,26 +99,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.0...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.1...v2.7.2>
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.2...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.0...v2.7.2>
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.1...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.2...v2.7.2>
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.0...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.1...v2.7.2>
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.3...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.0...v2.7.2>
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.2...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.3...v2.7.2>
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.1...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.2...v2.7.2>
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.0...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.1...v2.7.2>
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.3...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.0...v2.7.2>
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.2...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.3...v2.7.2>
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.1...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.2...v2.7.2>
 ## Changes comparison
-* **[v2.7.1]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.0...v2.7.1>
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.1...v2.7.2>
+## Changes comparison
+* **[v2.7.2]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.0...v2.7.2>
