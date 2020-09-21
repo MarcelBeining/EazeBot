@@ -360,9 +360,14 @@ class tradeHandler:
 
     def get_trade_set_info(self, i_ts, show_profit_in=None):
         ts = self.tradeSets[i_ts]
-        prt_str = '*%srade set #%d on %s%s [%s]:*\n' % ('T' if ts.is_active() else 'INACTIVE t',
-                                                        list(self.tradeSets.keys()).index(i_ts), self.exchange.name,
-                                                        ' (DOWN !!!) ' if self.down else '', ts.symbol)
+        if ts.name is None:
+            ts_name = f"Trade set #{list(self.tradeSets.keys()).index(i_ts)}"
+        else:
+            ts_name = ts.name
+
+        prt_str = '*%s [%s]%s:*\n' % (ts_name, ts.symbol, ' INACTIVE' if self.down else '')
+        prt_str += f"Exch: {self.exchange.name}{' (DOWN !!!) ' if self.down else ''}\n"
+
         filled_buys = []
         filled_sells = []
         if ts.regular_buy is not None:

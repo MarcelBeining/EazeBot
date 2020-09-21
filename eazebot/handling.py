@@ -301,11 +301,25 @@ class RegularBuy:
 
 
 class BaseTradeSet:
-    def __init__(self, symbol: str, trade_handler: 'tradeHandler' = None, uid: str = None):
+    def __init__(self, symbol: str,
+                 trade_handler: 'tradeHandler' = None,
+                 uid: str = None,
+                 name: str = None):
+        """
+
+        Base class for trade sets.
+
+        :param symbol: String in the form 'XXX/YYY' defining the trading pair of the trade set
+        :param trade_handler: TradeHandler class for accessing exchange etc
+        :param uid: Optional unique id of the trade set. Will be created if not given
+        :param name: Optional name of the trade set
+        """
+
         if uid is None:
             random.seed()
             uid = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
 
+        self.name = name
         self._uid = uid
         self.InTrades = []
         self.OutTrades = []
@@ -371,7 +385,7 @@ class BaseTradeSet:
     def __reduce__(self):
         # function needed for serializing the object
         return (
-            self.__class__, (self.symbol, None, self.get_uid()),
+            self.__class__, (self.symbol, None, self.get_uid(), self.name),
             self.__getstate__(),
             None, None)
 
@@ -719,7 +733,7 @@ class BaseTradeSet:
                     except InsufficientFunds as e:
                         self.deactivate()
                         logger.error(f"Insufficient funds on exchange {self.th.exchange.name} for trade set "
-                                     f"#{self.th.exchange.name}. Trade set is deactivated now and not updated anymore "
+                                     f"{self.name}. Trade set is deactivated now and not updated anymore "
                                      f"(open orders are still open)! Free the missing funds and reactivate. \n {e}.",
                                      extra=self.th.logger_extras)
                         raise e
@@ -1094,11 +1108,6 @@ class BaseTradeSet:
                 self.symbol, self.th.nf.amount2Prec(self.symbol, free_bal), self.coinCurrency),
                            extra=self.th.logger_extras)
             return response
-
-
-
-
-
 
     def set_trailing_sl(self, value, typ: ValueType = ValueType.ABSOLUTE):
         self.th.update_down_state(True)

@@ -45,7 +45,7 @@ from eazebot.tradeHandler import tradeHandler
 from eazebot.handling import ValueType, ExchContainer, DateFilter, TempTradeSet, BaseTradeSet, RegularBuy, OrderType
 from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data
 
-MAINMENU, SETTINGS, SYMBOL, NUMBER, DAILY_CANDLE, INFO, DATE = range(7)
+MAINMENU, SETTINGS, SYMBOL, NUMBER, DAILY_CANDLE, INFO, DATE, TS_NAME = range(8)
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +126,14 @@ class EazeBot:
 
     @staticmethod
     def received_date(update: Update, context: CallbackContext):
+        if len(context.user_data['lastFct']) > 0:
+            return context.user_data['lastFct'].pop()(dateparse(update.message.text))
+        else:
+            context.bot.send_message(context.user_data['chatId'], 'Unknown previous error, returning to main menu')
+            return MAINMENU
+
+    @staticmethod
+    def received_short_name(update: Update, context: CallbackContext):
         if len(context.user_data['lastFct']) > 0:
             return context.user_data['lastFct'].pop()(dateparse(update.message.text))
         else:
@@ -226,6 +234,8 @@ class EazeBot:
         else:
             buttons.append([InlineKeyboardButton(
                 "Delete regular buy", callback_data='2|%s|%s|buyRegDel|chosen' % (exch, uid_ts))])
+        buttons.append([InlineKeyboardButton("Edit trade set name", callback_data='2|%s|%s|ETSM' % (exch, uid_ts))])
+
         if mode == 'full':
             text = 'Hide' if ts.show_filled_orders else 'Show'
             buttons.append([InlineKeyboardButton("Set/Change SL", callback_data='2|%s|%s|SLM' % (exch, uid_ts))])
@@ -756,6 +766,28 @@ class EazeBot:
         self.update_ts_text(context, uid_ts)
         return MAINMENU
 
+    def edit_trade_set_name(self, context, exch, uid_ts, ts_name=None):
+        bot = context.bot
+        user_data = context.user_data
+        ct = user_data['trade'][exch]
+
+        if ts_name is None:
+
+            symbol = ct.tradeSets[uid_ts].symbol
+
+            user_data['lastFct'].append(lambda r: self.edit_trade_set_name(context, exch, uid_ts, ts_name=r)
+            user_data['messages']['dialog'].append(
+                bot.send_message(user_data['chatId'], "At which interval do you want to buy regularly?",
+                                 reply_markup=InlineKeyboardMarkup(
+                                     [[InlineKeyboardButton("Daily", callback_data='askPos|daily'),
+                                       InlineKeyboardButton("Weekly", callback_data='askPos|weekly')],
+                                      [InlineKeyboardButton("Monthly", callback_data='askPos|monthly'),
+                                       InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])))
+            return TS_NAME
+        else:
+            ct.tradeSets[uid_ts].name = ts_name
+            return MAINMENU
+
     def add_exchanges(self, update, context: CallbackContext):
         idx = [i for i, x in enumerate(self.__config__['telegramUserId']) if x == context.user_data['chatId']][0] + 1
         if idx == 1:
@@ -1259,6 +1291,9 @@ class EazeBot:
                                 ts.deactivate(cancel_orders=1)
                                 self.update_ts_text(context, uid_ts, query)
                                 query.answer('Trade set deactivated!')
+                            elif 'ETSM' in args:
+                                query.answer('Give a new trade set name')
+                                return self.edit_trade_set_name(context, exch, uid_ts)
 
                             elif 'SLM' in args:
                                 buttons = self.buttons_sl(ct, uid_ts)
@@ -1453,7 +1488,9 @@ class EazeBot:
                          CallbackQueryHandler(self.inline_button_callback)],
                 DAILY_CANDLE: [CallbackQueryHandler(self.daily_candle_callback),
                                CallbackQueryHandler(self.inline_button_callback)],
-                INFO: [MessageHandler(Filters.regex(r'\w+'), self.received_info)]
+                INFO: [MessageHandler(Filters.regex(r'\w+'), self.received_info)],
+                TS_NAME: [MessageHandler(Filters.text, self.received_short_name),
+                          CallbackQueryHandler(self.inline_button_callback)]
             },
             fallbacks=[CommandHandler('exit', self.done_cmd)], allow_reentry=True)  # , per_message = True)
         unknown_handler = MessageHandler(Filters.command, lambda u, c: self.noncomprende(u, c, 'unknownCmd'))
