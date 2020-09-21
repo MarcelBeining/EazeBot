@@ -60,7 +60,7 @@ class EazeBot:
 
         # %% init menues
         self.mainMenu = [['Status of Trade Sets', 'New Trade Set', 'Trade History'], ['Check Balance', 'Bot Info'],
-                         ['Add/update exchanges (APIs.json)', 'Settings']]
+                         ['Update exchanges', 'Settings']]
         self.markupMainMenu = ReplyKeyboardMarkup(self.mainMenu)  # , one_time_keyboard=True)
 
         self.updater = Updater(token=self.__config__['telegramAPI'], use_context=True,
@@ -186,10 +186,10 @@ class EazeBot:
             washere = ''
             context.user_data.update({
                 'chatId': update.message.chat_id, 'trade': {},
-                'settings': {'fiat': [], 'showProfitIn': None},
+                'settings': {'fiat': [], 'showProfitIn': None, 'taxWarn': True},
                 'lastFct': [],
                 'messages': {'status': {}, 'dialog': [], 'botInfo': [], 'settings': [], 'history': []}})
-
+            self.add_exchanges(None, context)
         context.bot.send_message(context.user_data['chatId'],
                                  "Welcome %s%s to the EazeBot! You are in the main menu." % (
                                      washere, update.message.from_user.first_name),
@@ -789,6 +789,8 @@ class EazeBot:
             return MAINMENU
 
     def add_exchanges(self, update, context: CallbackContext):
+        context.bot.send_message(context.user_data['chatId'],
+                                 'Adding/Updating exchanges, please wait...')
         idx = [i for i, x in enumerate(self.__config__['telegramUserId']) if x == context.user_data['chatId']][0] + 1
         if idx == 1:
             api_file = os.path.join(self.user_dir, "APIs.json")
@@ -1471,7 +1473,7 @@ class EazeBot:
                 MAINMENU: [MessageHandler(Filters.regex('^Status of Trade Sets$'), self.print_trade_status),
                            MessageHandler(Filters.regex('^New Trade Set$'), self.create_trade_set),
                            MessageHandler(Filters.regex('^Trade History$'), self.print_trade_history),
-                           MessageHandler(Filters.regex('^Add/update exchanges'), self.add_exchanges),
+                           MessageHandler(Filters.regex('^Update exchanges$'), self.add_exchanges),
                            MessageHandler(Filters.regex('^Bot Info$'), self.bot_info),
                            MessageHandler(Filters.regex('^Check Balance$'), self.check_balance),
                            MessageHandler(Filters.regex('^Settings$'), self.show_settings),

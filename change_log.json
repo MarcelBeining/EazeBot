@@ -16,6 +16,25 @@
                         {
                             "author": "Marcel",
                             "message": "Possibility to name the trade set"
+						}
+					]
+				}
+			]
+		},
+		{
+            "version": "v2.7.2",
+            "date": "2020-09-21 12:45",
+            "section": [
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Exchanges are added directly, if a new user starts the bot"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Bug with missing taxWarn setting for new user fixed"
                         }
                     ]
                 }
