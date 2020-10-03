@@ -92,6 +92,8 @@ class EazeBot:
             txt = "Sorry, the date you entered could not be parsed! Try a standard format such as YYYY-MM-DDTHH:MM!"
         elif what == 'noValueRequested':
             txt = "Sorry, I did not ask for anything at the moment, and unfortunately I have no KI (yet) ;-)"
+        elif what == 'noShortName':
+            txt = 'Sorry, the name must consist of letters, numbers and (!,#,?) only with a max length of 15.'
         else:
             txt = what
         while True:
@@ -135,7 +137,7 @@ class EazeBot:
     @staticmethod
     def received_short_name(update: Update, context: CallbackContext):
         if len(context.user_data['lastFct']) > 0:
-            return context.user_data['lastFct'].pop()(dateparse(update.message.text))
+            return context.user_data['lastFct'].pop()(update.message.text)
         else:
             context.bot.send_message(context.user_data['chatId'], 'Unknown previous error, returning to main menu')
             return MAINMENU
@@ -215,7 +217,8 @@ class EazeBot:
             if trade['oid'] == 'filled':
                 if ts.show_filled_orders:
                     buttons.append([InlineKeyboardButton("Readd BuyOrder from level #%d" % i,
-                                                         callback_data='2|%s|%s|buyReAdd%d|chosen' % (exch, uid_ts, i))])
+                                                         callback_data='2|%s|%s|buyReAdd%d|chosen' % (exch,
+                                                                                                      uid_ts, i))])
             else:
                 buttons.append([InlineKeyboardButton("Delete Buy level #%d" % i,
                                                      callback_data='2|%s|%s|BLD%d|chosen' % (exch, uid_ts, i))])
@@ -223,7 +226,8 @@ class EazeBot:
             if trade['oid'] == 'filled':
                 if ts.show_filled_orders:
                     buttons.append([InlineKeyboardButton("Readd SellOrder from level #%d" % i,
-                                                         callback_data='2|%s|%s|sellReAdd%d|chosen' % (exch, uid_ts, i))])
+                                                         callback_data='2|%s|%s|sellReAdd%d|chosen' % (exch,
+                                                                                                       uid_ts, i))])
             else:
                 buttons.append([InlineKeyboardButton("Delete Sell level #%d" % i,
                                                      callback_data='2|%s|%s|SLD%d|chosen' % (exch, uid_ts, i))])
@@ -263,7 +267,8 @@ class EazeBot:
                    [InlineKeyboardButton("Change/Delete SL", callback_data='2|%s|%s|SLC|chosen' % (exch, uid_ts))],
                    [InlineKeyboardButton("Set daily-close SL", callback_data='2|%s|%s|DCSL|chosen' % (exch, uid_ts))],
                    [InlineKeyboardButton("Set weekly-close SL", callback_data='2|%s|%s|WCSL|chosen' % (exch, uid_ts))]]
-        if ct.tradeSets[uid_ts].num_buy_levels('notfilled') == 0:  # only show trailing SL option if all buy orders are filled
+        if ct.tradeSets[uid_ts].num_buy_levels('notfilled') == 0:
+            # only show trailing SL option if all buy orders are filled
             buttons.append(
                 [InlineKeyboardButton("Set trailing SL", callback_data='2|%s|%s|TSL|chosen' % (exch, uid_ts))])
         buttons.append([InlineKeyboardButton("Back", callback_data='2|%s|%s|back|chosen' % (exch, uid_ts))])
@@ -378,13 +383,15 @@ class EazeBot:
                         last_price = func(btc_pair2)['last']
                         if last_price is not None and ct.balance['total'][c] / last_price > self.__config__[
                                 'minBalanceInBTC']:
-                            string += '*%s:* %s _(free: %s)_\n' % (c, ct.nf.cost2Prec(btc_pair2, ct.balance['total'][c]),
+                            string += '*%s:* %s _(free: %s)_\n' % (c, ct.nf.cost2Prec(btc_pair2,
+                                                                                      ct.balance['total'][c]),
                                                                    ct.nf.cost2Prec(btc_pair2, ct.balance['free'][c]))
                     elif btc_pair in ct.exchange.symbols and ct.exchange.markets[btc_pair]['active']:
                         last_price = func(btc_pair)['last']
                         if last_price is not None and last_price * ct.balance['total'][c] > self.__config__[
                                 'minBalanceInBTC']:
-                            string += '*%s:* %s _(free: %s)_\n' % (c, ct.nf.amount2Prec(btc_pair, ct.balance['total'][c]),
+                            string += '*%s:* %s _(free: %s)_\n' % (c, ct.nf.amount2Prec(btc_pair,
+                                                                                        ct.balance['total'][c]),
                                                                    ct.nf.amount2Prec(btc_pair, ct.balance['free'][c]))
                     elif not (btc_pair2 in ct.exchange.symbols and ct.exchange.markets[btc_pair2]['active']) and not (
                             btc_pair in ct.exchange.symbols and ct.exchange.markets[btc_pair]['active']):
@@ -486,6 +493,7 @@ class EazeBot:
         temp_ts = self.temp_ts[utid]
         coin = ts.coinCurrency
         currency = ts.baseCurrency
+        bal = None
         if direction == 'sell':
             # free balance is coins available in trade set minus coins that will be sold plus coins that will be bought
             bal = ts.coinsAvail - ts.sum_sell_amounts('notinitiated') + \
@@ -772,20 +780,14 @@ class EazeBot:
         ct = user_data['trade'][exch]
 
         if ts_name is None:
-
-            symbol = ct.tradeSets[uid_ts].symbol
-
-            user_data['lastFct'].append(lambda r: self.edit_trade_set_name(context, exch, uid_ts, ts_name=r)
+            user_data['lastFct'].append(lambda r: self.edit_trade_set_name(context, exch, uid_ts, ts_name=r))
             user_data['messages']['dialog'].append(
-                bot.send_message(user_data['chatId'], "At which interval do you want to buy regularly?",
-                                 reply_markup=InlineKeyboardMarkup(
-                                     [[InlineKeyboardButton("Daily", callback_data='askPos|daily'),
-                                       InlineKeyboardButton("Weekly", callback_data='askPos|weekly')],
-                                      [InlineKeyboardButton("Monthly", callback_data='askPos|monthly'),
-                                       InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])))
+                bot.send_message(user_data['chatId'], "Please give the new name for the trade set."))
             return TS_NAME
         else:
             ct.tradeSets[uid_ts].name = ts_name
+            self.delete_messages(user_data, 'dialog')
+            self.update_ts_text(context, uid_ts)
             return MAINMENU
 
     def add_exchanges(self, update, context: CallbackContext):
@@ -950,7 +952,6 @@ class EazeBot:
                     # avoid to hit it during updating
                     self.updater.dispatcher.user_data[user]['trade'][ex].update(special_check=which)
         logger.info('Finished checking candles for all trade sets...')
-
 
     @staticmethod
     def show_settings(update: Update, context: CallbackContext, bot_or_query=None):
@@ -1486,12 +1487,13 @@ class EazeBot:
                          MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'noNumber')),
                          CallbackQueryHandler(self.inline_button_callback)],
                 DATE: [MessageHandler(DateFilter(), self.received_date),
-                         MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'noDate')),
-                         CallbackQueryHandler(self.inline_button_callback)],
+                       MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'noDate')),
+                       CallbackQueryHandler(self.inline_button_callback)],
                 DAILY_CANDLE: [CallbackQueryHandler(self.daily_candle_callback),
                                CallbackQueryHandler(self.inline_button_callback)],
                 INFO: [MessageHandler(Filters.regex(r'\w+'), self.received_info)],
-                TS_NAME: [MessageHandler(Filters.text, self.received_short_name),
+                TS_NAME: [MessageHandler(Filters.regex(r'^[\w!#?\s-]{1,15}$'), self.received_short_name),
+                          MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'noShortName')),
                           CallbackQueryHandler(self.inline_button_callback)]
             },
             fallbacks=[CommandHandler('exit', self.done_cmd)], allow_reentry=True)  # , per_message = True)
@@ -1544,10 +1546,10 @@ class EazeBot:
                     for user in self.__config__['telegramUserId']:
                         chat_obj = self.updater.bot.get_chat(user)
                         try:
-                            self.updater.bot.send_message(user,
-                                                     f"Bot was stopped! "
-                                                     f"Trades are not surveilled until bot is started again! "
-                                                     f"See you soon {chat_obj.first_name}!")
+                            self.updater.bot.send_message(
+                                user,
+                                f"Bot was stopped! Trades are not surveilled until bot is started again! "
+                                f"See you soon {chat_obj.first_name}!")
                         except Exception:
                             pass
                     break

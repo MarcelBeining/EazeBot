@@ -31,7 +31,7 @@ import os
 from ccxt.base.errors import (AuthenticationError, NetworkError, OrderNotFound, InvalidNonce, ExchangeError,
                               InsufficientFunds)
 
-from eazebot.handling import ValueType, Price, BaseSL, DailyCloseSL, WeeklyCloseSL, TrailingSL, BaseTradeSet, \
+from eazebot.handling import ValueType, Price, DailyCloseSL, WeeklyCloseSL, TrailingSL, BaseTradeSet, \
     NumberFormatter, ExchContainer, OrderType
 
 logger = logging.getLogger(__name__)
@@ -349,7 +349,7 @@ class tradeHandler:
             ts.add_buy_level(buy_levels[n], buy_amounts[n], candle_above[n])
 
         ts.add_init_coins(init_price, init_coins)
-        self.set_sl(i_ts, sl)
+        ts.set_sl(sl)
         # create the sell orders
         for n, _ in enumerate(sell_levels):
             ts.add_sell_level(sell_levels[n], sell_amounts[n])
@@ -365,13 +365,13 @@ class tradeHandler:
         else:
             ts_name = ts.name
 
-        prt_str = '*%s [%s]%s:*\n' % (ts_name, ts.symbol, ' INACTIVE' if self.down else '')
-        prt_str += f"Exch: {self.exchange.name}{' (DOWN !!!) ' if self.down else ''}\n"
+        prt_str = '*%s [%s]%s:*\n' % (ts_name, ts.symbol, ' INACTIVE' if not ts.is_active() else '')
+        prt_str += f"Exchange: {self.exchange.name}{' (DOWN !!!) ' if self.down else ''}\n"
 
         filled_buys = []
         filled_sells = []
         if ts.regular_buy is not None:
-            rb =ts.regular_buy
+            rb = ts.regular_buy
             if rb.interval.months:
                 interval = 'month'
             elif rb.interval.weeks:
@@ -425,27 +425,27 @@ class tradeHandler:
                 self.nf.price2Prec(ts.symbol, ts.SL.value))
         else:
             prt_str += '\n*No stop-loss set.*\n\n'
-        sumBuys = sum([val[0] for val in filled_buys])
-        sumSells = sum([val[0] for val in filled_sells])
+        sum_buys = sum([val[0] for val in filled_buys])
+        sum_sells = sum([val[0] for val in filled_sells])
         if ts.initCoins > 0:
             prt_str += '*Initial coins:* %s %s for an average price of %s\n' % (
                 self.nf.amount2Prec(ts.symbol, ts.initCoins), ts.coinCurrency,
                 self.nf.price2Prec(ts.symbol, ts.initPrice) if ts.initPrice is not None else 'unknown')
-        if sumBuys > 0:
+        if sum_buys > 0:
             prt_str += '*Filled buy orders (fee subtracted):* %s %s for an average price of %s\n' % (
-                self.nf.amount2Prec(ts.symbol, sumBuys), ts.coinCurrency, self.nf.cost2Prec(ts.symbol, sum(
-                    [val[0] * val[1] / sumBuys if sumBuys > 0 else None for val in filled_buys])))
-        if sumSells > 0:
+                self.nf.amount2Prec(ts.symbol, sum_buys), ts.coinCurrency, self.nf.cost2Prec(ts.symbol, sum(
+                    [val[0] * val[1] / sum_buys if sum_buys > 0 else None for val in filled_buys])))
+        if sum_sells > 0:
             prt_str += '*Filled sell orders:* %s %s for an average price of %s\n' % (
-                self.nf.amount2Prec(ts.symbol, sumSells), ts.coinCurrency, self.nf.cost2Prec(ts.symbol, sum(
-                    [val[0] * val[1] / sumSells if sumSells > 0 else None for val in filled_sells])))
+                self.nf.amount2Prec(ts.symbol, sum_sells), ts.coinCurrency, self.nf.cost2Prec(ts.symbol, sum(
+                    [val[0] * val[1] / sum_sells if sum_sells > 0 else None for val in filled_sells])))
         if self.exchange.markets[ts.symbol]['active']:
             price_obj = self.get_price_obj(ts.symbol)
             prt_str += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n' % tuple(
                 [self.nf.price2Prec(ts.symbol, val) for val in
                  [price_obj.get_current_price(), price_obj.get_high_price(), price_obj.get_low_price()]])
             if (ts.initCoins == 0 or ts.initPrice is not None) and ts.costIn > 0 and (
-                    sumBuys > 0 or ts.initCoins > 0):
+                    sum_buys > 0 or ts.initCoins > 0):
                 total_amount_to_sell = ts.coinsAvail + ts.sum_sell_amounts('open')
                 fee = self.exchange.calculate_fee(ts.symbol, 'market', 'sell', total_amount_to_sell,
                                                   price_obj.get_current_price(), 'taker')
