@@ -1,15 +1,20 @@
 import argparse
 import json
 import logging
+import re
 import shutil
+import sys
 from logging.handlers import RotatingFileHandler
 import os
 
 from telegram import Bot
 
 from eazebot.auxiliary_methods import TelegramHandler
+from eazebot.bot import STATE
 
 log_file_name = 'telegramEazeBot'
+
+_startup_cwd = os.getcwd()
 
 
 def check_dir_arg(folder):
@@ -103,7 +108,35 @@ def main(sysargv = None):
         telegram_handler.setFormatter(logging.Formatter("%(levelname)s:  %(message)s"))
         logger.addHandler(telegram_handler)
 
-        EazeBot(config=config).start_bot()
+        bot = EazeBot(config=config)
+        bot.start_bot()
+        if bot.state == STATE.UPDATING:
+            os.chdir(_startup_cwd)
+
+            if os.environ.get('IN_DOCKER_CONTAINER', False):
+               logger.error('Updating a docker container from within EazeBot is not implemented at the moment. '
+                            'Restarting EazeBot without updating...')
+            else:
+                response = os.popen(' '.join([sys.executable, '-m pip install -U eazebot'])).read()
+                if 'Requirement already up-to-date:' in response:
+                    logger.info('EazeBot already up-to-date. Restarting now...')
+                elif 'Successfully installed eazebot' in response:
+                    version = re.search('')
+                    logger.info(f'EazeBot updated to version {version}. Restarting now...')
+
+            """Re-execute the current process.
+
+            This must be called from the main thread, because certain platforms
+            (OS X) don't allow execv to be called in a child thread very well.
+            """
+            args = sys.argv[:]
+            logger.info('Re-spawning %s' % ' '.join(args))
+            args.insert(0, sys.executable)
+            if sys.platform == 'win32':
+                args = ['"%s"' % arg for arg in args]
+
+
+            os.execv(sys.executable, args)
 
 
 if __name__ == '__main__':

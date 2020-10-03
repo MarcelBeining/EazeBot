@@ -30,6 +30,7 @@ import time
 import datetime as dt
 import json
 import signal
+from enum import Enum
 from typing import Union, List, Dict
 from dateutil.relativedelta import relativedelta
 from dateparser import parse as dateparse
@@ -50,6 +51,12 @@ MAINMENU, SETTINGS, SYMBOL, NUMBER, DAILY_CANDLE, INFO, DATE, TS_NAME = range(8)
 logger = logging.getLogger(__name__)
 
 
+class STATE(Enum):
+    ACTIVE = 1
+    INTERRUPTED = 2
+    UPDATING = 3
+
+
 class EazeBot:
     def __init__(self, config: Dict, user_dir: str = 'user_data'):
         self.user_dir = user_dir
@@ -66,17 +73,17 @@ class EazeBot:
         self.updater = Updater(token=self.__config__['telegramAPI'], use_context=True,
                                request_kwargs={'read_timeout': 10, 'connect_timeout': 10})
 
-        self.interrupted = False
+        self.state = STATE.ACTIVE
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGABRT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
 
     # define  helper functions
     def signal_handler(self, signal, frame):
-        self.interrupted = True
+        self.state = STATE.INTERRUPTED
 
     def done_cmd(self, update: Update, context: CallbackContext):
-        self.interrupted = True
+        self.state = STATE.INTERRUPTED
         chat_obj = context.bot.get_chat(context.user_data['chatId'])
         logger.info('User %s (id: %s) ends the bot!' % (chat_obj.first_name, chat_obj.id))
 
@@ -1541,14 +1548,18 @@ class EazeBot:
             self.updater.start_polling()
             while True:
                 time.sleep(1)
-                if self.interrupted:
+                if self.state in [STATE.INTERRUPTED, STATE.UPDATING]:
+                    if self.state == STATE.UPDATING:
+                        text = ' for updating itsself. Please be patient'
+                    else:
+                        text = ''
                     self.updater.stop()
                     for user in self.__config__['telegramUserId']:
                         chat_obj = self.updater.bot.get_chat(user)
                         try:
                             self.updater.bot.send_message(
                                 user,
-                                f"Bot was stopped! Trades are not surveilled until bot is started again! "
+                                f"Bot was stopped{text}! Trades are not surveilled until bot is started again! "
                                 f"See you soon {chat_obj.first_name}!")
                         except Exception:
                             pass

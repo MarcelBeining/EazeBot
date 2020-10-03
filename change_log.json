@@ -16,12 +16,16 @@
                         {
                             "author": "Marcel",
                             "message": "Possibility to name the trade set"
-						}
-					]
-				}
-			]
-		},
-		{
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Provides the possibility to update eazebot via Telegram"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.7.2",
             "date": "2020-09-21 12:45",
             "section": [
