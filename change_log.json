@@ -7,8 +7,8 @@
     ],
     "versions": [
         {
-            "version": "Unreleased",
-            "date": "",
+            "version": "v2.8.0",
+            "date": "2020-10-03 11:55",
             "section": [
                 {
                     "label": "Added",
@@ -16,12 +16,12 @@
                         {
                             "author": "Marcel",
                             "message": "Possibility to name the trade set"
-						}
-					]
-				}
-			]
-		},
-		{
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.7.2",
             "date": "2020-09-21 12:45",
             "section": [
