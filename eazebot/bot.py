@@ -41,9 +41,11 @@ from telegram.bot import Bot
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
                           ConversationHandler, CallbackQueryHandler, CallbackContext)
 from telegram.error import BadRequest
+
+from dev_utils import ChangeLog
 from eazebot.tradeHandler import tradeHandler
 from eazebot.handling import ValueType, ExchContainer, DateFilter, TempTradeSet, BaseTradeSet, RegularBuy, OrderType
-from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data
+from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data, is_higher_version
 
 MAINMENU, SETTINGS, SYMBOL, NUMBER, DAILY_CANDLE, INFO, DATE, TS_NAME = range(8)
 
@@ -866,8 +868,7 @@ class EazeBot:
             # necessary for backward compatibility
             ct.set_user(context.user_data['chatId'])
 
-    @staticmethod
-    def get_remote_version():
+    def get_remote_version(self):
         try:
             pypi_version = re.search(r'(?<=p class="release__version">\n)((.*\n){1})',
                                      requests.get('https://pypi.org/project/eazebot/').text, re.M).group(0).strip()
@@ -876,25 +877,37 @@ class EazeBot:
         remote_txt = base64.b64decode(
             requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/__init__.py').json()[
                 'content'])
-        remote_version = re.search(r'(?<=__version__ = \')[0-9.]+', str(remote_txt)).group(0)
-        remote_version_commit = \
-            [val['commit']['url'] for val in
-             requests.get('https://api.github.com/repos/MarcelBeining/EazeBot/tags').json() if
-             val['name'] in ('EazeBot_%s' % remote_version, 'v%s' % remote_version)][0]
-        return remote_version, requests.get(remote_version_commit).json()['commit']['message'], \
-            pypi_version == remote_version
+        latest_version = re.search(r'(?<=__version__ = \')[0-9.]+', str(remote_txt)).group(0)
+        # remote_version_commit = \
+        #     [val['commit']['url'] for val in
+        #      requests.get('https://api.github.com/repos/MarcelBeining/EazeBot/tags').json() if
+        #      val['name'] in ('EazeBot_%s' % latest_version, 'v%s' % latest_version)][0]
+        # chg_text = requests.get(remote_version_commit).json()['commit']['message']
+        chg_log = requests.get(
+            f'https://raw.githubusercontent.com/MarcelBeining/EazeBot/v{latest_version}/change_log.json').json()
+        with open('tmp.json', 'w') as fh:
+            json.dump(chg_log, fh)
+        chg_text = '-' + '\n-'.join(ChangeLog('tmp', version_prefix='v').get_changes(prev_version=self.thisVersion,
+                                                                                     this_version=latest_version,
+                                                                                     text_only=True))
+        try:
+            os.remove('tmp.json')
+        except:
+            pass
+
+        return latest_version, chg_text, pypi_version == latest_version
 
     def bot_info(self, update: Update, context: CallbackContext):
         self.delete_messages(context.user_data, 'botInfo')
         string = '<b>******** EazeBot (v%s) ********</b>\n' % self.thisVersion
         string += r'<i>Free python bot for easy execution and surveillance of crypto tradings on multiple ' \
-                  r'exchanges</i>\n'
+                  'exchanges</i>\n'
         remote_version, version_message, on_py_pi = self.get_remote_version()
-        if remote_version != self.thisVersion and all(
-                [int(a) >= int(b) for a, b in zip(remote_version.split('.'), self.thisVersion.split('.'))]):
-            string += '\n<b>There is a new version of EazeBot available on git (v%s) %s with these changes:\n' \
-                      '%s\n</b>\n' % (remote_version, 'and PyPi' if on_py_pi else '(not yet on PyPi)', version_message)
-        string += '\nReward my efforts on this bot by donating some cryptos!'
+        if is_higher_version(next_version=remote_version, this_version=self.thisVersion):
+            string += '\n<b>There is a new version of EazeBot available on git/docker (v%s) %s with these ' \
+                      'changes:</b>\n' \
+                      '%s\n\n' % (remote_version, 'and PyPi' if on_py_pi else '(not yet on PyPi)', version_message)
+        string += '\n<b>Reward my efforts on this bot by donating some cryptos!</b>'
         context.user_data['messages']['botInfo'].append(
             context.bot.send_message(context.user_data['chatId'], string, parse_mode='html',
                                      reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
@@ -905,8 +918,7 @@ class EazeBot:
     def check_for_updates_and_tax(self, context):
         self.updater = context.job.context
         remote_version, version_message, on_py_pi = self.get_remote_version()
-        if remote_version != self.thisVersion and all(
-                [int(a) >= int(b) for a, b in zip(remote_version.split('.'), self.thisVersion.split('.'))]):
+        if is_higher_version(next_version=remote_version, this_version=self.thisVersion):
             for user in self.updater.dispatcher.user_data:
                 if 'chatId' in self.updater.dispatcher.user_data[user]:
                     self.updater.dispatcher.user_data[user]['messages']['botInfo'].append(
