@@ -7,6 +7,30 @@
     ],
     "versions": [
         {
+            "version": "Unreleased",
+            "date": "",
+            "section": [
+                {
+                    "label": "Changed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Instead of GitHub commit messages, the changes written in the change log are now shown in Telegram"
+                        }
+                    ]
+                },
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed version comparison which was not working correctly for some versions."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.8.0",
             "date": "2020-10-03 11:55",
             "section": [
