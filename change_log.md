@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 * Instead of GitHub commit messages, the changes written in the change log are now shown in Telegram [Marcel]
 
+### Fixed
+* Fixed version comparison which was not working correctly for some versions. [Marcel]
+
 
 ## [v2.8.0] - 2020-10-03 11:55
 ### Added

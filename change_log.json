@@ -18,6 +18,15 @@
                             "message": "Instead of GitHub commit messages, the changes written in the change log are now shown in Telegram"
                         }
                     ]
+                },
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed version comparison which was not working correctly for some versions."
+                        }
+                    ]
                 }
             ]
         },
