@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fixed
 * Fixed version comparison which was not working correctly for some versions. [Marcel]
+* Fixed change log template to correctly list the branch comparisons at the bottom [Marcel]
 
 
 ## [v2.8.0] - 2020-10-03 11:55
@@ -113,31 +114,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.8.0...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.2...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.1...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.0...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.2...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.1...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.0...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.3...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.2...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.1...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.0...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.3...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.2...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.1...dev>
-## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.0...dev>
