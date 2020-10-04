@@ -308,3 +308,12 @@ def load_data(filename='data.pickle', user_dir: str = 'user_data'):
     else:
         logger.error('No autosave file found')
         return defaultdict(dict)    
+
+
+def is_higher_version(next_version: str, this_version: str):
+    for a, b in zip(next_version.split('.'), this_version.split('.')):
+        if int(a) > int(b):
+            return True
+        elif int(a) < int(b):
+            return False
+    return False

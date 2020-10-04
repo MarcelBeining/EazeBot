@@ -5,8 +5,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased] - 
 ### Added
-* Possibility to name the trade set [Marcel]
 * Provides the possibility to update eazebot via Telegram [Marcel]
+
+### Changed
+* Instead of GitHub commit messages, the changes written in the change log are now shown in Telegram [Marcel]
+
+### Fixed
+* Fixed version comparison which was not working correctly for some versions. [Marcel]
+
+
+## [v2.8.0] - 2020-10-03 11:55
+### Added
+* Possibility to name the trade set [Marcel]
 
 
 ## [v2.7.2] - 2020-09-21 12:45
@@ -104,6 +114,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 
 
+## Changes comparison
+* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.8.0...dev>
 ## Changes comparison
 * **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.2...dev>
 ## Changes comparison
