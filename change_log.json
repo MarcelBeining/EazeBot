@@ -34,6 +34,10 @@
                         {
                             "author": "Marcel",
                             "message": "Fixed version comparison which was not working correctly for some versions."
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed change log template to correctly list the branch comparisons at the bottom"
                         }
                     ]
                 }
