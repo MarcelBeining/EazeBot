@@ -24,7 +24,7 @@ def check_dir_arg(folder):
 
 
 # execute main if running as script
-def main(sysargv = None):
+def main(sysargv=None):
     log_formatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
     logger = logging.getLogger('eazebot')
     logger.handlers = []  # delete old handlers in case bot is restarted but not python kernel
@@ -48,8 +48,6 @@ def main(sysargv = None):
                         help='does not warn for preexisting config files when running the --init flag')
     parser.add_argument('-d', '--user-dir', dest='user_dir', default=None, type=check_dir_arg, required=False,
                         help="Absolute or relative path to the user folder")
-
-    parser.parse_args('-ic'.split())
 
     args = parser.parse_args(sysargv)
 
@@ -114,28 +112,27 @@ def main(sysargv = None):
             os.chdir(_startup_cwd)
 
             if os.environ.get('IN_DOCKER_CONTAINER', False):
-               logger.error('Updating a docker container from within EazeBot is not implemented at the moment. '
-                            'Restarting EazeBot without updating...')
+                logger.error('Updating EazeBot inside a docker container is not intended. Exiting with status 2, to '
+                             'allow upper script (if there are any) to update the container...')
+                exit(2)
             else:
                 response = os.popen(' '.join([sys.executable, '-m pip install -U eazebot'])).read()
                 if 'Requirement already up-to-date:' in response:
                     logger.info('EazeBot already up-to-date. Restarting now...')
                 elif 'Successfully installed eazebot' in response:
-                    version = re.search('')
+                    version = re.search(r'(?<=Successfully installed eazebot-)[\d\.]+', response).group(0)
                     logger.info(f'EazeBot updated to version {version}. Restarting now...')
 
-            """Re-execute the current process.
-
-            This must be called from the main thread, because certain platforms
-            (OS X) don't allow execv to be called in a child thread very well.
-            """
+            # get all previous args
             args = sys.argv[:]
             logger.info('Re-spawning %s' % ' '.join(args))
             args.insert(0, sys.executable)
             if sys.platform == 'win32':
                 args = ['"%s"' % arg for arg in args]
 
-
+            # Re-execute the current process with all previous args
+            # This must be called from the main thread, because certain platforms
+            # (OS X) don't allow execv to be called in a child thread very well.
             os.execv(sys.executable, args)
 
 

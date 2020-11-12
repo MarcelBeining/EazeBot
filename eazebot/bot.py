@@ -1521,7 +1521,7 @@ class EazeBot:
         # %% start telegram API, add handlers to dispatcher and start bot
         self.updater.dispatcher.add_handler(conv_handler)
         self.updater.dispatcher.add_handler(unknown_handler)
-        self.updater.dispatcher.user_data = clean_data(load_data(), self.__config__['telegramUserId'])
+        self.updater.dispatcher.user_data = clean_data(load_data(no_dialog=True), self.__config__['telegramUserId'])
 
         for user in self.__config__['telegramUserId']:
             if user in self.updater.dispatcher.user_data and len(self.updater.dispatcher.user_data[user]) > 0:
@@ -1578,5 +1578,6 @@ class EazeBot:
                     break
 
             save_data(self.updater.dispatcher.user_data, user_dir=self.user_dir)  # last data save when finishing
+            exit(0)
         else:
             return self.updater
