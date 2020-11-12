@@ -8,6 +8,7 @@ from os import path
 from setuptools import setup
 from eazebot import __version__
 
+
 def requirements():
     """Build the requirements list for this project"""
     requirements_list = []

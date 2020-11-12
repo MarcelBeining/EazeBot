@@ -11,6 +11,15 @@
             "date": "",
             "section": [
                 {
+                    "label": "Added",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Provides the possibility to update eazebot via Telegram"
+                        }
+                    ]
+                },
+                {
                     "label": "Changed",
                     "entries": [
                         {

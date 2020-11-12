@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased] - 
+### Added
+* Provides the possibility to update eazebot via Telegram [Marcel]
+
 ### Changed
 * Instead of GitHub commit messages, the changes written in the change log are now shown in Telegram [Marcel]
 
