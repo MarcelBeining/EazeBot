@@ -84,7 +84,12 @@ class EazeBot:
     def signal_handler(self, signal, frame):
         self.state = STATE.INTERRUPTED
 
-    def done_cmd(self, update: Update, context: CallbackContext):
+    def update_cmd(self, update: Update, context: CallbackContext):
+        self.state = STATE.UPDATING
+        chat_obj = context.bot.get_chat(context.user_data['chatId'])
+        logger.info('User %s (id: %s) ends the bot for updating!' % (chat_obj.first_name, chat_obj.id))
+
+    def exit_cmd(self, update: Update, context: CallbackContext):
         self.state = STATE.INTERRUPTED
         chat_obj = context.bot.get_chat(context.user_data['chatId'])
         logger.info('User %s (id: %s) ends the bot!' % (chat_obj.first_name, chat_obj.id))
@@ -909,16 +914,17 @@ class EazeBot:
         string = '<b>******** EazeBot (v%s) ********</b>\n' % self.thisVersion
         string += r'<i>Free python bot for easy execution and surveillance of crypto tradings on multiple ' \
                   'exchanges</i>\n'
+        buttons = [InlineKeyboardButton('Donate', callback_data='1|xxx|xxx')]
         remote_version, version_message, on_py_pi = self.get_remote_version()
         if is_higher_version(next_version=remote_version, this_version=self.thisVersion):
             string += '\n<b>There is a new version of EazeBot available on git/docker (v%s) %s with these ' \
                       'changes:</b>\n' \
                       '%s\n\n' % (remote_version, 'and PyPi' if on_py_pi else '(not yet on PyPi)', version_message)
+            buttons.append(InlineKeyboardButton("*Update bot*", callback_data='settings|updateBot'))
         string += '\n<b>Reward my efforts on this bot by donating some cryptos!</b>'
         context.user_data['messages']['botInfo'].append(
             context.bot.send_message(context.user_data['chatId'], string, parse_mode='html',
-                                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
-                                         'Donate', callback_data='1|xxx|xxx')]])))
+                                     reply_markup=InlineKeyboardMarkup([buttons])))
         return MAINMENU
 
     # job functions
@@ -932,7 +938,11 @@ class EazeBot:
                         context.bot.send_message(
                             self.updater.dispatcher.user_data[user]['chatId'],
                             f"There is a new version of EazeBot available on git (v{remote_version}) "
-                            f"{'and PyPi' if on_py_pi else '(not yet on PyPi)'} with these changes:\n{version_message}"))
+                            f"{'and PyPi' if on_py_pi else '(not yet on PyPi)'} with these changes:\n{version_message}",
+                            parse_mode='html',
+                            reply_markup=InlineKeyboardMarkup([
+                                [InlineKeyboardButton("*Update bot*", callback_data='settings|updateBot')]])
+                        ))
 
         for user in self.updater.dispatcher.user_data:
             if user in self.__config__['telegramUserId']:
@@ -1040,7 +1050,12 @@ class EazeBot:
                     elif args[0] == 'Yes':
                         query.answer('stopping')
                         context.bot.send_message(context.user_data['chatId'], 'Bot is aborting now. Goodbye!')
-                        self.done_cmd(update, context)
+                        self.exit_cmd(update, context)
+                elif subcommand == 'updateBot':
+                    query.answer('updating')
+                    context.bot.send_message(context.user_data['chatId'], 'Bot is stopped for updating now. '
+                                                                          'Should be back in a few minutes. Goodbye!')
+                    self.update_cmd(update, context)
                 else:
                     if subcommand == 'defFiat':
                         if response is None:
@@ -1515,7 +1530,7 @@ class EazeBot:
                           MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'noShortName')),
                           CallbackQueryHandler(self.inline_button_callback)]
             },
-            fallbacks=[CommandHandler('exit', self.done_cmd)], allow_reentry=True)  # , per_message = True)
+            fallbacks=[CommandHandler('exit', self.exit_cmd)], allow_reentry=True)  # , per_message = True)
         unknown_handler = MessageHandler(Filters.command, lambda u, c: self.noncomprende(u, c, 'unknownCmd'))
 
         # %% start telegram API, add handlers to dispatcher and start bot
@@ -1535,7 +1550,7 @@ class EazeBot:
                                         first=5,
                                         context=self.updater)
         # start a job checking for updates once a day
-        self.updater.job_queue.run_repeating(self.check_for_updates_and_tax, interval=60 * 60 * 24, first=0,
+        self.updater.job_queue.run_repeating(self.check_for_updates_and_tax, interval=60 * 60 * 24, first=20,
                                              context=self.updater)
         # start a job checking every day 10 sec after midnight (UTC time)
         self.updater.job_queue.run_daily(lambda cont: self.check_candle(cont, 1),
@@ -1578,6 +1593,6 @@ class EazeBot:
                     break
 
             save_data(self.updater.dispatcher.user_data, user_dir=self.user_dir)  # last data save when finishing
-            exit(0)
+            return
         else:
             return self.updater
