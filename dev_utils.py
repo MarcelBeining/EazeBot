@@ -11,7 +11,6 @@ import json
 import warnings
 from typing import Dict, List, Union
 from datetime import datetime
-import pystache
 import requests
 from git import GitCommandError
 
@@ -52,7 +51,6 @@ class ChangeLog:
         self.compare_url = compare_url
         self.version_prefix = version_prefix
         self.template_file = template_file
-        self.renderer = pystache.Renderer()
 
     def _init_json(self):
         template = {
@@ -243,11 +241,12 @@ class ChangeLog:
         return data
 
     def write_log(self):
+        from pystache import Renderer
         extended_data = self._add_branch_comparison(self.data)
         with open(self.template_file, 'r') as fh:
             template = fh.read()
         with open(self.file_name + '.md', 'w') as fh:
-            fh.write(self.renderer.render(template, extended_data))
+            fh.write(Renderer().render(template, extended_data))
 
 
 class BaseGitPlattform(ABC):
