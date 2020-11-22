@@ -43,10 +43,9 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
                           ConversationHandler, CallbackQueryHandler, CallbackContext)
 from telegram.error import BadRequest
 
-from dev_utils import ChangeLog
 from eazebot.tradeHandler import tradeHandler
 from eazebot.handling import ValueType, ExchContainer, DateFilter, TempTradeSet, BaseTradeSet, RegularBuy, OrderType
-from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data, is_higher_version
+from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data, is_higher_version, ChangeLog
 
 MAINMENU, SETTINGS, SYMBOL, NUMBER, DAILY_CANDLE, INFO, DATE, TS_NAME = range(8)
 
