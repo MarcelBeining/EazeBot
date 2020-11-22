@@ -7,6 +7,51 @@
     ],
     "versions": [
         {
+            "version": "v2.9.0",
+            "date": "2020-11-22 17:46",
+            "section": [
+                {
+                    "label": "Added",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Provides the possibility to update eazebot via Telegram"
+                        }
+                    ]
+                },
+                {
+                    "label": "Changed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Instead of GitHub commit messages, the changes written in the change log are now shown in Telegram"
+                        }
+                    ]
+                },
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed version comparison which was not working correctly for some versions."
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed change log template to correctly list the branch comparisons at the bottom"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Fix dependency on dev package pystache when only loading ChangeLog class for accessing changes"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Trade set name now also appears in the 1 year buy warning"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.8.0",
             "date": "2020-10-03 11:55",
             "section": [

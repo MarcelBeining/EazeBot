@@ -30,6 +30,7 @@ import time
 import datetime as dt
 import json
 import signal
+from enum import Enum
 from typing import Union, List, Dict
 from dateutil.relativedelta import relativedelta
 from dateparser import parse as dateparse
@@ -41,13 +42,21 @@ from telegram.bot import Bot
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
                           ConversationHandler, CallbackQueryHandler, CallbackContext)
 from telegram.error import BadRequest
+
+from dev_utils import ChangeLog
 from eazebot.tradeHandler import tradeHandler
 from eazebot.handling import ValueType, ExchContainer, DateFilter, TempTradeSet, BaseTradeSet, RegularBuy, OrderType
-from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data
+from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data, is_higher_version
 
 MAINMENU, SETTINGS, SYMBOL, NUMBER, DAILY_CANDLE, INFO, DATE, TS_NAME = range(8)
 
 logger = logging.getLogger(__name__)
+
+
+class STATE(Enum):
+    ACTIVE = 1
+    INTERRUPTED = 2
+    UPDATING = 3
 
 
 class EazeBot:
@@ -66,17 +75,22 @@ class EazeBot:
         self.updater = Updater(token=self.__config__['telegramAPI'], use_context=True,
                                request_kwargs={'read_timeout': 10, 'connect_timeout': 10})
 
-        self.interrupted = False
+        self.state = STATE.ACTIVE
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGABRT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
 
     # define  helper functions
     def signal_handler(self, signal, frame):
-        self.interrupted = True
+        self.state = STATE.INTERRUPTED
 
-    def done_cmd(self, update: Update, context: CallbackContext):
-        self.interrupted = True
+    def update_cmd(self, update: Update, context: CallbackContext):
+        self.state = STATE.UPDATING
+        chat_obj = context.bot.get_chat(context.user_data['chatId'])
+        logger.info('User %s (id: %s) ends the bot for updating!' % (chat_obj.first_name, chat_obj.id))
+
+    def exit_cmd(self, update: Update, context: CallbackContext):
+        self.state = STATE.INTERRUPTED
         chat_obj = context.bot.get_chat(context.user_data['chatId'])
         logger.info('User %s (id: %s) ends the bot!' % (chat_obj.first_name, chat_obj.id))
 
@@ -91,7 +105,7 @@ class EazeBot:
         elif what == 'noDate':
             txt = "Sorry, the date you entered could not be parsed! Try a standard format such as YYYY-MM-DDTHH:MM!"
         elif what == 'noValueRequested':
-            txt = "Sorry, I did not ask for anything at the moment, and unfortunately I have no KI (yet) ;-)"
+            txt = "Sorry, I did not ask for anything at the moment, and unfortunately I am no AI (yet) ;-)"
         elif what == 'noShortName':
             txt = 'Sorry, the name must consist of letters, numbers and (!,#,?) only with a max length of 15.'
         else:
@@ -866,8 +880,7 @@ class EazeBot:
             # necessary for backward compatibility
             ct.set_user(context.user_data['chatId'])
 
-    @staticmethod
-    def get_remote_version():
+    def get_remote_version(self):
         try:
             pypi_version = re.search(r'(?<=p class="release__version">\n)((.*\n){1})',
                                      requests.get('https://pypi.org/project/eazebot/').text, re.M).group(0).strip()
@@ -876,44 +889,60 @@ class EazeBot:
         remote_txt = base64.b64decode(
             requests.get('https://api.github.com/repos/MarcelBeining/eazebot/contents/eazebot/__init__.py').json()[
                 'content'])
-        remote_version = re.search(r'(?<=__version__ = \')[0-9.]+', str(remote_txt)).group(0)
-        remote_version_commit = \
-            [val['commit']['url'] for val in
-             requests.get('https://api.github.com/repos/MarcelBeining/EazeBot/tags').json() if
-             val['name'] in ('EazeBot_%s' % remote_version, 'v%s' % remote_version)][0]
-        return remote_version, requests.get(remote_version_commit).json()['commit']['message'], \
-            pypi_version == remote_version
+        latest_version = re.search(r'(?<=__version__ = \')[0-9.]+', str(remote_txt)).group(0)
+        # remote_version_commit = \
+        #     [val['commit']['url'] for val in
+        #      requests.get('https://api.github.com/repos/MarcelBeining/EazeBot/tags').json() if
+        #      val['name'] in ('EazeBot_%s' % latest_version, 'v%s' % latest_version)][0]
+        # chg_text = requests.get(remote_version_commit).json()['commit']['message']
+        chg_log = requests.get(
+            f'https://raw.githubusercontent.com/MarcelBeining/EazeBot/v{latest_version}/change_log.json').json()
+        with open('tmp.json', 'w') as fh:
+            json.dump(chg_log, fh)
+        chg_text = '-' + '\n-'.join(ChangeLog('tmp', version_prefix='v').get_changes(prev_version=self.thisVersion,
+                                                                                     this_version=latest_version,
+                                                                                     text_only=True))
+        try:
+            os.remove('tmp.json')
+        except:
+            pass
+
+        return latest_version, chg_text, pypi_version == latest_version
 
     def bot_info(self, update: Update, context: CallbackContext):
         self.delete_messages(context.user_data, 'botInfo')
         string = '<b>******** EazeBot (v%s) ********</b>\n' % self.thisVersion
         string += r'<i>Free python bot for easy execution and surveillance of crypto tradings on multiple ' \
-                  r'exchanges</i>\n'
+                  'exchanges</i>\n'
+        buttons = [InlineKeyboardButton('Donate', callback_data='1|xxx|xxx')]
         remote_version, version_message, on_py_pi = self.get_remote_version()
-        if remote_version != self.thisVersion and all(
-                [int(a) >= int(b) for a, b in zip(remote_version.split('.'), self.thisVersion.split('.'))]):
-            string += '\n<b>There is a new version of EazeBot available on git (v%s) %s with these changes:\n' \
-                      '%s\n</b>\n' % (remote_version, 'and PyPi' if on_py_pi else '(not yet on PyPi)', version_message)
-        string += '\nReward my efforts on this bot by donating some cryptos!'
+        if is_higher_version(next_version=remote_version, this_version=self.thisVersion):
+            string += '\n<b>There is a new version of EazeBot available on git/docker (v%s) %s with these ' \
+                      'changes:</b>\n' \
+                      '%s\n\n' % (remote_version, 'and PyPi' if on_py_pi else '(not yet on PyPi)', version_message)
+            buttons.append(InlineKeyboardButton("*Update bot*", callback_data='settings|updateBot'))
+        string += '\n<b>Reward my efforts on this bot by donating some cryptos!</b>'
         context.user_data['messages']['botInfo'].append(
             context.bot.send_message(context.user_data['chatId'], string, parse_mode='html',
-                                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
-                                         'Donate', callback_data='1|xxx|xxx')]])))
+                                     reply_markup=InlineKeyboardMarkup([buttons])))
         return MAINMENU
 
     # job functions
     def check_for_updates_and_tax(self, context):
         self.updater = context.job.context
         remote_version, version_message, on_py_pi = self.get_remote_version()
-        if remote_version != self.thisVersion and all(
-                [int(a) >= int(b) for a, b in zip(remote_version.split('.'), self.thisVersion.split('.'))]):
+        if is_higher_version(next_version=remote_version, this_version=self.thisVersion):
             for user in self.updater.dispatcher.user_data:
                 if 'chatId' in self.updater.dispatcher.user_data[user]:
                     self.updater.dispatcher.user_data[user]['messages']['botInfo'].append(
                         context.bot.send_message(
                             self.updater.dispatcher.user_data[user]['chatId'],
                             f"There is a new version of EazeBot available on git (v{remote_version}) "
-                            f"{'and PyPi' if on_py_pi else '(not yet on PyPi)'} with these changes:\n{version_message}"))
+                            f"{'and PyPi' if on_py_pi else '(not yet on PyPi)'} with these changes:\n{version_message}",
+                            parse_mode='html',
+                            reply_markup=InlineKeyboardMarkup([
+                                [InlineKeyboardButton("*Update bot*", callback_data='settings|updateBot')]])
+                        ))
 
         for user in self.updater.dispatcher.user_data:
             if user in self.__config__['telegramUserId']:
@@ -1021,7 +1050,12 @@ class EazeBot:
                     elif args[0] == 'Yes':
                         query.answer('stopping')
                         context.bot.send_message(context.user_data['chatId'], 'Bot is aborting now. Goodbye!')
-                        self.done_cmd(update, context)
+                        self.exit_cmd(update, context)
+                elif subcommand == 'updateBot':
+                    query.answer('updating')
+                    context.bot.send_message(context.user_data['chatId'], 'Bot is stopped for updating now. '
+                                                                          'Should be back in a few minutes. Goodbye!')
+                    self.update_cmd(update, context)
                 else:
                     if subcommand == 'defFiat':
                         if response is None:
@@ -1496,13 +1530,13 @@ class EazeBot:
                           MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'noShortName')),
                           CallbackQueryHandler(self.inline_button_callback)]
             },
-            fallbacks=[CommandHandler('exit', self.done_cmd)], allow_reentry=True)  # , per_message = True)
+            fallbacks=[CommandHandler('exit', self.exit_cmd)], allow_reentry=True)  # , per_message = True)
         unknown_handler = MessageHandler(Filters.command, lambda u, c: self.noncomprende(u, c, 'unknownCmd'))
 
         # %% start telegram API, add handlers to dispatcher and start bot
         self.updater.dispatcher.add_handler(conv_handler)
         self.updater.dispatcher.add_handler(unknown_handler)
-        self.updater.dispatcher.user_data = clean_data(load_data(), self.__config__['telegramUserId'])
+        self.updater.dispatcher.user_data = clean_data(load_data(no_dialog=True), self.__config__['telegramUserId'])
 
         for user in self.__config__['telegramUserId']:
             if user in self.updater.dispatcher.user_data and len(self.updater.dispatcher.user_data[user]) > 0:
@@ -1516,7 +1550,7 @@ class EazeBot:
                                         first=5,
                                         context=self.updater)
         # start a job checking for updates once a day
-        self.updater.job_queue.run_repeating(self.check_for_updates_and_tax, interval=60 * 60 * 24, first=0,
+        self.updater.job_queue.run_repeating(self.check_for_updates_and_tax, interval=60 * 60 * 24, first=20,
                                              context=self.updater)
         # start a job checking every day 10 sec after midnight (UTC time)
         self.updater.job_queue.run_daily(lambda cont: self.check_candle(cont, 1),
@@ -1541,19 +1575,24 @@ class EazeBot:
             self.updater.start_polling()
             while True:
                 time.sleep(1)
-                if self.interrupted:
+                if self.state in [STATE.INTERRUPTED, STATE.UPDATING]:
+                    if self.state == STATE.UPDATING:
+                        text = ' for updating itsself. Please be patient'
+                    else:
+                        text = ''
                     self.updater.stop()
                     for user in self.__config__['telegramUserId']:
                         chat_obj = self.updater.bot.get_chat(user)
                         try:
                             self.updater.bot.send_message(
                                 user,
-                                f"Bot was stopped! Trades are not surveilled until bot is started again! "
+                                f"Bot was stopped{text}! Trades are not surveilled until bot is started again! "
                                 f"See you soon {chat_obj.first_name}!")
                         except Exception:
                             pass
                     break
 
             save_data(self.updater.dispatcher.user_data, user_dir=self.user_dir)  # last data save when finishing
+            return
         else:
             return self.updater

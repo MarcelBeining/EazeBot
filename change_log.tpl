@@ -15,7 +15,7 @@
 
 {{/versions}}
 
-{{#version_comparison}}
 ## Changes comparison
+{{#version_comparison}}
 * **[{{version}}]**: <{{url}}>
 {{/version_comparison}}

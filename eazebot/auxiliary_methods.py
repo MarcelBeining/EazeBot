@@ -270,16 +270,16 @@ def convert_data(from_='linux', to_='win', filename='data.pickle', filenameout='
             fo.write(byte_content)
         
         
-def load_data(filename='data.pickle', user_dir: str = 'user_data'):
+def load_data(filename='data.pickle', user_dir: str = 'user_data', no_dialog: bool = False):
 
     filename = os.path.join(user_dir, filename)
     # load latest user data
     if os.path.isfile(filename):
-        if os.path.getmtime(filename) < time.time() - 60*60*24*14:
+        if not no_dialog and os.path.getmtime(filename) < time.time() - 60*60*24*14:
             answer = input('WARNING! The tradeSet data you want to load is older than 2 weeks! '
                            'Are you sure you want to load it? (y/n): ')
             if answer != 'y':
-                os.rename('data.pickle', 'data.old')
+                os.rename(filename, filename.replace('.pickle', '.old'))
         try:
             with open(filename, 'rb') as f:
                 logger.info('Loading user data')
@@ -308,3 +308,12 @@ def load_data(filename='data.pickle', user_dir: str = 'user_data'):
     else:
         logger.error('No autosave file found')
         return defaultdict(dict)    
+
+
+def is_higher_version(next_version: str, this_version: str):
+    for a, b in zip(next_version.split('.'), this_version.split('.')):
+        if int(a) > int(b):
+            return True
+        elif int(a) < int(b):
+            return False
+    return False

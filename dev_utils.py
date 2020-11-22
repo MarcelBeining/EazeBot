@@ -11,7 +11,6 @@ import json
 import warnings
 from typing import Dict, List, Union
 from datetime import datetime
-import pystache
 import requests
 from git import GitCommandError
 
@@ -34,11 +33,11 @@ class ChangeLog:
     A class to create a formatted markdown change log from a mustache template and the changes as json
 
     """
-    def __init__(self, file: str = 'change_log.md', template_file: str = 'change_log.tpl',
+    def __init__(self, file: str = 'change_log', template_file: str = 'change_log.tpl',
                  compare_url=None, version_prefix: str = ''):
         """
 
-        :param file: File name of the markdown change log file. Has to have the md ending
+        :param file: File name without ending of the markdown change log file to be generated
         :param template_file:  File name of the change log template. Has to be in mustache format
         :param compare_url: Git url that is used to compare commits/branches with each other. Mostly ends with /compare/
         :param version_prefix: Optional prefix that will be added to the version string before creating the log data
@@ -46,14 +45,12 @@ class ChangeLog:
         self.file_name = file
 
         self.data = {}
-        if not os.path.isfile(file):
+        if not os.path.isfile(file + '.json'):
             self._init_json()
         self.read_json()
         self.compare_url = compare_url
         self.version_prefix = version_prefix
-        with open(template_file, 'r') as fh:
-            self.template = fh.read()
-        self.renderer = pystache.Renderer()
+        self.template_file = template_file
 
     def _init_json(self):
         template = {
@@ -67,11 +64,11 @@ class ChangeLog:
             ],
             "versions": []
         }
-        with open(self.file_name.replace('.md', '.json'), 'w') as fh:
+        with open(self.file_name + '.json', 'w') as fh:
             json.dump(template, fh, indent=4)
 
     def read_json(self):
-        with open(self.file_name.replace('.md', '.json'), 'r') as fh:
+        with open(self.file_name + '.json', 'r') as fh:
             data = json.load(fh)
         # assert version info sorted in descending date order
         data['versions'] = sorted(data['versions'], key=lambda x: x['date'] if x['date'] != '' else 'Z',
@@ -79,7 +76,7 @@ class ChangeLog:
         self.data = data
 
     def write_json(self):
-        with open(self.file_name.replace('.md', '.json'), 'w') as fh:
+        with open(self.file_name + '.json', 'w') as fh:
             json.dump(self.data, fh, indent=4)
 
     def get_version(self, version: str) -> Union[None, Dict]:
@@ -94,6 +91,19 @@ class ChangeLog:
             if version_dict['version'] == self.version_prefix + version:
                 return deepcopy(version_dict)
         return None
+
+    def get_changes(self, prev_version: str, this_version: str, text_only: bool = False) -> List:
+        chg_list = []
+        for version_dict in self.data['versions']:
+            if self.version_prefix + prev_version < version_dict['version'] <= self.version_prefix + this_version:
+                if text_only:
+                    for sec in version_dict['section']:
+                        for entry in sec['entries']:
+                            chg_list.append(entry['message'])
+                else:
+                    chg_list.append(version_dict)
+        return chg_list
+
 
     @staticmethod
     def ask_for_changes(user: str, sections: List[Sections]) -> List:
@@ -231,9 +241,12 @@ class ChangeLog:
         return data
 
     def write_log(self):
+        from pystache import Renderer
         extended_data = self._add_branch_comparison(self.data)
-        with open(self.file_name, 'w') as fh:
-            fh.write(self.renderer.render(self.template, extended_data))
+        with open(self.template_file, 'r') as fh:
+            template = fh.read()
+        with open(self.file_name + '.md', 'w') as fh:
+            fh.write(Renderer().render(template, extended_data))
 
 
 class BaseGitPlattform(ABC):
