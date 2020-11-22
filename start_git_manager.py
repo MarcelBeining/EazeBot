@@ -3,7 +3,8 @@ import shutil
 from subprocess import Popen
 from git import Repo
 import os
-from dev_utils import ChangeLog, Github, Sections, GitManagerError
+from dev_utils import Github, GitManagerError
+from eazebot.auxiliary_methods import Sections, ChangeLog
 from eazebot import __version__ as current_version
 
 # The owner repo ID of the EazeBot on Github
