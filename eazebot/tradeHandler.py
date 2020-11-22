@@ -616,8 +616,8 @@ class tradeHandler:
                             if 'time' in trade and (datetime.datetime.now() - trade['time']).days > 358 and (
                                     datetime.datetime.now() - trade['time']).days < 365:
                                 logger.warning(
-                                    f"Time since buy level #{iTrade} of trade set {indTs} ({ts.symbol}) on exchange "
-                                    f"{self.exchange.name} was filled approaches one year "
+                                    f"Time since buy level #{iTrade} of trade set {ts.name} ({ts.symbol}) on "
+                                    f"exchange {self.exchange.name} was filled approaches one year "
                                     f"({(trade['time'] + datetime.timedelta(days=365)).strftime('%Y-%m-%d %H:%M')}) "
                                     f"after which gains/losses are not eligible for reporting in the tax report in most"
                                     f" countries!", extra=self.logger_extras)

@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 * Fixed version comparison which was not working correctly for some versions. [Marcel]
 * Fixed change log template to correctly list the branch comparisons at the bottom [Marcel]
 * Fix dependency on dev package pystache when only loading ChangeLog class for accessing changes [Marcel]
+* Trade set name now also appears in the 1 year buy warning [Marcel]
 
 
 ## [v2.8.0] - 2020-10-03 11:55

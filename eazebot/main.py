@@ -107,7 +107,9 @@ def main(sysargv=None):
         logger.addHandler(telegram_handler)
 
         bot = EazeBot(config=config)
-        bot.start_bot()
+        updater = bot.start_bot()
+        if updater is not None:
+            return updater
         if bot.state == STATE.UPDATING:
             os.chdir(_startup_cwd)
 
