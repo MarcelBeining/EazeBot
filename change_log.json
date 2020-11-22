@@ -42,6 +42,10 @@
                         {
                             "author": "Marcel",
                             "message": "Fix dependency on dev package pystache when only loading ChangeLog class for accessing changes"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "Trade set name now also appears in the 1 year buy warning"
                         }
                     ]
                 }

@@ -105,7 +105,7 @@ class EazeBot:
         elif what == 'noDate':
             txt = "Sorry, the date you entered could not be parsed! Try a standard format such as YYYY-MM-DDTHH:MM!"
         elif what == 'noValueRequested':
-            txt = "Sorry, I did not ask for anything at the moment, and unfortunately I have no KI (yet) ;-)"
+            txt = "Sorry, I did not ask for anything at the moment, and unfortunately I am no AI (yet) ;-)"
         elif what == 'noShortName':
             txt = 'Sorry, the name must consist of letters, numbers and (!,#,?) only with a max length of 15.'
         else:
