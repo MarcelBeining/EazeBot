@@ -9,11 +9,12 @@ import re
 import string
 import time
 from enum import Flag, auto
-from typing import Union, Dict
+from typing import Union, Dict, Optional
 import logging
 from typing import TYPE_CHECKING
 
-from telegram.ext.filters import BaseFilter
+from telegram import Update
+from telegram.ext.filters import MessageFilter
 
 if TYPE_CHECKING:
     from .tradeHandler import tradeHandler
@@ -85,11 +86,14 @@ class TempTradeSet:
             raise ValueError('Price cannot be set, if regular buy is True')
 
 
-class DateFilter(BaseFilter):
+class DateFilter(MessageFilter):
     """
     Filters updates by checking if message can be parsed into a date.
 
     """
+
+    def __call__(self, update: Update) -> Optional[Union[bool, Dict]]:
+        pass
 
     name = 'Filters.date'
 

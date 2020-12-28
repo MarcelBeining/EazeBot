@@ -7,6 +7,21 @@
     ],
     "versions": [
         {
+            "version": "v2.9.2",
+            "date": "2020-12-28 10:41",
+            "section": [
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed error with new python telegram bot version"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.9.1",
             "date": "2020-11-22 18:06",
             "section": [
