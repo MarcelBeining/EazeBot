@@ -392,7 +392,8 @@ class tradeHandler:
                     tmpstr = tmpstr + 'if DC > %s\n' % self.nf.price2Prec(ts.symbol, trade['candleAbove'])
             elif trade['oid'] == 'filled':
                 tmpstr = tmpstr + '_Order filled_\n'
-                filled_buys.append([trade['actualAmount'], trade['price']])
+                if trade['price'] is not None and trade['amount'] is not None:
+                    filled_buys.append([trade['actualAmount'], trade['price']])
             else:
                 tmpstr = tmpstr + '_Open order_\n'
             if ts.show_filled_orders or trade['oid'] != 'filled':
@@ -407,7 +408,8 @@ class tradeHandler:
                 tmpstr = tmpstr + '_Order not initiated_\n'
             elif trade['oid'] == 'filled':
                 tmpstr = tmpstr + '_Order filled_\n'
-                filled_sells.append([trade['amount'], trade['price']])
+                if trade['price'] is not None and trade['amount'] is not None:
+                    filled_sells.append([trade['amount'], trade['price']])
             else:
                 tmpstr = tmpstr + '_Open order_\n'
             if ts.show_filled_orders or trade['oid'] != 'filled':
