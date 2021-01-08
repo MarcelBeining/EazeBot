@@ -16,6 +16,10 @@
                         {
                             "author": "Marcel",
                             "message": "Fixed error with new python telegram bot version"
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "User is now informed if there are problems with showing a trade set"
                         }
                     ]
                 }

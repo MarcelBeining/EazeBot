@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [v2.9.2] - 2020-12-28 10:41
 ### Fixed
 * Fixed error with new python telegram bot version [Marcel]
+* User is now informed if there are problems with showing a trade set [Marcel]
 
 
 ## [v2.9.1] - 2020-11-22 18:06

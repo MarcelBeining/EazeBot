@@ -333,8 +333,8 @@ class EazeBot:
                 continue
             count = 0
             for iTs in ct.tradeSets:
+                ts = ct.tradeSets[iTs]
                 try:  # catch errors in order to see the statuses of other exchs, if one exchange has a problem
-                    ts = ct.tradeSets[iTs]
                     if only_this_ts is not None and only_this_ts != iTs:
                         continue
                     if ts.is_virgin():
@@ -351,7 +351,13 @@ class EazeBot:
                         reply_markup=markup, parse_mode='markdown')
                 except Exception as e:
                     logger.error(traceback.print_exc())
-                    pass
+                    try:
+                        context.user_data['messages']['status']['1'] = context.bot.send_message(
+                            context.user_data['chatId'],
+                            'There was an error with trade set %s on exchange %s' % (ts.name, ex))
+                    except Exception:
+                        pass
+
             if count == 0:
                 context.user_data['messages']['status']['1'] = context.bot.send_message(
                     context.user_data['chatId'],
@@ -1568,7 +1574,8 @@ class EazeBot:
             for user in self.__config__['telegramUserId']:
                 try:
                     self.updater.bot.send_message(user, 'Bot was restarted.\n Please press /start to continue.',
-                                             reply_markup=ReplyKeyboardMarkup([['/start']]), one_time_keyboard=True)
+                                                  reply_markup=ReplyKeyboardMarkup([['/start']],
+                                                                                   one_time_keyboard=True))
                 except Exception:
                     pass
             self.updater.start_polling()
