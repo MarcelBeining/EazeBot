@@ -1,12 +1,12 @@
 [![GitHub](https://img.shields.io/github/tag/MarcelBeining/eazebot.svg?label=GitHub%20Release)](https://github.com/MarcelBeining/EazeBot/releases) 
 [![PyPi](https://badge.fury.io/py/eazebot.svg)](https://pypi.org/project/eazebot/#history)
- ![Docker](https://img.shields.io/docker/v/mbeining/eazebot?sort=semver&label=Docker%20Release)
+![Docker](https://img.shields.io/docker/v/mbeining/eazebot?sort=semver&label=Docker%20Release)
  
 [![Docker Pulls](https://img.shields.io/docker/pulls/mbeining/eazebot.svg?style=flat-square)](https://hub.docker.com/r/mbeining/eazebot/)
- ![GitHub repo size in bytes](https://img.shields.io/github/repo-size/MarcelBeining/eazebot.svg)
+![GitHub repo size in bytes](https://img.shields.io/github/repo-size/MarcelBeining/eazebot.svg)
 [![GPLv3 license](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/MarcelBeining/EazeBot/blob/master/LICENSE)
- ![GitHub last commit](https://img.shields.io/github/last-commit/MarcelBeining/eazebot.svg)
- ![GitHub top language](https://img.shields.io/github/languages/top/MarcelBeining/eazebot.svg)
+![GitHub last commit](https://img.shields.io/github/last-commit/MarcelBeining/eazebot.svg)
+![GitHub top language](https://img.shields.io/github/languages/top/MarcelBeining/eazebot.svg)
 [![GitHub issues](https://img.shields.io/github/issues/MarcelBeining/EazeBot.svg)](https://GitHub.com/MarcelBeining/EazeBot/issues/)
 
 # EazeBot
@@ -43,9 +43,8 @@ files for easier execution.
 1. Create a new folder for EazeBot
 2. Download (right click, save link as) [this File](https://github.com/MarcelBeining/EazeBot/blob/master/docker-compose.yml) to that folder.
 3. Open a terminal, cd to your EazeBot directory and run 
-    ````
-    docker-compose run --rm eazebot --init
-    ````
+
+        docker-compose run --rm eazebot --init
 
 ### With Pip
 **You require [Python 3.6 or higher](https://www.python.org/downloads/) to be installed on your system.**
@@ -58,15 +57,14 @@ We simplified installation/configuration of the bot on Windows:
 
 #### Linux/Mac
 1. The simpliest and recommended way of installing EazeBot is using the pip install command:
-    ````
-    sudo python3 -m pip install eazebot
-    ````
+
+        sudo python3 -m pip install eazebot
+
 2. You then need to copy the configuration files to some folder. Here is an example to make a folder in your home directory and copy the files there:
-    ````
-    sudo mkdir ~/eazebot
-    cd ~/eazebot
-    python3 -m eazebot --init"
-    ````
+
+        sudo mkdir ~/eazebot
+        cd ~/eazebot
+        python3 -m eazebot --init"
 
 
 ## Getting Started
@@ -74,25 +72,31 @@ After installation of EazeBot you have to set up the bot so that you can control
 
 ### Obtain the necessary configuration tokens and keys
 **For this the following steps are necessary:**
-1. **Create a Telegram bot token using @botfather**  
-   + This sounds complicated but is rather simple. Start a chat with [Botfather](https://t.me/botfather) on Telegram 
-   and follow [these instructions](https://core.telegram.org/bots#creating-a-new-bot). The token you get in the end 
-   is needed during EazeBot configuration.
-2. **Get your Telegram ID**
-   + Your Telegram ID is needed during EazeBot configuration, too. It ensures that **only you** are able to control the 
-   bot via Telegram. The Telegram ID is (normally) a 9-digit number. 
-   + If you do not know it, you can talk to the [userinfobot](https://telegram.me/userinfobot).
-3. **Create API keys for each exchange you want to access via EazeBot**
-   + Please refer on your exchange on how to create an API token.
-   + Some exchanges allow you to determine what you can do with the created API token (e.g. read-only or no withdrawing etc.). Of course, 
-   EazeBot bot needs the permission to set and cancel orders for you and to fetch your balance in order to work properly. Also, if you want
-   to use the built-in donation feature, it needs the right to withdraw.
-   + Normally, once you created an API token, you will see an API key and an API secret (sometimes also called private 
-   key). This information is needed during EazeBot configuration, so save it temporarily somewhere. 
-   + Some exchanges also have more security factors, like a API password (not your exchange login password!)or an 
-   uid. If existent, please temporarily save this information as you will need it for EazeBot configuration, too.
+1. **Create a Telegram bot token using @botfather**
 
-### Interactive configuration 
+    * This sounds complicated but is rather simple. Start a chat with [Botfather](https://t.me/botfather) on Telegram 
+      and follow [these instructions](https://core.telegram.org/bots#creating-a-new-bot). The token you get in the end 
+      is needed during EazeBot configuration.
+
+2. **Get your Telegram ID**
+
+    + Your Telegram ID is needed during EazeBot configuration, too. It ensures that **only you** are able to control the 
+      bot via Telegram. The Telegram ID is (normally) a 9-digit number. 
+    + If you do not know it, you can talk to the [userinfobot](https://telegram.me/userinfobot).
+
+3. **Create API keys for each exchange you want to access via EazeBot**
+
+    + Please refer on your exchange on how to create an API token.
+    + Some exchanges allow you to determine what you can do with the created API token (e.g. read-only or no withdrawing etc.). Of course, 
+      EazeBot bot needs the permission to set and cancel orders for you and to fetch your balance in order to work properly. Also, if you want
+      to use the built-in donation feature, it needs the right to withdraw.
+    + Normally, once you created an API token, you will see an API key and an API secret (sometimes also called private 
+      key). This information is needed during EazeBot configuration, so save it temporarily somewhere. 
+    + Some exchanges also have more security factors, like a API password (not your exchange login password!)or an 
+      uid. If existent, please temporarily save this information as you will need it for EazeBot configuration, too.
+
+### Interactive configuration
+
 #### With docker
 Run the following command in your EazeBot folder:
 ````
