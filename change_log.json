@@ -9,7 +9,17 @@
         {
             "version": "v2.9.3",
             "date": "2021-01-08 09:45",
-            "section": []
+            "section": [
+                {
+                    "label": "Fixed",
+                    "entries": [
+						{
+                            "author": "Marcel",
+                            "message": "User is now informed if there are problems with showing a trade set"
+                        }
+					]
+				}
+			]
         },
         {
             "version": "v2.9.2",
@@ -21,10 +31,6 @@
                         {
                             "author": "Marcel",
                             "message": "Fixed error with new python telegram bot version"
-                        },
-                        {
-                            "author": "Marcel",
-                            "message": "User is now informed if there are problems with showing a trade set"
                         }
                     ]
                 }
