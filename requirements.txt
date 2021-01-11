@@ -1,7 +1,7 @@
 ccxt >= 1.30.87
 python-dateutil
 dill
-numpy == 1.19.3
+numpy == 1.19.5
 python-telegram-bot == 13.0
 requests
 dateparser
