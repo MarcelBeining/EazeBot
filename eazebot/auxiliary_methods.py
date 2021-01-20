@@ -14,7 +14,7 @@ from typing import Union, Dict, List
 
 import ccxt
 import dill
-from copy import deepcopy, copy
+from copy import deepcopy
 from shutil import copy2
 from collections import defaultdict
 import time
@@ -211,11 +211,7 @@ def save_data(arg, user_dir: str = 'user_data'):
     if isinstance(arg, dict):
         user_data = deepcopy(arg)
     else:
-        try:
-            user_data = deepcopy(arg.job.context.dispatcher.user_data)
-        except:
-            print(arg)
-            raise
+        user_data = deepcopy(arg.job.context.dispatcher.user_data)
 
     # remove backup
     try:
@@ -369,7 +365,8 @@ class ChangeLog:
                     "title": "Changelog",
                     "description": "All notable changes to this project will be documented in this file.\n\n"
                                    "The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), "
-                                   "and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)."
+                                   "and this project adheres to "
+                                   "[Semantic Versioning](https://semver.org/spec/v2.0.0.html)."
                 }
             ],
             "versions": []
@@ -413,7 +410,6 @@ class ChangeLog:
                 else:
                     chg_list.append(version_dict)
         return chg_list
-
 
     @staticmethod
     def ask_for_changes(user: str, sections: List[Sections]) -> List:
@@ -569,7 +565,7 @@ class MessageContainer:
 
     def __deepcopy__(self, memo):
         # create a copy with self.linked_to *not copied*, just referenced.
-        return None # MessageContainer(bot=copy(self.bot), chat_id=self.chat_id)
+        return None  # MessageContainer(bot=copy(self.bot), chat_id=self.chat_id)
 
     def check_which(self, which):
         if which not in self.msgs:
