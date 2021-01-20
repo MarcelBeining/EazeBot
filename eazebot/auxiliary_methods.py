@@ -590,37 +590,44 @@ class MessageContainer:
                     messages_to_keep.append(msg)
             self.msgs[wh] = messages_to_keep
 
+    def _send(self, which: str, *args, what='message', note=None, **kwargs):
+        if what == 'message':
+            self.msgs[which].append([note, self.bot.send_message(*args, chat_id=self.chat_id, **kwargs)])
+        elif what == 'photo':
+            self.msgs[which].append([note, self.bot.send_photo(*args, chat_id=self.chat_id, **kwargs)])
+        else:
+            raise ValueError(f"Unknown value {what} for what.")
+
     def send(self, which: str, *args, what='message', overwrite_last=True, note=None, **kwargs):
         self.check_which(which)
         if not overwrite_last or self.last_message_from != which or len(self.msgs[which]) == 0 or what != 'message':
             if overwrite_last:
                 self.delete_msgs(which=which, note=note)
-            if what == 'message':
-                self.msgs[which].append([note, self.bot.send_message(*args, chat_id=self.chat_id, **kwargs)])
-            elif what == 'photo':
-                self.msgs[which].append([note, self.bot.send_photo(*args, chat_id=self.chat_id, **kwargs)])
-            else:
-                raise ValueError(f"Unknown value {what} for what.")
+            self._send(which=which, *args, what=what, note=note, **kwargs)
         else:
+            idx = None
             try:
                 if note is None:
-                    self.msgs[which][-1][1].edit_text(*args, **kwargs)
+                    idx = -1
+                    message = self.msgs[which][idx][1]
+                    message.edit_text(*args, **kwargs)
                 else:
                     found = False
-                    for message in self.msgs[which]:
+                    for idx, message in enumerate(self.msgs[which]):
                         if message[0] == note:
                             found = True
                             message[1].edit_text(*args, **kwargs)
                     if not found:
-                        if what == 'message':
-                            self.msgs[which].append(
-                                [note, self.bot.send_message(*args, chat_id=self.chat_id, **kwargs)])
-                        elif what == 'photo':
-                            self.msgs[which].append([note, self.bot.send_photo(*args, chat_id=self.chat_id, **kwargs)])
-                        else:
-                            raise ValueError(f"Unknown value {what} for what.")
+                        idx = None
+                        self._send(which=which, *args, what=what, note=note, **kwargs)
             except BadRequest as e:
-                if 'not modified' not in str(e):
+                if 'not modified' in str(e):
+                    pass
+                elif 'Message to edit not found' in str(e):
+                    if idx is not None:
+                        self.msgs[which].pop(idx)
+                    self._send(which=which, *args, what=what, note=note, **kwargs)
+                else:
                     raise e
 
         self.last_message_from = which
