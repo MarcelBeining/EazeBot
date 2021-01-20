@@ -14,12 +14,15 @@ from typing import Union, Dict, List
 
 import ccxt
 import dill
-from copy import deepcopy
+from copy import deepcopy, copy
 from shutil import copy2
 from collections import defaultdict
 import time
 import importlib
 import warnings
+
+from telegram import Bot
+from telegram.error import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +211,11 @@ def save_data(arg, user_dir: str = 'user_data'):
     if isinstance(arg, dict):
         user_data = deepcopy(arg)
     else:
-        user_data = deepcopy(arg.job.context.dispatcher.user_data)
+        try:
+            user_data = deepcopy(arg.job.context.dispatcher.user_data)
+        except:
+            print(arg)
+            raise
 
     # remove backup
     try:
@@ -550,3 +557,74 @@ class ChangeLog:
             template = fh.read()
         with open(self.file_name + '.md', 'w') as fh:
             fh.write(Renderer().render(template, extended_data))
+
+
+class MessageContainer:
+    def __init__(self, bot: Bot, chat_id):
+
+        self.msgs = dict(history=[], dialog=[], botInfo=[], settings=[], status=[], start=[], balance=[])
+        self.bot = bot
+        self.chat_id = chat_id
+        self.last_message_from = None
+
+    def __deepcopy__(self, memo):
+        # create a copy with self.linked_to *not copied*, just referenced.
+        return None # MessageContainer(bot=copy(self.bot), chat_id=self.chat_id)
+
+    def check_which(self, which):
+        if which not in self.msgs:
+            self.msgs[which] = []
+
+    def delete_msgs(self, which: Union[str, List], note=None, only_forget=False):
+        if which == 'all':
+            which = list(self.msgs.keys())
+        elif not isinstance(which, list):
+            which = [which]
+        for wh in which:
+            self.check_which(wh)
+            messages_to_keep = []
+            for msg in self.msgs[wh]:
+                if note is None or msg[0] == note:
+                    if not only_forget:
+                        try:
+                            msg[1].delete()
+                        except Exception:
+                            pass
+                else:
+                    messages_to_keep.append(msg)
+            self.msgs[wh] = messages_to_keep
+
+    def send(self, which: str, *args, what='message', overwrite_last=True, note=None, **kwargs):
+        self.check_which(which)
+        if not overwrite_last or self.last_message_from != which or len(self.msgs[which]) == 0 or what != 'message':
+            if overwrite_last:
+                self.delete_msgs(which=which, note=note)
+            if what == 'message':
+                self.msgs[which].append([note, self.bot.send_message(*args, chat_id=self.chat_id, **kwargs)])
+            elif what == 'photo':
+                self.msgs[which].append([note, self.bot.send_photo(*args, chat_id=self.chat_id, **kwargs)])
+            else:
+                raise ValueError(f"Unknown value {what} for what.")
+        else:
+            try:
+                if note is None:
+                    self.msgs[which][-1][1].edit_text(*args, **kwargs)
+                else:
+                    found = False
+                    for message in self.msgs[which]:
+                        if message[0] == note:
+                            found = True
+                            message[1].edit_text(*args, **kwargs)
+                    if not found:
+                        if what == 'message':
+                            self.msgs[which].append(
+                                [note, self.bot.send_message(*args, chat_id=self.chat_id, **kwargs)])
+                        elif what == 'photo':
+                            self.msgs[which].append([note, self.bot.send_photo(*args, chat_id=self.chat_id, **kwargs)])
+                        else:
+                            raise ValueError(f"Unknown value {what} for what.")
+            except BadRequest as e:
+                if 'not modified' not in str(e):
+                    raise e
+
+        self.last_message_from = which
