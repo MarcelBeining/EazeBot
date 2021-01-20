@@ -31,7 +31,7 @@ import datetime as dt
 import json
 import signal
 from enum import Enum
-from typing import Union, List, Dict
+from typing import Union, Dict
 from dateutil.relativedelta import relativedelta
 from dateparser import parse as dateparse
 import requests
@@ -45,7 +45,8 @@ from telegram.error import BadRequest
 
 from eazebot.tradeHandler import tradeHandler
 from eazebot.handling import ValueType, ExchContainer, DateFilter, TempTradeSet, BaseTradeSet, RegularBuy, OrderType
-from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data, is_higher_version, ChangeLog
+from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data, is_higher_version, ChangeLog, \
+    MessageContainer
 
 MAINMENU, SETTINGS, SYMBOL, NUMBER, DAILY_CANDLE, INFO, DATE, TS_NAME = range(8)
 
@@ -111,7 +112,8 @@ class EazeBot:
             txt = what
         while True:
             try:
-                context.bot.send_message(chat_id=update.message.chat_id, text=txt)
+                context.user_data['msgs'].send(which='error',
+                                               text=txt)
                 break
             except Exception:
                 continue
@@ -128,7 +130,8 @@ class EazeBot:
         if len(context.user_data['lastFct']) > 0:
             return context.user_data['lastFct'].pop()(update.message.text)
         else:
-            context.bot.send_message(context.user_data['chatId'], 'Unknown previous error, returning to main menu')
+            context.user_data['msgs'].send(which='error',
+                                           text='Unknown previous error, returning to main menu')
             return MAINMENU
 
     @staticmethod
@@ -136,7 +139,8 @@ class EazeBot:
         if len(context.user_data['lastFct']) > 0:
             return context.user_data['lastFct'].pop()(float(update.message.text))
         else:
-            context.bot.send_message(context.user_data['chatId'], 'Unknown previous error, returning to main menu')
+            context.user_data['msgs'].send(which='error',
+                                           text='Unknown previous error, returning to main menu')
             return MAINMENU
 
     @staticmethod
@@ -144,7 +148,8 @@ class EazeBot:
         if len(context.user_data['lastFct']) > 0:
             return context.user_data['lastFct'].pop()(dateparse(update.message.text))
         else:
-            context.bot.send_message(context.user_data['chatId'], 'Unknown previous error, returning to main menu')
+            context.user_data['msgs'].send(which='error',
+                                           text='Unknown previous error, returning to main menu')
             return MAINMENU
 
     @staticmethod
@@ -152,7 +157,8 @@ class EazeBot:
         if len(context.user_data['lastFct']) > 0:
             return context.user_data['lastFct'].pop()(update.message.text)
         else:
-            context.bot.send_message(context.user_data['chatId'], 'Unknown previous error, returning to main menu')
+            context.user_data['msgs'].send(which='error',
+                                           text='Unknown previous error, returning to main menu')
             return MAINMENU
 
     @staticmethod
@@ -190,25 +196,25 @@ class EazeBot:
                 update.message.from_user.first_name, update.message.from_user.last_name,
                 update.message.from_user.username,
                 update.message.from_user.id))
-        if context.user_data:
+        if 'msgs' not in context.user_data or context.user_data['msgs'] is None:
+            context.user_data.update({'msgs': MessageContainer(bot=context.bot, chat_id=update.message.chat_id)})
+
+        if 'chatId' in context.user_data:
             washere = 'back '
-            self.delete_messages(context.user_data)
-            context.user_data.update({'lastFct': [],
-                                      'messages': {'status': {}, 'dialog': [], 'botInfo': [], 'settings': [],
-                                                   'history': []}}
-                                     )
+            context.user_data['msgs'].delete_msgs(which='all')
+            context.user_data.update({'lastFct': []})
         else:
             washere = ''
             context.user_data.update({
-                'chatId': update.message.chat_id, 'trade': {},
+                'chatId': update.message.chat_id,
+                'trade': {},
                 'settings': {'fiat': [], 'showProfitIn': None, 'taxWarn': True},
-                'lastFct': [],
-                'messages': {'status': {}, 'dialog': [], 'botInfo': [], 'settings': [], 'history': []}})
+                'lastFct': []})
             self.add_exchanges(None, context)
-        context.bot.send_message(context.user_data['chatId'],
-                                 "Welcome %s%s to the EazeBot! You are in the main menu." % (
-                                     washere, update.message.from_user.first_name),
-                                 reply_markup=self.markupMainMenu)
+        context.user_data['msgs'].send(which='start',
+                                       text="Welcome %s%s to the EazeBot! You are in the main menu." % (
+                                                washere, update.message.from_user.first_name),
+                                       reply_markup=self.markupMainMenu)
         return MAINMENU
 
     @staticmethod
@@ -256,7 +262,8 @@ class EazeBot:
         if mode == 'full':
             text = 'Hide' if ts.show_filled_orders else 'Show'
             buttons.append([InlineKeyboardButton("Set/Change SL", callback_data='2|%s|%s|SLM' % (exch, uid_ts))])
-            buttons.append([InlineKeyboardButton(f"{text} filled orders", callback_data='2|%s|%s|TFO' % (exch, uid_ts))])
+            buttons.append(
+                [InlineKeyboardButton(f"{text} filled orders", callback_data='2|%s|%s|TFO' % (exch, uid_ts))])
             buttons.append([InlineKeyboardButton(
                 "%s trade set" % ('Deactivate' if ts.is_active() else 'Activate'),
                 callback_data='2|%s|%s|%s|chosen' % (
@@ -293,40 +300,8 @@ class EazeBot:
         return InlineKeyboardMarkup(
             [[InlineKeyboardButton("Clear Trade History", callback_data='resetTSH|%s|XXX' % exch)]])
 
-    @staticmethod
-    def delete_messages(user_data, typ: Union[str, List[str]] = 'all', only_forget=False, i_ts=None):
-        if isinstance(typ, str):
-            if typ == 'all':
-                typ = list(user_data['messages'].keys())
-            elif not isinstance(typ, list):
-                typ = [typ]
-        for t in typ:
-            if not only_forget and t in user_data['messages']:
-                for msg in user_data['messages'][t]:
-                    # status messages are as dict to remove not all trade sets when changing only one
-                    if t == 'status' and isinstance(user_data['messages'][t], dict):
-                        if i_ts is None or i_ts == msg or msg == '1':
-                            msg = user_data['messages'][t][msg]
-                        else:
-                            continue
-                    try:
-                        msg.delete()
-                    except Exception:
-                        pass
-            if t == 'status':
-                if i_ts is None:
-                    user_data['messages'][t] = {}
-                else:
-                    try:
-                        user_data['messages'][t].pop(i_ts)
-                    except Exception:
-                        pass
-            else:
-                user_data['messages'][t] = []
-        return 1
-
     def print_trade_status(self, update: Union[Update, None], context: CallbackContext, only_this_ts=None):
-        self.delete_messages(context.user_data, 'status', i_ts=only_this_ts)
+        context.user_data['msgs'].delete_msgs(which='status', note=only_this_ts)
         for iex, ex in enumerate(context.user_data['trade']):
             ct = context.user_data['trade'][ex]
             if only_this_ts is not None and only_this_ts not in ct.tradeSets:
@@ -342,39 +317,43 @@ class EazeBot:
                     else:
                         markup = self.make_ts_inline_keyboard(ex, iTs)
                     count += 1
-                    context.user_data['messages']['status'][iTs] = context.bot.send_message(
-                        context.user_data['chatId'],
-                        ct.get_trade_set_info(iTs,
-                                              context.user_data[
-                                                  'settings'][
-                                                  'showProfitIn']),
-                        reply_markup=markup, parse_mode='markdown')
+                    context.user_data['msgs'].send(which='status',
+                                                   text=ct.get_trade_set_info(iTs,
+                                                                              context.user_data[
+                                                                                  'settings'][
+                                                                                  'showProfitIn']),
+                                                   note=iTs,
+                                                   reply_markup=markup,
+                                                   parse_mode='markdown')
                 except Exception as e:
                     logger.error(traceback.print_exc())
                     try:
-                        context.user_data['messages']['status']['1'] = context.bot.send_message(
-                            context.user_data['chatId'],
-                            'There was an error with trade set %s on exchange %s' % (ts.name, ex))
+                        context.user_data['msgs'].send(which='status',
+                                                       text='There was an error with trade set %s on exchange %s' % (
+                                                           ts.name, ex),
+                                                       note=f'error_{ts.name}_ex')
                     except Exception:
                         pass
 
             if count == 0:
-                context.user_data['messages']['status']['1'] = context.bot.send_message(
-                    context.user_data['chatId'],
-                    'No Trade sets found on %s' % ex)
+                context.user_data['msgs'].send(which='status',
+                                               text='No Trade sets found on %s' % ex,
+                                               note=f'no_ts_{ex}')
         if len(context.user_data['trade']) == 0:
-            context.user_data['messages']['status']['1'] = context.bot.send_message(
-                context.user_data['chatId'],
-                'No exchange found to check trade sets')
+            context.user_data['msgs'].send(which='status',
+                                           text='No exchange found to check trade sets',
+                                           note='1')
         return MAINMENU
 
     def print_trade_history(self, update: Update, context: CallbackContext):
-        self.delete_messages(context.user_data, 'history')  # %!!!
+        context.user_data['msgs'].delete_msgs(which='history')
         for iex, ex in enumerate(context.user_data['trade']):
             ct = context.user_data['trade'][ex]
-            context.user_data['messages']['history'].append(
-                context.bot.send_message(context.user_data['chatId'], ct.get_trade_history(), parse_mode='markdown',
-                                         reply_markup=self.buttons_edit_tsh(ct)))
+            context.user_data['msgs'].send(which='history',
+                                           text=ct.get_trade_history(),
+                                           reply_markup=self.buttons_edit_tsh(ct),
+                                           parse_mode='markdown',
+                                           note=f'history_{ex}')
         return MAINMENU
 
     def check_balance(self, update: Update, context: CallbackContext, exchange=None):
@@ -401,14 +380,14 @@ class EazeBot:
                     elif btc_pair2 in ct.exchange.symbols and ct.exchange.markets[btc_pair2]['active']:
                         last_price = func(btc_pair2)['last']
                         if last_price is not None and ct.balance['total'][c] / last_price > self.__config__[
-                                'minBalanceInBTC']:
+                            'minBalanceInBTC']:
                             string += '*%s:* %s _(free: %s)_\n' % (c, ct.nf.cost2Prec(btc_pair2,
                                                                                       ct.balance['total'][c]),
                                                                    ct.nf.cost2Prec(btc_pair2, ct.balance['free'][c]))
                     elif btc_pair in ct.exchange.symbols and ct.exchange.markets[btc_pair]['active']:
                         last_price = func(btc_pair)['last']
                         if last_price is not None and last_price * ct.balance['total'][c] > self.__config__[
-                                'minBalanceInBTC']:
+                            'minBalanceInBTC']:
                             string += '*%s:* %s _(free: %s)_\n' % (c, ct.nf.amount2Prec(btc_pair,
                                                                                         ct.balance['total'][c]),
                                                                    ct.nf.amount2Prec(btc_pair, ct.balance['free'][c]))
@@ -422,9 +401,11 @@ class EazeBot:
                             no_check_coins.append(c)
             if len(no_check_coins) > 0:
                 string += f"\nYou have some coins ({', '.join(no_check_coins)}) which do not have a (currently) " \
-                              f"active BTC trading pair, and could thus not be filtered.\n"
+                          f"active BTC trading pair, and could thus not be filtered.\n"
             try:
-                context.bot.send_message(context.user_data['chatId'], string, parse_mode='markdown')
+                context.user_data['msgs'].send(which='balance',
+                                               text=string,
+                                               parse_mode='markdown')
             except BadRequest as e:
                 # handle too many coins making message to long by splitting it up
                 if 'too long' in str(e):
@@ -433,21 +414,24 @@ class EazeBot:
                     steps = 10
                     while counter < len(string_list):
                         string = '\n'.join(string_list[counter:min([len(string_list), counter + steps])])
-                        context.bot.send_message(context.user_data['chatId'], string, parse_mode='markdown')
+                        context.user_data['msgs'].send(which='balance',
+                                                       text=string,
+                                                       parse_mode='markdown')
                         counter += steps
                 else:
                     raise e
         else:
-            self.delete_messages(context.user_data, 'dialog')
+            context.user_data['msgs'].delete_msgs(which='dialog')
             context.user_data['lastFct'].append(lambda res: self.check_balance(update, context, res))
             # list all available exanches for choosing
             exchs = [ct.exchange.name for _, ct in context.user_data['trade'].items()]
             buttons = [[InlineKeyboardButton(exch, callback_data='chooseExch|%s|xxx' % (exch.lower()))] for exch in
                        sorted(exchs)] + [[InlineKeyboardButton('Cancel', callback_data='chooseExch|xxx|xxx|cancel')]]
-            context.user_data['messages']['dialog'].append(
-                context.bot.send_message(context.user_data['chatId'],
-                                         'For which exchange do you want to see your balance?',
-                                         reply_markup=InlineKeyboardMarkup(buttons)))
+
+            context.user_data['msgs'].send(which='dialog',
+                                           text='For which exchange do you want to see your balance?',
+                                           reply_markup=InlineKeyboardMarkup(buttons),
+                                           parse_mode='markdown')
 
     def create_trade_set(self, update: Update, context: CallbackContext, exchange=None, symbol=None):
         # check if user is registered and has any authenticated exchange
@@ -456,14 +440,14 @@ class EazeBot:
             if exchange:
                 ct = context.user_data['trade'][exchange]
                 if symbol and symbol.upper() in ct.exchange.symbols:
-                    self.delete_messages(context.user_data, 'dialog')
+                    context.user_data['msgs'].delete_msgs(which='dialog')
                     symbol = symbol.upper()
                     ts = ct.init_trade_set(symbol)
                     uid_ts = ts.get_uid()
                     ct.update_balance()
-                    context.user_data['messages']['dialog'].append(
-                        context.bot.send_message(
-                            context.user_data['chatId'], 'Thank you, now let us begin setting the trade set'))
+                    context.user_data['msgs'].send(which='dialog',
+                                                   text='Thank you, now let us begin setting the trade set',
+                                                   parse_mode='markdown')
                     self.print_trade_status(None, context, uid_ts)
                     return MAINMENU
                 else:
@@ -473,19 +457,19 @@ class EazeBot:
                         text = 'Please specify your trade set. Which currency pair do you want to trade? (e.g. ETH/BTC)'
                     context.user_data['lastFct'].append(
                         lambda res: self.create_trade_set(update, context, exchange, res))
-                    context.user_data['messages']['dialog'].append(
-                        context.bot.send_message(
-                            context.user_data['chatId'],
-                            text,
-                            reply_markup=InlineKeyboardMarkup([[
-                                InlineKeyboardButton(
-                                    'List all pairs on %s' % exchange,
-                                    callback_data='showSymbols|%s|%s' % (
-                                        exchange,
-                                        'xxx')),
-                                InlineKeyboardButton(
-                                    'Cancel',
-                                    callback_data='blabla|cancel')]])))
+                    context.user_data['msgs'].send(which='dialog',
+                                                   text=text,
+                                                   parse_mode='markdown',
+                                                   reply_markup=InlineKeyboardMarkup([[
+                                                       InlineKeyboardButton(
+                                                           'List all pairs on %s' % exchange,
+                                                           callback_data='showSymbols|%s|%s' % (
+                                                               exchange,
+                                                               'xxx')),
+                                                       InlineKeyboardButton(
+                                                           'Cancel',
+                                                           callback_data='blabla|cancel')]])
+                                                   )
                     return SYMBOL
             else:
                 context.user_data['lastFct'].append(lambda res: self.create_trade_set(update, context, res))
@@ -494,16 +478,16 @@ class EazeBot:
                 buttons = [[InlineKeyboardButton(exch, callback_data='chooseExch|%s|xxx' % (exch.lower()))] for exch in
                            sorted(exchs)] + [
                               [InlineKeyboardButton('Cancel', callback_data='chooseExch|xxx|xxx|cancel')]]
-                context.user_data['messages']['dialog'].append(
-                    context.bot.send_message(
-                        context.user_data['chatId'],
-                        'For which of your authenticated exchanges do you want to add a trade set?',
-                        reply_markup=InlineKeyboardMarkup(buttons)))
+                context.user_data['msgs'].send(which='dialog',
+                                               text='For which of your authenticated exchanges do you want to add a '
+                                                    'trade set?',
+                                               parse_mode='markdown',
+                                               reply_markup=InlineKeyboardMarkup(buttons))
         else:
-            context.user_data['messages']['dialog'].append(
-                context.bot.send_message(
-                    context.user_data['chatId'],
-                    'No authenticated exchanges found for your account! Please click "Add exchanges"'))
+            context.user_data['msgs'].send(which='dialog',
+                                           text='No authenticated exchanges found for your account! '
+                                                'Please click "Add exchanges"',
+                                           )
             return MAINMENU
 
     def ask_amount(self, user_data, exch, uid_ts, utid, direction, bot_or_query):
@@ -561,30 +545,28 @@ class EazeBot:
 
         buttons = [
             [
-                            InlineKeyboardButton(
-                                "Toggle currency",
-                                callback_data='toggleCurrency|%s|%s|%s|%s' % (
-                                    exch,
-                                    uid_ts,
-                                    utid,
-                                    direction))],
-                        [
-                            InlineKeyboardButton(
-                                "Cancel",
-                                callback_data='askAmount|cancel')]
+                InlineKeyboardButton(
+                    "Toggle currency",
+                    callback_data='toggleCurrency|%s|%s|%s|%s' % (
+                        exch,
+                        uid_ts,
+                        utid,
+                        direction))],
+            [
+                InlineKeyboardButton(
+                    "Cancel",
+                    callback_data='askAmount|cancel')]
         ]
 
         if direction != 'reg_buy':
             buttons.insert(0, [InlineKeyboardButton("Choose max amount", callback_data='maxAmount|%s' % bal)])
-
-        if isinstance(bot_or_query, Bot):
-            user_data['messages']['dialog'].append(
-                bot_or_query.send_message(
-                    user_data['chatId'],
-                    text,
-                    reply_markup=InlineKeyboardMarkup(buttons)))
-        else:
-            bot_or_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        user_data['msgs'].send(which='dialog',
+                               text=text,
+                               reply_markup=InlineKeyboardMarkup(buttons),
+                               note='amount',
+                               overwrite_last=True
+                               )
+        if not isinstance(bot_or_query, Bot):
             bot_or_query.answer('Currency switched')
 
     def add_init_balance(self, bot, user_data, exch, uid_ts, input_type=None, response=None, fct=None, utid=None):
@@ -596,34 +578,32 @@ class EazeBot:
             user_data['lastFct'].append(lambda res: self.add_init_balance(bot, user_data, exch, uid_ts, 'initCoins',
                                                                           res, fct, utid))
             bal = ct.get_balance(ct.tradeSets[uid_ts].coinCurrency)
-            user_data['messages']['dialog'].append(bot.send_message(
-                user_data['chatId'],
-                "You already have %s that you want to add to the trade set? "
-                "How much is it (found %s free %s on %s)?" % (
-                    ct.tradeSets[uid_ts].coinCurrency,
-                    f'{bal:.5g}' if bal is not None else 'N/A',
-                    ct.tradeSets[uid_ts].coinCurrency, exch),
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton(
-                        "Cancel",
-                        callback_data='addInitBal|cancel')]])))
+            user_data['msgs'].send(which='dialog',
+                                   text="You already have %s that you want to add to the trade set? "
+                                        "How much is it (found %s free %s on %s)?" % (
+                                            ct.tradeSets[uid_ts].coinCurrency,
+                                            f'{bal:.5g}' if bal is not None else 'N/A',
+                                            ct.tradeSets[uid_ts].coinCurrency, exch),
+                                   reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
+                                       "Cancel",
+                                       callback_data='addInitBal|cancel')]]),
+                                   )
             return NUMBER
         elif input_type == 'initCoins':
             self.temp_ts[utid].amount = response
             user_data['lastFct'].append(lambda res: self.add_init_balance(bot, user_data, exch, uid_ts, 'initPrice',
                                                                           res, fct, utid))
-            user_data['messages']['dialog'].append(
-                bot.send_message(
-                    user_data['chatId'],
-                    f"What was the average price {ct.tradeSets[uid_ts].symbol} you bought it for? "
-                    "Type 0 if received for free and a negative number if you do not know?",
-                    reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton(
-                            "Cancel",
-                            callback_data='addInitBal|cancel')]])))
+            user_data['msgs'].send(which='dialog',
+                                   text=f"What was the average price {ct.tradeSets[uid_ts].symbol} you bought it for? "
+                                        "Type 0 if received for free and a negative number if you do not know?",
+                                   reply_markup=InlineKeyboardMarkup([[
+                                       InlineKeyboardButton(
+                                           "Cancel",
+                                           callback_data='addInitBal|cancel')]]),
+                                   )
             return NUMBER
         elif input_type == 'initPrice':
-            self.delete_messages(user_data, 'dialog')
+            user_data['msgs'].delete_msgs(which='dialog')
             if response >= 0:
                 self.temp_ts[utid].price = response
             self.add_pos(user_data, ct.tradeSets[uid_ts], 'init', utid, fct)
@@ -665,17 +645,20 @@ class EazeBot:
                 self.ask_amount(user_data, exch, uid_ts, utid, direction, bot)
             else:
                 user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'price', r, utid))
-                user_data['messages']['dialog'].append(
-                    bot.send_message(user_data['chatId'], "At which price do you want to %s %s" % (direction, symbol),
-                                     reply_markup=InlineKeyboardMarkup(
-                                         [[InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])))
+
+                user_data['msgs'].send(which='dialog',
+                                       text="At which price do you want to %s %s" % (direction, symbol),
+                                       reply_markup=InlineKeyboardMarkup(
+                                           [[InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]]),
+                                       )
             return NUMBER
         elif input_type == 'price':
             if response == 0:
                 user_data['lastFct'].append(
                     lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, utid))
-                user_data['messages']['dialog'].append(
-                    bot.send_message(user_data['chatId'], "Zero not allowed, please retry."))
+                user_data['msgs'].send(which='dialog',
+                                       text="Zero not allowed, please retry.",
+                                       )
                 return NUMBER
             else:
                 price = ct.safe_run(lambda: ct.exchange.fetchTicker(symbol))['last']
@@ -683,21 +666,19 @@ class EazeBot:
                     if response > 1.1 * price:
                         user_data['lastFct'].append(
                             lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, utid))
-                        user_data['messages']['dialog'].append(
-                            bot.send_message(
-                                user_data['chatId'],
-                                f"Cannot set buy price as it is much larger than current price of {price:.2f}. "
-                                "Please use instant buy or specify smaller price."))
+                        user_data['msgs'].send(which='dialog',
+                                               text=f"Cannot set buy price as it is much larger than current price of "
+                                                    f"{price:.2f}. Please use instant buy or specify smaller price."
+                                               )
                         return NUMBER
                 else:
                     if response < 0.9 * price:
                         user_data['lastFct'].append(
                             lambda res: self.ask_pos(context, exch, uid_ts, direction, 'price', res, utid))
-                        user_data['messages']['dialog'].append(
-                            bot.send_message(
-                                user_data['chatId'],
-                                f"Cannot set sell price as it is much smaller than current price of {price:.2f}. "
-                                "Please use instant sell or specify smaller price."))
+                        user_data['msgs'].send(which='dialog',
+                                               text=f"Cannot set sell price as it is much smaller than current price of"
+                                                    f" {price:.2f}. Please use instant sell or specify smaller price."
+                                               )
                         return NUMBER
             response = float(user_data['trade'][exch].exchange.priceToPrecision(symbol, response))
             self.temp_ts[utid].price = response
@@ -713,34 +694,35 @@ class EazeBot:
             if direction == 'buy':
                 user_data['lastFct'].append(
                     lambda res: self.ask_pos(context, exch, uid_ts, direction, 'candleAbove', res, utid))
-                user_data['messages']['dialog'].append(
-                    bot.send_message(
-                        user_data['chatId'],
-                        'Do you want to make this a timed buy (buy only if daily candle closes above X)',
-                        reply_markup=InlineKeyboardMarkup([[
-                            InlineKeyboardButton(
-                                "Yes",
-                                callback_data='Yes'),
-                            InlineKeyboardButton(
-                                "No",
-                                callback_data='No')],
-                            [
-                                InlineKeyboardButton(
-                                    "Cancel",
-                                    callback_data='askPos|cancel')]])))
+                user_data['msgs'].send(which='dialog',
+                                       text='Do you want to make this a timed buy (buy only if daily candle closes '
+                                            'above X)',
+                                       reply_markup=InlineKeyboardMarkup([[
+                                           InlineKeyboardButton(
+                                               "Yes",
+                                               callback_data='Yes'),
+                                           InlineKeyboardButton(
+                                               "No",
+                                               callback_data='No')],
+                                           [
+                                               InlineKeyboardButton(
+                                                   "Cancel",
+                                                   callback_data='askPos|cancel')]])
+                                       )
                 return DAILY_CANDLE
             elif self.temp_ts[utid].reg_buy:
                 user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'order_type', r,
                                                                    utid))
-                user_data['messages']['dialog'].append(
-                    bot.send_message(user_data['chatId'], "Do you want to buy using market or limit order?\n"
-                                                          "Note that market order fees are usually higher, while it "
-                                                          r"cannot be guaranteed that the limit order (set at 0.02 % "
-                                                          "below the market price at the date of buy) will be filled!",
-                                     reply_markup=InlineKeyboardMarkup(
-                                         [[InlineKeyboardButton("Market", callback_data='askPos|market'),
-                                           InlineKeyboardButton("Limit", callback_data='askPos|limit')],
-                                          [InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])))
+                user_data['msgs'].send(which='dialog',
+                                       text="Do you want to buy using market or limit order?\n"
+                                            "Note that market order fees are usually higher, while it "
+                                            r"cannot be guaranteed that the limit order (set at 0.02 % "
+                                            "below the market price at the date of buy) will be filled!",
+                                       reply_markup=InlineKeyboardMarkup(
+                                           [[InlineKeyboardButton("Market", callback_data='askPos|market'),
+                                             InlineKeyboardButton("Limit", callback_data='askPos|limit')],
+                                            [InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])
+                                       )
                 return MAINMENU
             else:
                 input_type = 'apply'
@@ -752,13 +734,14 @@ class EazeBot:
 
             user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'interval', r,
                                                                utid))
-            user_data['messages']['dialog'].append(
-                bot.send_message(user_data['chatId'], "At which interval do you want to buy regularly?",
-                                 reply_markup=InlineKeyboardMarkup(
-                                     [[InlineKeyboardButton("Daily", callback_data='askPos|daily'),
-                                       InlineKeyboardButton("Weekly", callback_data='askPos|weekly')],
-                                      [InlineKeyboardButton("Monthly", callback_data='askPos|monthly'),
-                                      InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])))
+            user_data['msgs'].send(which='dialog',
+                                   text="At which interval do you want to buy regularly?",
+                                   reply_markup=InlineKeyboardMarkup(
+                                       [[InlineKeyboardButton("Daily", callback_data='askPos|daily'),
+                                         InlineKeyboardButton("Weekly", callback_data='askPos|weekly')],
+                                        [InlineKeyboardButton("Monthly", callback_data='askPos|monthly'),
+                                         InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])
+                                   )
             return MAINMENU
         elif input_type == 'interval':
             if response == 'daily':
@@ -773,12 +756,13 @@ class EazeBot:
 
             user_data['lastFct'].append(lambda r: self.ask_pos(context, exch, uid_ts, direction, 'start', r,
                                                                utid))
-            user_data['messages']['dialog'].append(
-                bot.send_message(user_data['chatId'], "When do you want to start with the buys? Type in a valid date "
-                                                      "(e.g. YYYY-MM-DD HH:mm) or press the 'Now' button",
-                                 reply_markup=InlineKeyboardMarkup(
-                                     [[InlineKeyboardButton("Now", callback_data='askPos|now'),
-                                       InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])))
+            user_data['msgs'].send(which='dialog',
+                                   text="When do you want to start with the buys? Type in a valid date "
+                                        "(e.g. YYYY-MM-DD HH:mm) or press the 'Now' button",
+                                   reply_markup=InlineKeyboardMarkup(
+                                       [[InlineKeyboardButton("Now", callback_data='askPos|now'),
+                                         InlineKeyboardButton("Cancel", callback_data='askPos|cancel')]])
+                                   )
             return DATE
         elif input_type == 'start':
             self.temp_ts[utid].add_params['start'] = response
@@ -788,7 +772,7 @@ class EazeBot:
             self.temp_ts[utid].add_params['candle_above'] = response
             input_type = 'apply'
         if input_type == 'apply':
-            self.delete_messages(user_data, 'dialog')
+            context.user_data['msgs'].delete_msgs(which='dialog')
             self.add_pos(user_data, ct.tradeSets[uid_ts], direction, utid)
         self.update_ts_text(context, uid_ts)
         return MAINMENU
@@ -800,18 +784,21 @@ class EazeBot:
 
         if ts_name is None:
             user_data['lastFct'].append(lambda r: self.edit_trade_set_name(context, exch, uid_ts, ts_name=r))
-            user_data['messages']['dialog'].append(
-                bot.send_message(user_data['chatId'], "Please give the new name for the trade set."))
+            user_data['msgs'].send(which='dialog',
+                                   text="Please give the new name for the trade set.",
+                                   )
             return TS_NAME
         else:
             ct.tradeSets[uid_ts].name = ts_name
-            self.delete_messages(user_data, 'dialog')
+            context.user_data['msgs'].delete_msgs(which='dialog')
             self.update_ts_text(context, uid_ts)
             return MAINMENU
 
     def add_exchanges(self, update, context: CallbackContext):
-        context.bot.send_message(context.user_data['chatId'],
-                                 'Adding/Updating exchanges, please wait...')
+        if 'msgs' in context.user_data:
+            context.user_data['msgs'].send(which='dialog',
+                                           text='Adding/Updating exchanges, please wait...',
+                                           parse_mode='markdown')
         idx = [i for i, x in enumerate(self.__config__['telegramUserId']) if x == context.user_data['chatId']][0] + 1
         if idx == 1:
             api_file = os.path.join(self.user_dir, "APIs.json")
@@ -859,7 +846,11 @@ class EazeBot:
                 exch_container.add(exch_name, **exch_params)
                 # if no tradeHandler object has been created yet, create one, but also check for correct authentication
                 if exch_name not in context.user_data['trade']:
-                    context.user_data['trade'][exch_name] = tradeHandler(exch_name, user=context.user_data['chatId'])
+                    context.user_data['trade'][exch_name] = tradeHandler(exch_name,
+                                                                         user=context.user_data['chatId'])
+                else:
+                    # necessary for backward compatibility
+                    context.user_data['trade'][exch_name].set_user(context.user_data['chatId'])
 
                 if not context.user_data['trade'][exch_name].authenticated and \
                         not context.user_data['trade'][exch_name].tradeSets:
@@ -867,10 +858,15 @@ class EazeBot:
                     context.user_data['trade'].pop(exch_name)
                 else:
                     authenticated_exchanges.append(exch_name)
-            context.bot.send_message(context.user_data['chatId'],
-                                     'Exchanges %s added/updated' % authenticated_exchanges)
+            if 'msgs' in context.user_data:
+                context.user_data['msgs'].send(which='dialog',
+                                               text='Exchanges %s added/updated' % authenticated_exchanges,
+                                               parse_mode='markdown')
         else:
-            context.bot.send_message(context.user_data['chatId'], 'No exchange found to add')
+            if 'msgs' in context.user_data:
+                context.user_data['msgs'].send(which='dialog',
+                                               text='No exchange found to add',
+                                               parse_mode='markdown')
 
         old_exchanges = set(context.user_data['trade'].keys()) - set(available_exchanges.keys())
         removed_exchanges = []
@@ -878,12 +874,13 @@ class EazeBot:
             if len(context.user_data['trade'][exch].tradeSets) == 0:
                 context.user_data['trade'].pop(exch)
                 removed_exchanges.append(exch)
+            else:
+                context.user_data['trade'][exch].set_user(context.user_data['chatId'])
         if len(removed_exchanges) > 0:
-            context.bot.send_message(
-                context.user_data['chatId'], 'Old exchanges %s with no tradeSets removed' % removed_exchanges)
-        for ct in context.user_data['trade'].values():
-            # necessary for backward compatibility
-            ct.set_user(context.user_data['chatId'])
+            if 'msgs' in context.user_data:
+                context.user_data['msgs'].send(which='dialog',
+                                               text='Old exchanges %s with no tradeSets removed' % removed_exchanges,
+                                               parse_mode='markdown')
 
     def get_remote_version(self):
         try:
@@ -915,7 +912,7 @@ class EazeBot:
         return latest_version, chg_text, pypi_version == latest_version
 
     def bot_info(self, update: Update, context: CallbackContext):
-        self.delete_messages(context.user_data, 'botInfo')
+        context.user_data['msgs'].delete_msgs(which='botInfo')
         string = '<b>******** EazeBot (v%s) ********</b>\n' % self.thisVersion
         string += r'<i>Free python bot for easy execution and surveillance of crypto tradings on multiple ' \
                   'exchanges</i>\n'
@@ -927,9 +924,10 @@ class EazeBot:
                       '%s\n\n' % (remote_version, 'and PyPi' if on_py_pi else '(not yet on PyPi)', version_message)
             buttons.append(InlineKeyboardButton("*Update bot*", callback_data='settings|updateBot'))
         string += '\n<b>Reward my efforts on this bot by donating some cryptos!</b>'
-        context.user_data['messages']['botInfo'].append(
-            context.bot.send_message(context.user_data['chatId'], string, parse_mode='html',
-                                     reply_markup=InlineKeyboardMarkup([buttons])))
+        context.user_data['msgs'].send(which='botInfo',
+                                       text=string,
+                                       parse_mode='html',
+                                       reply_markup=InlineKeyboardMarkup([buttons]))
         return MAINMENU
 
     # job functions
@@ -939,15 +937,15 @@ class EazeBot:
         if is_higher_version(next_version=remote_version, this_version=self.thisVersion):
             for user in self.updater.dispatcher.user_data:
                 if 'chatId' in self.updater.dispatcher.user_data[user]:
-                    self.updater.dispatcher.user_data[user]['messages']['botInfo'].append(
-                        context.bot.send_message(
-                            self.updater.dispatcher.user_data[user]['chatId'],
-                            f"There is a new version of EazeBot available on git (v{remote_version}) "
-                            f"{'and PyPi' if on_py_pi else '(not yet on PyPi)'} with these changes:\n{version_message}",
-                            parse_mode='html',
-                            reply_markup=InlineKeyboardMarkup([
-                                [InlineKeyboardButton("*Update bot*", callback_data='settings|updateBot')]])
-                        ))
+                    context.user_data['msgs'].send(which='botInfo',
+                                                   text=f"There is a new version of EazeBot available on git "
+                                                        f"(v{remote_version}) "
+                                                        f"{'and PyPi' if on_py_pi else '(not yet on PyPi)'} with these"
+                                                        f" changes:\n{version_message}",
+                                                   parse_mode='html',
+                                                   reply_markup=InlineKeyboardMarkup([[
+                                                       InlineKeyboardButton("*Update bot*",
+                                                                            callback_data='settings|updateBot')]]))
 
         for user in self.updater.dispatcher.user_data:
             if user in self.__config__['telegramUserId']:
@@ -993,9 +991,9 @@ class EazeBot:
         # give preferred fiat
         # stop bot with security question
         string = f"*Settings:*\n\n_Fiat currencies(descending priority):_ " \
-                     f"{', '.join(context.user_data['settings']['fiat'])}\n\n_Show gain/loss in:_ " \
-                     f"{'Fiat (if avail.)' if context.user_data['settings']['showProfitIn'] is not None else 'Base currency'}" \
-                     f"\n\n_{'W' if context.user_data['settings']['taxWarn'] else 'Do not w'}arn if filled buys approach 1 year_"
+                 f"{', '.join(context.user_data['settings']['fiat'])}\n\n_Show gain/loss in:_ " \
+                 f"{'Fiat (if avail.)' if context.user_data['settings']['showProfitIn'] is not None else 'Base currency'}" \
+                 f"\n\n_{'W' if context.user_data['settings']['taxWarn'] else 'Do not w'}arn if filled buys approach 1 year_"
         setting_buttons = [
             [InlineKeyboardButton('Define your fiat', callback_data='settings|defFiat')],
             [InlineKeyboardButton("Toggle showing gain/loss in baseCurrency or fiat",
@@ -1004,18 +1002,20 @@ class EazeBot:
             [InlineKeyboardButton("*Stop bot*", callback_data='settings|stopBot'),
              InlineKeyboardButton("Back", callback_data='settings|cancel')]]
         if bot_or_query is None or isinstance(bot_or_query, type(context.bot)):
-            context.user_data['messages']['settings'].append(
-                context.bot.send_message(context.user_data['chatId'], string, parse_mode='markdown',
-                                         reply_markup=InlineKeyboardMarkup(setting_buttons)))
+            context.user_data['msgs'].send(which='settings',
+                                           text=string,
+                                           parse_mode='markdown',
+                                           reply_markup=InlineKeyboardMarkup(setting_buttons))
         else:
             try:
                 bot_or_query.answer('Settings updated')
                 bot_or_query.edit_message_text(string, parse_mode='markdown',
                                                reply_markup=InlineKeyboardMarkup(setting_buttons))
             except BadRequest:
-                context.user_data['messages']['settings'].append(
-                    context.bot.send_message(context.user_data['chatId'], string, parse_mode='markdown',
-                                             reply_markup=InlineKeyboardMarkup(setting_buttons)))
+                context.user_data['msgs'].send(which='settings',
+                                               text=string,
+                                               parse_mode='markdown',
+                                               reply_markup=InlineKeyboardMarkup(setting_buttons))
 
     def update_ts_text(self, context: CallbackContext, uid_ts, query=None):
         if query:
@@ -1038,41 +1038,45 @@ class EazeBot:
 
         if 'cancel' in args:
             self.temp_ts = {}
-            self.delete_messages(context.user_data, ['dialog', 'botInfo', 'settings'])
+            context.user_data['msgs'].delete_msgs(which=['dialog', 'botInfo', 'settings'])
         else:
             if command == 'settings':
                 subcommand = args.pop(0)
                 if subcommand == 'stopBot':
                     if len(args) == 0:
                         query.answer('')
-                        context.bot.send_message(context.user_data['chatId'],
-                                                 'Are you sure you want to stop the bot? *Caution! '
-                                                 'You have to restart the Python script; '
-                                                 'until then the bot will not be responding to Telegram input!*',
-                                                 parse_mode='markdown', reply_markup=InlineKeyboardMarkup(
+                        context.user_data['msgs'].send(which='start',
+                                                       text='Are you sure you want to stop the bot? *Caution! '
+                                                            'You have to restart the Python script; '
+                                                            'until then the bot will not be responding to Telegram '
+                                                            'input!*',
+                                                       parse_mode='markdown',
+                                                       reply_markup=InlineKeyboardMarkup(
                                 [[InlineKeyboardButton('Yes', callback_data='settings|stopBot|Yes')],
                                  [InlineKeyboardButton("No", callback_data='settings|cancel')]]))
                     elif args[0] == 'Yes':
                         query.answer('stopping')
-                        context.bot.send_message(context.user_data['chatId'], 'Bot is aborting now. Goodbye!')
+                        context.user_data['msgs'].send(which='start',
+                                                       text='Bot is aborting now. Goodbye!')
                         self.exit_cmd(update, context)
                 elif subcommand == 'updateBot':
                     query.answer('updating')
-                    context.bot.send_message(context.user_data['chatId'], 'Bot is stopped for updating now. '
-                                                                          'Should be back in a few minutes. Goodbye!')
+                    context.user_data['msgs'].send(which='start',
+                                                   text='Bot is stopped for updating now. '
+                                                        'Should be back in a few minutes. Goodbye!')
                     self.update_cmd(update, context)
                 else:
                     if subcommand == 'defFiat':
                         if response is None:
                             context.user_data['lastFct'].append(
                                 lambda res: self.inline_button_callback(update, context, query, res))
-                            context.user_data['messages']['dialog'].append(
-                                context.bot.send_message(context.user_data['chatId'],
-                                                         'Please name your fiat currencies (e.g. USD). '
-                                                         'You can also name multiple currencies separated with commata,'
-                                                         '(e.g. type: USD,USDT,TUSD) that in case the first currency '
-                                                         'does not exist on an exchange, the next one is used.'
-                                                         ))
+                            context.user_data['msgs'].send(which='dialog',
+                                                           text='Please name your fiat currencies (e.g. USD). '
+                                                                'You can also name multiple currencies separated with '
+                                                                'commata, (e.g. type: USD,USDT,TUSD) that in case the '
+                                                                'first currency does not exist on an exchange, the next'
+                                                                ' one is used.'
+                                                           )
                             return INFO
                         else:
                             context.user_data['settings']['fiat'] = response.upper().split(',')
@@ -1179,36 +1183,37 @@ class EazeBot:
                                 try:
                                     if response > 0:
                                         context.user_data['trade'][exch].exchange.withdraw(args[0], response, address)
-                                        context.bot.send_message(context.user_data['chatId'],
-                                                                 'Donation suceeded, thank you very much!!!')
+                                        context.user_data['msgs'].send(which='donation',
+                                                                       text='Donation suceeded, thank you very much!!!')
                                     else:
-                                        context.bot.send_message(context.user_data['chatId'],
-                                                                 'Amount <= 0 %s. Donation canceled =(' % args[0])
+                                        context.user_data['msgs'].send(which='donation',
+                                                                       text='Amount <= 0 %s. Donation canceled =(' % args[0])
                                 except Exception as e:
-                                    context.bot.send_message(
-                                        context.user_data['chatId'],
-                                        'There was an error during withdrawing, thus donation failed! =( '
-                                        'Please consider the following reasons:\n- Insufficient funds?\n'
-                                        '-2FA authentication required?\n-API key has no withdrawing permission?\n\n'
-                                        'Server response was:\n<i>%s</i>' % str(
-                                            e), parse_mode='html')
+                                    context.user_data['msgs'].send(which='donation',
+                                                                   text='There was an error during withdrawing, thus '
+                                                                        'donation failed! =( Please consider the '
+                                                                        'following reasons:\n- Insufficient funds?\n'
+                                                                        '-2FA authentication required?\n'
+                                                                        '-API key has no withdrawing permission?\n\n'
+                                                                        'Server response was:\n<i>%s</i>' % str(e),
+                                                                   parse_mode='html')
                             else:
                                 ct = context.user_data['trade'][exch]
                                 balance = ct.exchange.fetch_balance()
                                 if ct.exchange.fees['funding']['percentage']:
                                     query.answer('')
-                                    context.bot.send_message(
-                                        context.user_data['chatId'],
-                                        'Error. Exchange using relative withdrawal fees. '
-                                        'Not implemented, please contact developer.')
+                                    context.user_data['msgs'].send(which='donation',
+                                                                   text='Error. Exchange using relative withdrawal fees'
+                                                                        '. Not implemented, please contact developer.')
                                 if balance['free'][args[0]] > ct.exchange.fees['funding']['withdraw'][args[0]]:
                                     query.answer('')
-                                    context.bot.send_message(
-                                        context.user_data['chatId'],
-                                        'Your free balance is %.8g %s and withdrawing fee on %s is %.8g %s. '
-                                        'How much do you want to donate (excluding fees)' % (
-                                            balance['free'][args[0]], args[0], exch,
-                                            ct.exchange.fees['funding']['withdraw'][args[0]], args[0]))
+                                    context.user_data['msgs'].send(which='donation',
+                                                                   text='Your free balance is %.8g %s and withdrawing '
+                                                                        'fee on %s is %.8g %s. How much do you want to '
+                                                                        'donate (excluding fees)' % (
+                                                                    balance['free'][args[0]], args[0], exch,
+                                                                    ct.exchange.fees['funding']['withdraw'][args[0]],
+                                                                    args[0]))
                                     context.user_data['lastFct'].append(
                                         lambda res: self.inline_button_callback(update, context, query, res))
                                     return NUMBER
@@ -1254,8 +1259,8 @@ class EazeBot:
                                                        callback_data=f'resetTSH|{exch}|XXX|no')]]))
 
                 else:  # trade set commands
-                    if exch not in context.user_data['trade'] or uid_ts not in context.user_data['trade'][
-                            exch].tradeSets:
+                    if exch not in context.user_data['trade'] or \
+                            uid_ts not in context.user_data['trade'][exch].tradeSets:
                         query.edit_message_reply_markup()
                         query.edit_message_text('This trade set is not found anymore. Probably it was deleted')
                     else:
@@ -1355,36 +1360,35 @@ class EazeBot:
                                 if response is None:
                                     if 'yes' in args:
                                         query.message.delete()
-                                        context.user_data['messages']['dialog'].append(
-                                            context.bot.send_message(
-                                                context.user_data['chatId'],
-                                                'Type the daily candle close price below which SL would be triggered'))
+                                        context.user_data['msgs'].send(which='dialog',
+                                                                       text='Type the daily candle close price below, '
+                                                                            'which SL would be triggered'
+                                                                       )
                                         return NUMBER
                                     else:
                                         context.user_data['lastFct'].append(
                                             lambda res: self.inline_button_callback(update, context, query, res))
-
-                                        context.user_data['messages']['dialog'].append(
-                                            context.bot.send_message(
-                                                context.user_data['chatId'],
-                                                'Do you want an SL, which is triggered if the daily candle closes < X?',
-                                                reply_markup=InlineKeyboardMarkup(
-                                                    [[InlineKeyboardButton(
-                                                        "Yes",
-                                                        callback_data='2|%s|%s|DCSL|yes' % (
-                                                            exch, uid_ts)),
-                                                        InlineKeyboardButton(
-                                                            "No",
-                                                            callback_data='2|%s|%s|cancel' % (
-                                                                exch, uid_ts))], [
-                                                        InlineKeyboardButton(
-                                                            "Cancel",
-                                                            callback_data='2|%s|%s|cancel' % (
-                                                                exch,
-                                                                uid_ts))]])))
+                                        context.user_data['msgs'].send(which='dialog',
+                                                                       text='Do you want an SL, which is triggered, if '
+                                                                            'the daily candle closes < X?',
+                                                                       reply_markup=InlineKeyboardMarkup(
+                                                                           [[InlineKeyboardButton(
+                                                                               "Yes",
+                                                                               callback_data='2|%s|%s|DCSL|yes' % (
+                                                                                   exch, uid_ts)),
+                                                                               InlineKeyboardButton(
+                                                                                   "No",
+                                                                                   callback_data='2|%s|%s|cancel' % (
+                                                                                       exch, uid_ts))], [
+                                                                               InlineKeyboardButton(
+                                                                                   "Cancel",
+                                                                                   callback_data='2|%s|%s|cancel' % (
+                                                                                       exch,
+                                                                                       uid_ts))]])
+                                                                       )
                                 else:
                                     ts.set_daily_close_sl(response)
-                                    self.delete_messages(context.user_data, 'dialog')
+                                    context.user_data['msgs'].delete_msgs(which='dialog')
                                     self.update_ts_text(context, uid_ts, query)
 
                             elif 'WCSL' in args:
@@ -1392,32 +1396,35 @@ class EazeBot:
                                 if response is None:
                                     if 'yes' in args:
                                         query.message.delete()
-                                        context.user_data['messages']['dialog'].append(
-                                            context.bot.send_message(
-                                                context.user_data['chatId'],
-                                                'Type the weekly candle close price below which SL would be triggered'))
+                                        context.user_data['msgs'].send(which='dialog',
+                                                                       text='Type the weekly candle close price below,'
+                                                                            ' which SL would be triggered'
+                                                                       )
                                         return NUMBER
                                     else:
                                         context.user_data['lastFct'].append(
                                             lambda res: self.inline_button_callback(update, context, query, res))
-                                        context.user_data['messages']['dialog'].append(
-                                            context.bot.send_message(
-                                                context.user_data['chatId'],
-                                                'Do you want an SL that is triggered if the weekly candle closes < X?',
-                                                reply_markup=InlineKeyboardMarkup(
-                                                    [[InlineKeyboardButton(
-                                                        "Yes",
-                                                        callback_data='2|%s|%s|WCSL|yes' % (exch, uid_ts)),
-                                                        InlineKeyboardButton(
-                                                            "No",
-                                                            callback_data='2|%s|%s|cancel' % (exch, uid_ts))],
-                                                        [
-                                                            InlineKeyboardButton(
-                                                                "Cancel",
-                                                                callback_data='2|%s|%s|cancel' % (exch, uid_ts))]])))
+                                        context.user_data['msgs'].send(which='dialog',
+                                                                       text='Do you want an SL that is triggered, if '
+                                                                            'the weekly candle closes < X?',
+                                                                       reply_markup=InlineKeyboardMarkup(
+                                                                           [[InlineKeyboardButton(
+                                                                               "Yes",
+                                                                               callback_data='2|%s|%s|WCSL|yes' % (
+                                                                                   exch, uid_ts)),
+                                                                               InlineKeyboardButton(
+                                                                                   "No",
+                                                                                   callback_data='2|%s|%s|cancel' % (
+                                                                                       exch, uid_ts))],
+                                                                               [
+                                                                                   InlineKeyboardButton(
+                                                                                       "Cancel",
+                                                                                       callback_data='2|%s|%s|cancel' % (
+                                                                                           exch, uid_ts))]])
+                                                                       )
                                 else:
                                     ts.set_weekly_close_sl(response)
-                                    self.delete_messages(context.user_data, 'dialog')
+                                    context.user_data['msgs'].delete_msgs(which='dialog')
                                     self.update_ts_text(context, uid_ts, query)
 
                             elif 'TSL' in args:
@@ -1426,33 +1433,34 @@ class EazeBot:
                                     query.answer()
                                     if 'abs' in args or 'rel' in args:
                                         query.message.delete()
-                                        context.user_data['messages']['dialog'].append(
-                                            context.bot.send_message(
-                                                context.user_data['chatId'],
-                                                'Please enter the trailing SL offset%s' % (
-                                                    '' if 'abs' in args else ' in %')))
+                                        context.user_data['msgs'].send(which='dialog',
+                                                                       text='Please enter the trailing SL offset%s' % (
+                                                                           '' if 'abs' in args else ' in %')
+                                                                       )
                                         context.user_data['lastFct'].append(
                                             lambda res: self.inline_button_callback(update, context, query, res))
                                         return NUMBER
                                     else:
-                                        context.user_data['messages']['dialog'].append(
-                                            context.bot.send_message(
-                                                context.user_data['chatId'],
-                                                "What kind of trailing stop-loss offset do you want to set?",
-                                                reply_markup=InlineKeyboardMarkup(
-                                                    [[InlineKeyboardButton(
-                                                        "Absolute",
-                                                        callback_data='2|%s|%s|TSL|abs' % (exch, uid_ts)),
-                                                        InlineKeyboardButton(
-                                                            "Relative",
-                                                            callback_data='2|%s|%s|TSL|rel' % (exch, uid_ts))]])))
+                                        context.user_data['msgs'].send(which='dialog',
+                                                                       text="What kind of trailing stop-loss offset do "
+                                                                            "you want to set?",
+                                                                       reply_markup=InlineKeyboardMarkup(
+                                                                           [[InlineKeyboardButton(
+                                                                               "Absolute",
+                                                                               callback_data='2|%s|%s|TSL|abs' % (
+                                                                                   exch, uid_ts)),
+                                                                               InlineKeyboardButton(
+                                                                                   "Relative",
+                                                                                   callback_data='2|%s|%s|TSL|rel' % (
+                                                                                       exch, uid_ts))]])
+                                                                       )
                                 else:
                                     response = float(response)
                                     if 'rel' in args:
                                         response /= 100
                                     ts.set_trailing_sl(response,
                                                        typ=ValueType.ABSOLUTE if 'abs' in args else ValueType.RELATIVE)
-                                    self.delete_messages(context.user_data, 'dialog')
+                                    context.user_data['msgs'].delete_msgs(which='dialog')
                                     self.update_ts_text(context, uid_ts, query)
 
                             elif 'SLC' in args:
@@ -1546,22 +1554,24 @@ class EazeBot:
         for user in self.__config__['telegramUserId']:
             if user in self.updater.dispatcher.user_data and len(self.updater.dispatcher.user_data[user]) > 0:
                 context = CallbackContext(self.updater.dispatcher)
+                self.updater.dispatcher.user_data[user].update({'msgs': MessageContainer(bot=context.bot,
+                                                                                         chat_id=user)})
                 context._user_data = self.updater.dispatcher.user_data[user]
                 time.sleep(2)  # wait because of possibility of temporary exchange lockout
                 self.add_exchanges(None, context)
 
         # start a job updating the trade sets each interval
         self.updater.job_queue.run_repeating(self.update_trade_sets, interval=60 * self.__config__['updateInterval'],
-                                        first=5,
-                                        context=self.updater)
+                                             first=5,
+                                             context=self.updater)
         # start a job checking for updates once a day
         self.updater.job_queue.run_repeating(self.check_for_updates_and_tax, interval=60 * 60 * 24, first=20,
                                              context=self.updater)
         # start a job checking every day 10 sec after midnight (UTC time)
         self.updater.job_queue.run_daily(lambda cont: self.check_candle(cont, 1),
-                                    (dt.datetime(1900, 5, 5, 0, 0, 10) + (
-                                                dt.datetime.now() - dt.datetime.utcnow())).time(),
-                                    context=self.updater, name='dailyCheck')
+                                         (dt.datetime(1900, 5, 5, 0, 0, 10) + (
+                                                 dt.datetime.now() - dt.datetime.utcnow())).time(),
+                                         context=self.updater, name='dailyCheck')
         # start a job saving the user data each 5 minutes
         self.updater.job_queue.run_repeating(lambda con: save_data(con, user_dir=self.user_dir), interval=5 * 60,
                                              context=self.updater)

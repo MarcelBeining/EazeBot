@@ -1,7 +1,7 @@
-ccxt >= 1.30.87
-python-dateutil
-dill
-numpy == 1.19.3
-python-telegram-bot == 13.0
-requests
-dateparser
+ccxt == 1.40.80
+python-dateutil == 2.8.1
+dill == 0.3.3
+python-telegram-bot == 13.1
+numpy == 1.19.5
+requests == 2.22.0
+dateparser == 1.0.0
