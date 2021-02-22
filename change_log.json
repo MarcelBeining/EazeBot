@@ -18,6 +18,15 @@
                             "message": "Pasting raw text containing formatted buy signals when defining a new trade set is now supported in a limited range."
                         }
                     ]
+                },
+                {
+                    "label": "Changed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Changing donation addresses"
+                        }
+                    ]
                 }
             ]
         },
