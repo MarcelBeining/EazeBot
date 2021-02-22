@@ -874,14 +874,14 @@ class BaseTradeSet:
         else:
             raise ValueError('Some input was no number')
 
-    def add_buy_level(self, buy_price: float, buy_amount, candle_above=None, lock=True):
+    def add_buy_level(self, buy_price: float, buy_amount, candle_above=None, lock=True) -> bool:
         """
 
         :param buy_price:
         :param buy_amount: If buy price is None, this is the cost (quote currency), else the amount of the coin currency
         :param candle_above:
         :param lock: Boolean if trade set should be locked
-        :return:
+        :return: Boolean if buy level add succeeded
         """
         self.th.update_down_state(True)
         if self.th.check_num(buy_price, buy_amount, candle_above) or (
@@ -891,27 +891,27 @@ class BaseTradeSet:
             if not self.th.check_quantity(self.symbol, 'amount', buy_amount):
                 logger.error('Adding buy level failed, amount is not within the range, the exchange accepts',
                              extra=self.th.logger_extras)
-                return 0
+                return False
             elif not self.th.check_quantity(self.symbol, 'price', buy_price):
                 logger.error('Adding buy level failed, price is not within the range, the exchange accepts',
                              extra=self.th.logger_extras)
-                return 0
+                return False
             elif not self.th.check_quantity(self.symbol, 'cost', buy_price * buy_amount):
                 logger.error('Adding buy level failed, cost is not within the range, the exchange accepts',
                              extra=self.th.logger_extras)
-                return 0
+                return False
             bal = self.th.get_balance(self.baseCurrency)
             if bal is None:
                 logger.warning('Free balance could not be determined as exchange does not support this! '
-                             'If free balance does not suffice there will be an error when trade set is activated',
-                             extra=self.th.logger_extras)
+                               'If free balance does not suffice there will be an error when trade set is activated',
+                               extra=self.th.logger_extras)
             elif bal < buy_amount * buy_price + (fee['cost'] if fee['currency'] == self.baseCurrency else 0):
                 logger.error('Adding buy level failed, your balance of %s does not suffice to buy this amount%s!' % (
                     self.baseCurrency,
                     ' and pay the trading fee (%s %s)' % (
                         self.th.nf.fee2Prec(self.symbol, fee['cost']), self.baseCurrency) if
                     fee['currency'] == self.baseCurrency else ''), extra=self.th.logger_extras)
-                return 0
+                return False
             if lock:
                 self.lock_trade_set()
             wasactive = self.deactivate()
@@ -931,7 +931,7 @@ class BaseTradeSet:
                 self.activate(False)
             if lock:
                 self.unlock_trade_set()
-            return self.num_buy_levels() - 1
+            return True
         else:
             raise ValueError('Some input was no number')
 
@@ -1017,28 +1017,28 @@ class BaseTradeSet:
         else:
             raise ValueError('Some input was no number')
 
-    def add_sell_level(self, sell_price, sell_amount):
+    def add_sell_level(self, sell_price, sell_amount) -> bool:
         self.th.update_down_state(True)
         if self.th.check_num(sell_price, sell_amount):
             if not self.th.check_quantity(self.symbol, 'amount', sell_amount):
                 logger.error('Adding sell level failed, amount is not within the range, the exchange accepts',
                              extra=self.th.logger_extras)
-                return 0
+                return False
             elif not self.th.check_quantity(self.symbol, 'price', sell_price):
                 logger.error('Adding sell level failed, price is not within the range, the exchange accepts',
                              extra=self.th.logger_extras)
-                return 0
+                return False
             elif not self.th.check_quantity(self.symbol, 'cost', sell_price * sell_amount):
                 logger.error('Adding sell level failed, return is not within the range, the exchange accepts',
                              extra=self.th.logger_extras)
-                return 0
+                return False
             self.lock_trade_set()
             wasactive = self.deactivate()
             self.OutTrades.append({'oid': None, 'price': sell_price, 'amount': sell_amount})
             if wasactive:
                 self.activate(False)
             self.unlock_trade_set()
-            return self.num_sell_levels() - 1
+            return True
         else:
             raise ValueError('Some input was no number')
 
@@ -1124,39 +1124,46 @@ class BaseTradeSet:
         else:
             raise ValueError('Input was no number')
 
-    def set_weekly_close_sl(self, value):
+    def set_weekly_close_sl(self, value) -> bool:
         if self.th.check_num(value):
             self.SL = WeeklyCloseSL(value=value)
             if self.th.get_price_obj(self.symbol).get_current_price() <= value:
                 logger.warning('Weekly-close SL is set but be aware that it is higher than the current market price!',
                                extra=self.th.logger_extras)
+            return True
 
         elif value is None:
             self.SL = None
+            return True
         else:
             raise ValueError('Input was no number')
 
-    def set_daily_close_sl(self, value):
+    def set_daily_close_sl(self, value) -> bool:
         if self.th.check_num(value):
             self.SL = DailyCloseSL(value=value)
             if self.th.get_price_obj(self.symbol).get_current_price() <= value:
                 logger.warning('Daily-close SL is set but be aware that it is higher than the current market price!',
                                extra=self.th.logger_extras)
+            return True
         elif value is None:
             self.SL = None
+            return True
         else:
             raise ValueError('Input was no number')
 
-    def set_sl(self, value):
+    def set_sl(self, value) -> bool:
         if self.th.check_num(value):
             try:
                 self.SL = BaseSL(value=value)
+                return True
             except Exception as e:
                 logger.error(str(e), extra=self.th.logger_extras)
         elif value is None:
             self.SL = None
+            return True
         else:
             raise ValueError('Input was no number')
+        return False
 
     def set_sl_break_even(self):
         self.th.update_down_state(True)
