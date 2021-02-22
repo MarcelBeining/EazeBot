@@ -863,19 +863,21 @@ class tradeHandler:
 
                         # delete Tradeset when all orders have been filled (but only if there were any to execute
                         # and if no significant coin amount is left)
+                        left_coins = ts.sum_buy_amounts(order='filled') + ts.initCoins - \
+                                     ts.sum_sell_amounts(order='filled')
                         if not (ts.num_buy_levels(order='filled') + ts.initCoins):
                             significant_amount = np.inf
                         else:
-                            significant_amount = (ts.sum_buy_amounts(order='filled') + ts.initCoins -
-                                                  ts.sum_sell_amounts(order='filled')) / \
-                                                 (ts.initCoins + ts.sum_buy_amounts(order='filled'))
-                        if ((ts.SL is None and order_executed > 0) or (order_executed == 2 and
-                                                                       significant_amount < 0.01)) and \
+                            significant_amount = left_coins / (left_coins + ts.sum_sell_amounts(order='filled'))
+                        if ts.regular_buy is None and ((ts.SL is None and order_executed > 0) or
+                                                       (order_executed == 2 and significant_amount < 0.01)) and \
                                 ts.num_sell_levels('notfilled') == 0 and \
                                 ts.num_buy_levels('notfilled') == 0:
-                            gain = self.nf.cost2Prec(ts.symbol, ts.costOut - ts.costIn)
-                            logger.info('Trading set %s on %s completed! Total gain: %s %s' % (
-                                ts.symbol, self.exchange.name, gain, ts.baseCurrency), extra=self.logger_extras)
+
+                            gain_coins = self.nf.cost2Prec(ts.symbol, ts.costOut - ts.costIn)
+                            logger.info('Trading set %s on %s completed! Total gain: %s %s and %s %s' % (
+                                ts.symbol, self.exchange.name, gain_coins, ts.baseCurrency,
+                                self.nf.cost2Prec(ts.symbol, left_coins), ts.coinCurrency), extra=self.logger_extras)
                             trade_sets_to_delete.append(i_ts)
                 finally:
                     ts.unlock_trade_set()

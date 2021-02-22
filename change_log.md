@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased] - 
 ### Added
 * Pasting raw text containing formatted buy signals when defining a new trade set is now supported in a limited range. [Marcel]
+* The leftover coins (coins not sold) are now mentioned during trade set activation and deletion [Marcel]
 
 ### Changed
 * Changing donation addresses [Marcel]
