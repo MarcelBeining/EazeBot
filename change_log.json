@@ -7,6 +7,21 @@
     ],
     "versions": [
         {
+            "version": "Unreleased",
+            "date": "",
+            "section": [
+                {
+                    "label": "Added",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Pasting raw text containing formatted buy signals when defining a new trade set is now supported in a limited range."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.10.1",
             "date": "2021-01-20 16:41",
             "section": [

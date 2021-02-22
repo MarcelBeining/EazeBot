@@ -48,7 +48,7 @@ from eazebot.handling import ValueType, ExchContainer, DateFilter, TempTradeSet,
 from eazebot.auxiliary_methods import clean_data, load_data, save_data, backup_data, is_higher_version, ChangeLog, \
     MessageContainer
 
-MAINMENU, SETTINGS, SYMBOL, NUMBER, DAILY_CANDLE, INFO, DATE, TS_NAME = range(8)
+MAINMENU, SETTINGS, SYMBOL_OR_RAW, NUMBER, DAILY_CANDLE, INFO, DATE, TS_NAME = range(8)
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +213,7 @@ class EazeBot:
             self.add_exchanges(None, context)
         context.user_data['msgs'].send(which='start',
                                        text="Welcome %s%s to the EazeBot! You are in the main menu." % (
-                                                washere, update.message.from_user.first_name),
+                                           washere, update.message.from_user.first_name),
                                        reply_markup=self.markupMainMenu)
         return MAINMENU
 
@@ -433,28 +433,97 @@ class EazeBot:
                                            reply_markup=InlineKeyboardMarkup(buttons),
                                            parse_mode='markdown')
 
-    def create_trade_set(self, update: Update, context: CallbackContext, exchange=None, symbol=None):
+    def create_trade_set(self, update: Update, context: CallbackContext, exchange=None, symbol_or_raw=None):
         # check if user is registered and has any authenticated exchange
         if 'trade' in context.user_data and len(context.user_data['trade']) > 0:
             # check if exchange was already chosen
             if exchange:
                 ct = context.user_data['trade'][exchange]
-                if symbol and symbol.upper() in ct.exchange.symbols:
-                    context.user_data['msgs'].delete_msgs(which='dialog')
-                    symbol = symbol.upper()
-                    ts = ct.init_trade_set(symbol)
-                    uid_ts = ts.get_uid()
-                    ct.update_balance()
-                    context.user_data['msgs'].send(which='dialog',
-                                                   text='Thank you, now let us begin setting the trade set',
-                                                   parse_mode='markdown')
-                    self.print_trade_status(None, context, uid_ts)
+                if symbol_or_raw is not None:
+                    if re.match(r'^\w+/\w+\n.*QUANTITY', symbol_or_raw, re.DOTALL):
+                        current = 'quantity'
+                        match = re.search(r'^QUANTITY (?P<quan>([0-9]*[.])?[0-9]+)$', symbol_or_raw, re.MULTILINE)
+                        if match is not None:
+                            quantity = float(match.group('quan'))
+                            current = 'symbol / trading pair'
+                            match = re.match(r'^(?P<symbol>\w+/\w+)\n', symbol_or_raw)
+                            if match is not None:
+                                symbol = match.group('symbol')
+                                current = 'entry'
+                                match = re.search(r'^ENTRY (?P<entries>[-\s0-9\.]+)$', symbol_or_raw, re.MULTILINE)
+                                if match is not None:
+                                    entries = [float(val) for val in match.group('entries').split('-')]
+                                    current = 'targets'
+                                    match = re.search(r'^TARGETS (?P<targets>[-\s0-9\.]+)$', symbol_or_raw,
+                                                      re.MULTILINE)
+                                    if match is not None:
+                                        targets = [float(val) for val in match.group('targets').split('-')]
+                                        current = 'stop loss'
+                                        match = re.search(r'^STOP LOSS (?P<time>DAILY)?\s?BELOW (?P<SL>[0-9\.]+)$',
+                                                          symbol_or_raw,
+                                                          re.MULTILINE)
+                                        if match is not None:
+                                            stop_loss = float(match.group('SL'))
+                                            sl_time_frame = match.group('time')
+
+                                            amount_per_buy = [float(ct.exchange.amountToPrecision(
+                                                symbol, quantity / (len(entries) * price))) for price in entries]
+                                            amount_per_sell = [float(
+                                                ct.exchange.amountToPrecision(symbol,
+                                                                              sum(amount_per_buy) / len(targets)))
+                                                              ] * len(targets)
+                                            # fixing the precision rounding difference
+                                            amount_per_sell[-1] = float(ct.exchange.amountToPrecision(
+                                                symbol, amount_per_sell[-1] -
+                                                (sum(amount_per_sell) - sum(amount_per_buy))))
+                                            assert sum(amount_per_sell) <= sum(amount_per_buy)
+                                            try:
+                                                ts = ct.new_trade_set(symbol,
+                                                                      buy_levels=entries,
+                                                                      buy_amounts=amount_per_buy,
+                                                                      sell_levels=targets,
+                                                                      sell_amounts=amount_per_sell,
+                                                                      sl=stop_loss,
+                                                                      sl_close=sl_time_frame,
+                                                                      force=True)
+                                                self.print_trade_status(None, context, ts.get_uid())
+                                                current = None
+                                            except Exception as e:
+                                                current = e
+                        if current is not None:
+                            if isinstance(current, Exception):
+                                text = f"ERROR: {current}"
+                                msg_type = 'error'
+                            else:
+                                text = f"ERROR: Had problem finding {current} in the raw text! Aborting..."
+                                msg_type = 'error'
+                        else:
+                            text = f"Successfully created and activated new trade set!"
+                            msg_type = 'dialog'
+
+                    elif symbol_or_raw.upper() in ct.exchange.symbols:
+                        context.user_data['msgs'].delete_msgs(which='dialog')
+                        symbol_or_raw = symbol_or_raw.upper()
+                        ts = ct.init_trade_set(symbol_or_raw)
+                        uid_ts = ts.get_uid()
+                        ct.update_balance()
+                        text = 'Thank you, now let us begin setting the trade set'
+                        msg_type = 'dialog'
+                        self.print_trade_status(None, context, uid_ts)
+                    else:
+                        text = 'ERROR: Symbol %s was not found on exchange %s! Aborting...' % (symbol_or_raw, exchange)
+                        msg_type = 'error'
+
+                    context.user_data['msgs'].send(which=msg_type,
+                                                   text=text,
+                                                   parse_mode='markdown',
+                                                   )
                     return MAINMENU
                 else:
-                    if symbol:
-                        text = 'Symbol %s was not found on exchange %s' % (symbol, exchange)
-                    else:
-                        text = 'Please specify your trade set. Which currency pair do you want to trade? (e.g. ETH/BTC)'
+                    text = 'Please specify your trade set. Which currency pair do you want to trade ' \
+                           '(e.g. ETH/BTC)? Alternatively paste in a text with buy/sell commands formatted as\n' \
+                           '"_XXX/YYY_\nQUANTITY _XXX_\nENTRY _XXX_ - _YYY_ - _ZZZ_ - ...\n' \
+                           'TARGETS _XXX_ - _YYY_ - _ZZZ_ - ...\nSTOP LOSS BELOW _XXX_"'
                     context.user_data['lastFct'].append(
                         lambda res: self.create_trade_set(update, context, exchange, res))
                     context.user_data['msgs'].send(which='dialog',
@@ -470,7 +539,7 @@ class EazeBot:
                                                            'Cancel',
                                                            callback_data='blabla|cancel')]])
                                                    )
-                    return SYMBOL
+                    return SYMBOL_OR_RAW
             else:
                 context.user_data['lastFct'].append(lambda res: self.create_trade_set(update, context, res))
                 # list all available exanches for choosing
@@ -1052,8 +1121,10 @@ class EazeBot:
                                                             'input!*',
                                                        parse_mode='markdown',
                                                        reply_markup=InlineKeyboardMarkup(
-                                [[InlineKeyboardButton('Yes', callback_data='settings|stopBot|Yes')],
-                                 [InlineKeyboardButton("No", callback_data='settings|cancel')]]))
+                                                           [[InlineKeyboardButton('Yes',
+                                                                                  callback_data='settings|stopBot|Yes')],
+                                                            [InlineKeyboardButton("No",
+                                                                                  callback_data='settings|cancel')]]))
                     elif args[0] == 'Yes':
                         query.answer('stopping')
                         context.user_data['msgs'].send(which='start',
@@ -1143,12 +1214,12 @@ class EazeBot:
                                 'Too many pairs to make buttons, you have to type the pair. '
                                 'Here is a list of all pairs:\n' + string[0:-2],
                                 reply_markup=[])
-                            return SYMBOL
+                            return SYMBOL_OR_RAW
                         except BadRequest:
                             query.edit_message_text(
                                 'Too many pairs to make buttons, you have to type the pair manually.\n',
                                 reply_markup=[])
-                            return SYMBOL
+                            return SYMBOL_OR_RAW
 
                 elif command == 'chooseSymbol':
                     query.message.delete()
@@ -1187,7 +1258,8 @@ class EazeBot:
                                                                        text='Donation suceeded, thank you very much!!!')
                                     else:
                                         context.user_data['msgs'].send(which='donation',
-                                                                       text='Amount <= 0 %s. Donation canceled =(' % args[0])
+                                                                       text='Amount <= 0 %s. Donation canceled =(' %
+                                                                            args[0])
                                 except Exception as e:
                                     context.user_data['msgs'].send(which='donation',
                                                                    text='There was an error during withdrawing, thus '
@@ -1211,9 +1283,10 @@ class EazeBot:
                                                                    text='Your free balance is %.8g %s and withdrawing '
                                                                         'fee on %s is %.8g %s. How much do you want to '
                                                                         'donate (excluding fees)' % (
-                                                                    balance['free'][args[0]], args[0], exch,
-                                                                    ct.exchange.fees['funding']['withdraw'][args[0]],
-                                                                    args[0]))
+                                                                            balance['free'][args[0]], args[0], exch,
+                                                                            ct.exchange.fees['funding']['withdraw'][
+                                                                                args[0]],
+                                                                            args[0]))
                                     context.user_data['lastFct'].append(
                                         lambda res: self.inline_button_callback(update, context, query, res))
                                     return NUMBER
@@ -1527,9 +1600,11 @@ class EazeBot:
                            MessageHandler(Filters.regex('^Settings$'), self.show_settings),
                            CallbackQueryHandler(self.inline_button_callback),
                            MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'noValueRequested'))],
-                SYMBOL: [MessageHandler(Filters.regex(r'\w+/\w+'), self.received_info),
-                         MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'wrongSymbolFormat')),
-                         CallbackQueryHandler(self.inline_button_callback)],
+                SYMBOL_OR_RAW: [MessageHandler(Filters.regex(r'^\w+/\w+$'), self.received_info),
+                                MessageHandler(Filters.regex(re.compile(r'^\w+/\w+\n.*QUANTITY', re.DOTALL)),
+                                               self.received_info),
+                                MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'wrongSymbolFormat')),
+                                CallbackQueryHandler(self.inline_button_callback)],
                 NUMBER: [MessageHandler(Filters.regex(r'^[\+,\-]?\d+\.?\d*$'), self.received_float),
                          MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'noNumber')),
                          CallbackQueryHandler(self.inline_button_callback)],
