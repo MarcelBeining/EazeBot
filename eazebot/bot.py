@@ -1005,16 +1005,17 @@ class EazeBot:
         remote_version, version_message, on_py_pi = self.get_remote_version()
         if is_higher_version(next_version=remote_version, this_version=self.thisVersion):
             for user in self.updater.dispatcher.user_data:
-                if 'chatId' in self.updater.dispatcher.user_data[user]:
-                    context.user_data['msgs'].send(which='botInfo',
-                                                   text=f"There is a new version of EazeBot available on git "
-                                                        f"(v{remote_version}) "
-                                                        f"{'and PyPi' if on_py_pi else '(not yet on PyPi)'} with these"
-                                                        f" changes:\n{version_message}",
-                                                   parse_mode='html',
-                                                   reply_markup=InlineKeyboardMarkup([[
-                                                       InlineKeyboardButton("*Update bot*",
-                                                                            callback_data='settings|updateBot')]]))
+                if 'msgs' in self.updater.dispatcher.user_data[user]:
+                    self.updater.dispatcher.user_data[user]['msgs'].send(
+                        which='botInfo',
+                        text=f"There is a new version of EazeBot available on git "
+                             f"(v{remote_version}) "
+                             f"{'and PyPi' if on_py_pi else '(not yet on PyPi)'} with these"
+                             f" changes:\n{version_message}",
+                        parse_mode='html',
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("*Update bot*",
+                                                 callback_data='settings|updateBot')]]))
 
         for user in self.updater.dispatcher.user_data:
             if user in self.__config__['telegramUserId']:
