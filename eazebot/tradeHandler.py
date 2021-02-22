@@ -517,7 +517,7 @@ class tradeHandler:
                 '%+.2f' % tsh['gainUSD'] if tsh['gainUSD'] else 'N/A')
         if len(self.tradeSetHistory) > 0:
             return f"*Profit history on {self.exchange.name}:\n\
-            Avg. relative gain: {np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory if tsh['gainRel'] is not None]):+7.1f}%%\n\
+            Avg. relative gain: {np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory if tsh['gainRel'] is not None]):+7.1f}%\n\
             Total profit in BTC: {sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]):+.5f}\n \
             Total profit in USD: {sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory]):+.2f}\n \
             \nDetailed Set Info:\n*" + string
@@ -560,6 +560,10 @@ class tradeHandler:
             sold = True
             ts.deactivate(1)
         if sold:
+            gain_coins = self.nf.cost2Prec(ts.symbol, ts.costOut - ts.costIn)
+            logger.info('Trading set %s on %s completed! Total gain: %s %s and %s leftover %ss' % (
+                ts.symbol, self.exchange.name, gain_coins, ts.baseCurrency,
+                self.nf.cost2Prec(ts.symbol, ts.coinsAvail), ts.coinCurrency), extra=self.logger_extras)
             self.create_trade_history_entry(i_ts)
             self.tradeSets.pop(i_ts)
         else:
@@ -874,16 +878,11 @@ class tradeHandler:
                                 ts.num_sell_levels('notfilled') == 0 and \
                                 ts.num_buy_levels('notfilled') == 0:
 
-                            gain_coins = self.nf.cost2Prec(ts.symbol, ts.costOut - ts.costIn)
-                            logger.info('Trading set %s on %s completed! Total gain: %s %s and %s %s' % (
-                                ts.symbol, self.exchange.name, gain_coins, ts.baseCurrency,
-                                self.nf.cost2Prec(ts.symbol, left_coins), ts.coinCurrency), extra=self.logger_extras)
                             trade_sets_to_delete.append(i_ts)
                 finally:
                     ts.unlock_trade_set()
         finally:
             # makes sure that the tradeSet deletion takes place even if some error occurred in another trade
             for i_ts in trade_sets_to_delete:
-                self.create_trade_history_entry(i_ts)
-                self.tradeSets.pop(i_ts)
+                self.delete_trade_set(i_ts, sell_all=False)
             self.lastUpdate = time.time()
