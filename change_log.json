@@ -7,6 +7,21 @@
     ],
     "versions": [
         {
+            "version": "v2.11.1",
+            "date": "2021-02-23 00:54",
+            "section": [
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed problem with message container during update check"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.11.0",
             "date": "2021-02-23 00:40",
             "section": [
