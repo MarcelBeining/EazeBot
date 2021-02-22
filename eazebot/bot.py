@@ -1242,13 +1242,13 @@ class EazeBot:
                         else:
                             if response is not None:
                                 if args[0] == 'BTC':
-                                    address = '3AP2u8wMwdSFJWCXNhUbfbV1xirqshfqg6'
+                                    address = 'bc1q5wfzxdk3xhujs6589gzdeu6fgqpvqrel5jzzt2'
                                 elif args[0] == 'ETH':
                                     address = '0xE0451300D96090c1F274708Bc00d791017D7a5F3'
                                 elif args[0] == 'NEO':
                                     address = 'AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg'
                                 elif args[0] == 'XLM':
-                                    address = 'GBJEFEFUAUVTWL5UYK3NTWW7J5J3SMH4XB7SYDZRWWEON5S5YHPI2LAR'
+                                    address = 'GCEAF5KYYUJSYPEDAWTZUBP4TE2LUSAPAFNHFSY54RA4HNLBVYOSFM6K'
                                 else:
                                     raise ValueError(f"Unknown currency {args[0]}")
                                 try:
@@ -1305,9 +1305,10 @@ class EazeBot:
                             'one of the addresses below, or more easily by letting the bot send coins (amount will be '
                             'asked in a later step) from one of your exchanges by clicking the corresponding button '
                             'below.\n\n'
-                            '*BTC address:*\n17SfuTsJ3xpbzgArgRrjYSjvmzegMRcU3L\n'
-                            '*ETH address:*\n0x2DdbDA69B27D36D0900970BCb8049546a9d621Ef\n'
-                            '*NEO address:*\nAaGRMPuwtGrudXR5s7F5n11cxK595hCWUg',
+                            '*BTC address:*\nbc1q5wfzxdk3xhujs6589gzdeu6fgqpvqrel5jzzt2\n'
+                            '*ETH address:*\n0xE0451300D96090c1F274708Bc00d791017D7a5F3\n'
+                            '*NEO address:*\nAaGRMPuwtGrudXR5s7F5n11cxK595hCWUg\n'
+                            '*XLM address:*\nGCEAF5KYYUJSYPEDAWTZUBP4TE2LUSAPAFNHFSY54RA4HNLBVYOSFM6K\n',
                             reply_markup=InlineKeyboardMarkup(buttons), parse_mode='markdown')
 
                 elif command == 'chooseExch':

@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 * Pasting raw text containing formatted buy signals when defining a new trade set is now supported in a limited range. [Marcel]
 
+### Changed
+* Changing donation addresses [Marcel]
+
 
 ## [v2.10.1] - 2021-01-20 16:41
 ### Fixed
