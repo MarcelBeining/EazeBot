@@ -16,6 +16,10 @@
                         {
                             "author": "Marcel",
                             "message": "Pasting raw text containing formatted buy signals when defining a new trade set is now supported in a limited range."
+                        },
+                        {
+                            "author": "Marcel",
+                            "message": "The leftover coins (coins not sold) are now mentioned during trade set activation and deletion"
                         }
                     ]
                 },

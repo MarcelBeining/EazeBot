@@ -475,13 +475,19 @@ class BaseTradeSet:
         self.__active = True
         if verbose and not wasactive:
             total_buy_cost = self.costIn + self.sum_buy_costs('notfilled')
-            logger.info('Estimated return if all trades are executed: %s %s' % (
-                self.th.nf.cost2Prec(self.symbol, self.sum_sell_costs() - total_buy_cost), self.baseCurrency),
-                        extra=self.th.logger_extras)
+            prt_str = 'Estimated return if all trades are executed: %s %s' % (
+                self.th.nf.cost2Prec(self.symbol, self.sum_sell_costs() - total_buy_cost), self.baseCurrency)
+            left_coins = self.th.nf.amount2Prec(self.symbol, self.sum_buy_amounts() + self.initCoins -
+                                                self.sum_sell_amounts())
+            if float(left_coins):
+                prt_str += ', and %s of leftover %ss' % (left_coins, self.coinCurrency)
+            prt_str += '\n'
+            logger.info(prt_str, extra = self.th.logger_extras)
+
             if self.SL is not None or isinstance(self.SL, DailyCloseSL):
                 loss = total_buy_cost - self.costOut - (
                         self.initCoins + self.sum_buy_amounts() - self.sum_sell_amounts('filled')) * self.SL.value
-                logger.info('Estimated %s if buys reach stop-loss before selling: %s %s' % (
+                logger.info('Estimated %s if stop-loss is reached: %s %s' % (
                     '*gain*' if loss < 0 else 'loss', self.th.nf.cost2Prec(self.symbol, -loss if loss < 0 else loss),
                     self.baseCurrency), extra=self.th.logger_extras)
         try:
