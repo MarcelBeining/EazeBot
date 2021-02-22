@@ -275,19 +275,21 @@ class tradeHandler:
                 except Exception:
                     print('The following error occured at exchange %s:\n%s' % (self.exchange.name, str(e)))
 
-    def init_trade_set(self, symbol) -> BaseTradeSet:
+    def init_trade_set(self, symbol, add=True) -> BaseTradeSet:
         self.update_balance()
 
         ts = BaseTradeSet(symbol=symbol, trade_handler=self)
-        i_ts = ts.get_uid()
-        if i_ts in self.tradeSets:
-            raise Exception('uid already exists in trade sets!')
-        self.tradeSets[i_ts] = ts
+
+        while ts.get_uid() in self.tradeSets:
+            ts = BaseTradeSet(symbol=symbol, trade_handler=self)
+        if add:
+            self.tradeSets[ts.get_uid()] = ts
         return ts
 
     def new_trade_set(self, symbol, buy_levels=None, buy_amounts=None, sell_levels=None, sell_amounts=None, sl=None,
+                      sl_close=None,
                       candle_above=None,
-                      init_coins=0, init_price=None, force=False):
+                      init_coins=0, init_price=None, force=False) -> BaseTradeSet:
         if candle_above is None:
             candle_above = []
         if sell_amounts is None:
@@ -314,14 +316,13 @@ class tradeHandler:
         if len(sell_levels) != len(sell_amounts):
             raise ValueError('The number of sell levels and sell amounts has to be the same')
 
-        ts = self.init_trade_set(symbol)
-        i_ts = ts.get_uid()
+        ts = self.init_trade_set(symbol, add=False)
 
         # truncate values to precision
-        sell_levels = [float(self.exchange.priceToPrecision(ts.symbol, val)) for val in sell_levels]
-        buy_levels = [float(self.exchange.priceToPrecision(ts.symbol, val)) for val in buy_levels]
-        sell_amounts = [float(self.exchange.amountToPrecision(ts.symbol, val)) for val in sell_amounts]
-        buy_amounts = [float(self.exchange.amountToPrecision(ts.symbol, val)) for val in buy_amounts]
+        sell_levels = [float(self.exchange.priceToPrecision(symbol, val)) for val in sell_levels]
+        buy_levels = [float(self.exchange.priceToPrecision(symbol, val)) for val in buy_levels]
+        sell_amounts = [float(self.exchange.amountToPrecision(symbol, val)) for val in sell_amounts]
+        buy_amounts = [float(self.exchange.amountToPrecision(symbol, val)) for val in buy_amounts]
 
         # sort sell levels and amounts to have lowest level first
         idx = np.argsort(sell_levels)
@@ -341,22 +342,36 @@ class tradeHandler:
         if buy_levels.size > 0 and sell_levels.size > 0 and max(buy_levels) > min(sell_levels):
             raise ValueError(
                 'It seems at least one of your sell prices is lower than one of your buy, which does not make sense')
+
         if self.balance[ts.baseCurrency]['free'] < sum(buy_levels * buy_amounts):
             raise ValueError('Free balance of %s not sufficient to initiate trade set' % ts.baseCurrency)
 
+        success = True
         # create the buy orders
         for n, _ in enumerate(buy_levels):
-            ts.add_buy_level(buy_levels[n], buy_amounts[n], candle_above[n])
+            success &= ts.add_buy_level(buy_levels[n], buy_amounts[n], candle_above[n])
 
-        ts.add_init_coins(init_price, init_coins)
-        ts.set_sl(sl)
+        success &= ts.add_init_coins(init_price, init_coins)
+        if sl_close is None:
+            success &= ts.set_sl(sl)
+        elif sl_close.lower() == 'daily':
+            success &= ts.set_daily_close_sl(sl)
+        elif sl_close.lower() == 'weekly':
+            success &= ts.set_weekly_close_sl(sl)
+        else:
+            raise ValueError(f"Unknown value for argument sl_close: {sl_close}")
         # create the sell orders
         for n, _ in enumerate(sell_levels):
-            ts.add_sell_level(sell_levels[n], sell_amounts[n])
+            success &= ts.add_sell_level(sell_levels[n], sell_amounts[n])
 
+        if success:
+            # add to the trade sets
+            self.tradeSets[ts.get_uid()] = ts
+        else:
+            raise Exception('There was an error during trade set creation')
         ts.activate()
         self.update()
-        return i_ts
+        return ts
 
     def get_trade_set_info(self, i_ts, show_profit_in=None):
         ts = self.tradeSets[i_ts]
@@ -415,16 +430,18 @@ class tradeHandler:
             if ts.show_filled_orders or trade['oid'] != 'filled':
                 prt_str += tmpstr
         if ts.SL is not None:
-            prt_str += '\n*Stop-loss* set at %s%s\n\n' % (self.nf.price2Prec(ts.symbol, ts.SL.value),
-                                                          '' if not isinstance(ts.SL, TrailingSL) else (
-                                                              ' (trailing with offset %.5g)' % ts.SL.delta if
-                                                              ts.SL.kind == ValueType.ABSOLUTE else
-                                                              ' (trailing with offset %.2g %%)' % (ts.SL.delta * 100)))
-        elif isinstance(ts.SL, DailyCloseSL):
-            prt_str += '\n*Stop-loss* set at daily close < %s\n\n' % (self.nf.price2Prec(ts.symbol, ts.SL.value))
-        elif isinstance(ts.SL, WeeklyCloseSL):
-            prt_str += '\n*Stop-loss* set at weekly close < %s\n\n' % (
-                self.nf.price2Prec(ts.symbol, ts.SL.value))
+            if isinstance(ts.SL, DailyCloseSL):
+                prt_str += '\n*Stop-loss* set at daily close < %s\n\n' % (self.nf.price2Prec(ts.symbol, ts.SL.value))
+            elif isinstance(ts.SL, WeeklyCloseSL):
+                prt_str += '\n*Stop-loss* set at weekly close < %s\n\n' % (
+                    self.nf.price2Prec(ts.symbol, ts.SL.value))
+            else:
+                prt_str += '\n*Stop-loss* set at %s%s\n\n' % (self.nf.price2Prec(ts.symbol, ts.SL.value),
+                                                              '' if not isinstance(ts.SL, TrailingSL) else (
+                                                                  ' (trailing with offset %.5g)' % ts.SL.delta if
+                                                                  ts.SL.kind == ValueType.ABSOLUTE else
+                                                                  ' (trailing with offset %.2g %%)' % (
+                                                                          ts.SL.delta * 100)))
         else:
             prt_str += '\n*No stop-loss set.*\n\n'
         sum_buys = sum([val[0] for val in filled_buys])
@@ -500,7 +517,7 @@ class tradeHandler:
                 '%+.2f' % tsh['gainUSD'] if tsh['gainUSD'] else 'N/A')
         if len(self.tradeSetHistory) > 0:
             return f"*Profit history on {self.exchange.name}:\n\
-            Avg. relative gain: {np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory if tsh['gainRel'] is not None]):+7.1f}%%\n\
+            Avg. relative gain: {np.mean([tsh['gainRel'] for tsh in self.tradeSetHistory if tsh['gainRel'] is not None]):+7.1f}%\n\
             Total profit in BTC: {sum([tsh['gainBTC'] if tsh['gainBTC'] else 0 for tsh in self.tradeSetHistory]):+.5f}\n \
             Total profit in USD: {sum([tsh['gainUSD'] if tsh['gainUSD'] else 0 for tsh in self.tradeSetHistory]):+.2f}\n \
             \nDetailed Set Info:\n*" + string
@@ -543,6 +560,10 @@ class tradeHandler:
             sold = True
             ts.deactivate(1)
         if sold:
+            gain_coins = self.nf.cost2Prec(ts.symbol, ts.costOut - ts.costIn)
+            logger.info('Trading set %s on %s completed! Total gain: %s %s and %s leftover %ss' % (
+                ts.symbol, self.exchange.name, gain_coins, ts.baseCurrency,
+                self.nf.cost2Prec(ts.symbol, ts.coinsAvail), ts.coinCurrency), extra=self.logger_extras)
             self.create_trade_history_entry(i_ts)
             self.tradeSets.pop(i_ts)
         else:
@@ -846,25 +867,22 @@ class tradeHandler:
 
                         # delete Tradeset when all orders have been filled (but only if there were any to execute
                         # and if no significant coin amount is left)
+                        left_coins = ts.sum_buy_amounts(order='filled') + ts.initCoins - \
+                                     ts.sum_sell_amounts(order='filled')
                         if not (ts.num_buy_levels(order='filled') + ts.initCoins):
                             significant_amount = np.inf
                         else:
-                            significant_amount = (ts.sum_buy_amounts(order='filled') + ts.initCoins -
-                                                  ts.sum_sell_amounts(order='filled')) / \
-                                                 (ts.initCoins + ts.sum_buy_amounts(order='filled'))
-                        if ((ts.SL is None and order_executed > 0) or (order_executed == 2 and
-                                                                       significant_amount < 0.01)) and \
+                            significant_amount = left_coins / (left_coins + ts.sum_sell_amounts(order='filled'))
+                        if ts.regular_buy is None and ((ts.SL is None and order_executed > 0) or
+                                                       (order_executed == 2 and significant_amount < 0.01)) and \
                                 ts.num_sell_levels('notfilled') == 0 and \
                                 ts.num_buy_levels('notfilled') == 0:
-                            gain = self.nf.cost2Prec(ts.symbol, ts.costOut - ts.costIn)
-                            logger.info('Trading set %s on %s completed! Total gain: %s %s' % (
-                                ts.symbol, self.exchange.name, gain, ts.baseCurrency), extra=self.logger_extras)
+
                             trade_sets_to_delete.append(i_ts)
                 finally:
                     ts.unlock_trade_set()
         finally:
             # makes sure that the tradeSet deletion takes place even if some error occurred in another trade
             for i_ts in trade_sets_to_delete:
-                self.create_trade_history_entry(i_ts)
-                self.tradeSets.pop(i_ts)
+                self.delete_trade_set(i_ts, sell_all=False)
             self.lastUpdate = time.time()
