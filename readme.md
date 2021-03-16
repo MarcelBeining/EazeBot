@@ -188,10 +188,12 @@ donation to one of the crypto addresses below, or use the built-in donation feat
 
 | Currency        | Address           | 
 | ------------- |:-------------:|
-| Bitcoin      | `3AP2u8wMwdSFJWCXNhUbfbV1xirqshfqg6` |
+| Bitcoin      | `bc1q5wfzxdk3xhujs6589gzdeu6fgqpvqrel5jzzt2` |
 | ETH      | `0xE0451300D96090c1F274708Bc00d791017D7a5F3`| 
 | Neo | `AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg` |
-| XLM |`GBJEFEFUAUVTWL5UYK3NTWW7J5J3SMH4XB7SYDZRWWEON5S5YHPI2LAR`|
+| XLM |`GCEAF5KYYUJSYPEDAWTZUBP4TE2LUSAPAFNHFSY54RA4HNLBVYOSFM6K`|
+| USDT (ERC20) |`0x55b1be96e951bfce21973a233970245f728782f1`|
+| USDT (TRC20) |`TGTh3ts5sdhBnGDm9aacUHLmdryPnCa8HJ`|
 
 
 New! Also accepting payments via beerpay :beers:!

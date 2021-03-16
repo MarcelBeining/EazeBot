@@ -1250,6 +1250,8 @@ class EazeBot:
                                     address = 'AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg'
                                 elif args[0] == 'XLM':
                                     address = 'GCEAF5KYYUJSYPEDAWTZUBP4TE2LUSAPAFNHFSY54RA4HNLBVYOSFM6K'
+                                elif args[0] == 'USDT (ERC20)':
+                                    address = '0x55b1be96e951bfce21973a233970245f728782f1'
                                 else:
                                     raise ValueError(f"Unknown currency {args[0]}")
                                 try:
@@ -1299,7 +1301,8 @@ class EazeBot:
                                     InlineKeyboardButton("Donate ETH",
                                                          callback_data='%s|%s|%d|ETH' % ('xxx', 'xxx', 1)),
                                     InlineKeyboardButton("Donate NEO", callback_data='1|%s|%s|NEO' % ('xxx', 'xxx')),
-                                    InlineKeyboardButton("Donate XLM", callback_data='1|%s|%s|XLM' % ('xxx', 'xxx'))]]
+                                    InlineKeyboardButton("Donate XLM", callback_data='1|%s|%s|XLM' % ('xxx', 'xxx')),
+                                    InlineKeyboardButton("Donate USDT", callback_data='1|%s|%s|USDT' % ('xxx', 'xxx'))]]
                         query.edit_message_text(
                             'Thank you very much for your intention to donate some crypto! '
                             'Accepted coins are BTC, ETH and NEO.\nYou may either donate by sending coins manually to '
@@ -1309,7 +1312,8 @@ class EazeBot:
                             '*BTC address:*\nbc1q5wfzxdk3xhujs6589gzdeu6fgqpvqrel5jzzt2\n'
                             '*ETH address:*\n0xE0451300D96090c1F274708Bc00d791017D7a5F3\n'
                             '*NEO address:*\nAaGRMPuwtGrudXR5s7F5n11cxK595hCWUg\n'
-                            '*XLM address:*\nGCEAF5KYYUJSYPEDAWTZUBP4TE2LUSAPAFNHFSY54RA4HNLBVYOSFM6K\n',
+                            '*XLM address:*\nGCEAF5KYYUJSYPEDAWTZUBP4TE2LUSAPAFNHFSY54RA4HNLBVYOSFM6K\n'
+                            '*USDT address:*\n0x55b1be96e951bfce21973a233970245f728782f1\n',
                             reply_markup=InlineKeyboardMarkup(buttons), parse_mode='markdown')
 
                 elif command == 'chooseExch':
