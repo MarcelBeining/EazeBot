@@ -7,6 +7,21 @@
     ],
     "versions": [
         {
+            "version": "Unreleased",
+            "date": "",
+            "section": [
+                {
+                    "label": "Changed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Updated donation addresses"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.11.1",
             "date": "2021-02-23 00:54",
             "section": [
