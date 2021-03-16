@@ -634,10 +634,33 @@ class BaseTradeSet:
 
                 if order_info['status'].lower() in ['closed', 'filled', 'canceled']:
                     if order_info['type'] == 'market' and self.th.exchange.has['fetchMyTrades'] is not False:
-                        trades = self.th.exchange.fetchMyTrades(self.symbol)
-                        order_info['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == order_info['id']])
-                        order_info['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == order_info['id']])
+                        cost = 0
+                        counter = 1
+                        while cost == 0:
+                            trades = self.th.exchange.fetchMyTrades(self.symbol)
+                            cost = sum([tr['cost'] for tr in trades if tr['order'] == order_info['id']])
+                            if cost == 0:
+                                if counter > 3:
+                                    logger.error(f"Found discrepancies in order vs trade info:\nOrder:"
+                                                 f"{order_info}\nTrades:{trades}\nKeeping original order "
+                                                 f"info", extra=self.th.logger_extras)
+                                    if np.isnan(order_info['cost']) or order_info['cost'] is None:
+                                        logger.error('No information about return from sell obtained, setting return to'
+                                                     'zero', extra=self.th.logger_extras)
+                                        order_info['cost'] = 0
+                                    break
+                                else:
+                                    logger.warning(f"Found discrepancies during sell in order vs trade info:\n"
+                                                   f"Waiting 5 secs and try again "
+                                                   f"({counter} out of 3 attempts).", extra=self.th.logger_extras)
+                                    counter += 1
+                                    time.sleep(5)
+                            else:
+                                order_info['cost'] = cost
+                                order_info['price'] = np.mean([tr['price'] for tr in trades
+                                                               if tr['order'] == order_info['id']])
                     self.costOut += order_info['cost']
+                    self.coinsAvail = 0  # assuming evth was sold anyway
                     logger.info('Sold immediately at a price of %s %s: Sold %s %s for %s %s.' % (
                         self.th.nf.price2Prec(self.symbol, order_info['price']), self.symbol,
                         self.th.nf.amount2Prec(self.symbol, order_info['amount']), self.coinCurrency,

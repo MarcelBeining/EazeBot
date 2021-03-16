@@ -694,7 +694,7 @@ class tradeHandler:
                                 if order_info['status'].lower() in ['closed', 'filled', 'canceled'] and \
                                         self.exchange.has['fetchMyTrades'] != False:
                                     trades = self.exchange.fetchMyTrades(ts.symbol)
-                                    order_info['cost'] = sum(
+                                    cost = sum(
                                         [tr['cost'] for tr in trades if tr['order'] == order_info['id']])
 
                                     if order_info['type'].lower() == 'market':
@@ -705,9 +705,11 @@ class tradeHandler:
                                             trade['amount'] = amount
                                             trade['actualAmount'] = amount - fee
 
-                                    if order_info['cost'] == 0:
-                                        order_info['price'] = None
+                                    if cost == 0:
+                                        logger.warning(f"Found discrepancies in order vs trade info:\nOrder:"
+                                                       f"{order_info}\nTrades:{trades}\nKeeping original order info")
                                     else:
+                                        order_info['cost'] = cost
                                         order_info['price'] = np.mean(
                                             [tr['price'] for tr in trades if tr['order'] == order_info['id']])
                                 else:
@@ -806,11 +808,13 @@ class tradeHandler:
                                     # fetch trades for all orders as a limit order might also be filled at a higher val
                                     if self.exchange.has['fetchMyTrades'] != False:
                                         trades = self.exchange.fetchMyTrades(ts.symbol)
-                                        order_info['cost'] = sum(
-                                            [tr['cost'] for tr in trades if tr['order'] == order_info['id']])
-                                        if order_info['cost'] == 0:
-                                            order_info['price'] = None
+                                        cost = sum([tr['cost'] for tr in trades if tr['order'] == order_info['id']])
+                                        if cost == 0:
+                                            logger.warning(f"Found discrepancies in order vs trade info:\nOrder:"
+                                                           f"{order_info}\nTrades:{trades}\nKeeping original order "
+                                                           f"info")
                                         else:
+                                            order_info['cost'] = cost
                                             order_info['price'] = np.mean(
                                                 [tr['price'] for tr in trades if tr['order'] == order_info['id']])
                                     else:

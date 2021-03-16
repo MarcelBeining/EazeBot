@@ -18,6 +18,15 @@
                             "message": "Updated donation addresses"
                         }
                     ]
+                },
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fixed problems with missing cost information during sells (and buys)"
+                        }
+                    ]
                 }
             ]
         },
