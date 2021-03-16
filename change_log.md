@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 * Updated donation addresses [Marcel]
 
+### Fixed
+* Fix problems with creating a trading set using a signal text [Marcel]
+
 
 ## [v2.11.1] - 2021-02-23 00:54
 ### Fixed
