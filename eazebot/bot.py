@@ -448,7 +448,7 @@ class EazeBot:
                             current = 'symbol / trading pair'
                             match = re.match(r'^(?P<symbol>\w+/\w+)\n', symbol_or_raw)
                             if match is not None:
-                                symbol = match.group('symbol')
+                                symbol = match.group('symbol').upper()
                                 current = 'entry'
                                 match = re.search(r'^ENTRY (?P<entries>[-\s0-9\.]+)$', symbol_or_raw, re.MULTILINE)
                                 if match is not None:
@@ -459,37 +459,53 @@ class EazeBot:
                                     if match is not None:
                                         targets = [float(val) for val in match.group('targets').split('-')]
                                         current = 'stop loss'
-                                        match = re.search(r'^STOP LOSS (?P<time>DAILY)?\s?BELOW (?P<SL>[0-9\.]+)$',
+                                        match = re.search(r'^STOP LOSS (?P<time>DAILY)?\s?(BELOW )?(?P<SL>[0-9\.]+)$',
                                                           symbol_or_raw,
                                                           re.MULTILINE)
                                         if match is not None:
                                             stop_loss = float(match.group('SL'))
                                             sl_time_frame = match.group('time')
+                                        else:
+                                            stop_loss = None
+                                            sl_time_frame = None
 
-                                            amount_per_buy = [float(ct.exchange.amountToPrecision(
-                                                symbol, quantity / (len(entries) * price))) for price in entries]
-                                            amount_per_sell = [float(
-                                                ct.exchange.amountToPrecision(symbol,
-                                                                              sum(amount_per_buy) / len(targets)))
-                                                              ] * len(targets)
-                                            # fixing the precision rounding difference
-                                            amount_per_sell[-1] = float(ct.exchange.amountToPrecision(
-                                                symbol, amount_per_sell[-1] -
-                                                (sum(amount_per_sell) - sum(amount_per_buy))))
-                                            assert sum(amount_per_sell) <= sum(amount_per_buy)
-                                            try:
-                                                ts = ct.new_trade_set(symbol,
-                                                                      buy_levels=entries,
-                                                                      buy_amounts=amount_per_buy,
-                                                                      sell_levels=targets,
-                                                                      sell_amounts=amount_per_sell,
-                                                                      sl=stop_loss,
-                                                                      sl_close=sl_time_frame,
-                                                                      force=True)
-                                                self.print_trade_status(None, context, ts.get_uid())
-                                                current = None
-                                            except Exception as e:
-                                                current = e
+                                        coin_currency = re.search(".*(?=/)", symbol).group(0)
+                                        amount_per_buy = []
+                                        for price in entries:
+                                            amount = quantity / (len(entries) * price)
+                                            fee = ct.exchange.calculate_fee(symbol, 'limit', 'buy', amount, price,
+                                                                            'maker')
+                                            if fee['currency'] == coin_currency and not ct.is_paid_by_exchange_token(
+                                                    fee['cost'], coin_currency):
+                                                amount -= fee['cost']
+                                            amount_per_buy.append(float(ct.exchange.amountToPrecision(
+                                                symbol, amount)))
+
+                                        amount_per_sell = [float(
+                                            ct.exchange.amountToPrecision(symbol,
+                                                                          sum(amount_per_buy) / len(targets)))
+                                                          ] * len(targets)
+                                        # fixing the precision rounding difference
+                                        amount_per_sell[-1] = float(ct.exchange.amountToPrecision(
+                                            symbol, amount_per_sell[-1] -
+                                            (sum(amount_per_sell) - sum(amount_per_buy))))
+
+                                        assert sum(amount_per_sell) <= sum(amount_per_buy), \
+                                            'Amount to sell exceeds amount to buy'
+
+                                        try:
+                                            ts = ct.new_trade_set(symbol,
+                                                                  buy_levels=entries,
+                                                                  buy_amounts=amount_per_buy,
+                                                                  sell_levels=targets,
+                                                                  sell_amounts=amount_per_sell,
+                                                                  sl=stop_loss,
+                                                                  sl_close=sl_time_frame,
+                                                                  force=True)
+                                            self.print_trade_status(None, context, ts.get_uid())
+                                            current = None
+                                        except Exception as e:
+                                            current = e
                         if current is not None:
                             if isinstance(current, Exception):
                                 text = f"ERROR: {current}"
@@ -1250,6 +1266,8 @@ class EazeBot:
                                     address = 'AaGRMPuwtGrudXR5s7F5n11cxK595hCWUg'
                                 elif args[0] == 'XLM':
                                     address = 'GCEAF5KYYUJSYPEDAWTZUBP4TE2LUSAPAFNHFSY54RA4HNLBVYOSFM6K'
+                                elif args[0] == 'USDT (ERC20)':
+                                    address = '0x55b1be96e951bfce21973a233970245f728782f1'
                                 else:
                                     raise ValueError(f"Unknown currency {args[0]}")
                                 try:
@@ -1299,7 +1317,8 @@ class EazeBot:
                                     InlineKeyboardButton("Donate ETH",
                                                          callback_data='%s|%s|%d|ETH' % ('xxx', 'xxx', 1)),
                                     InlineKeyboardButton("Donate NEO", callback_data='1|%s|%s|NEO' % ('xxx', 'xxx')),
-                                    InlineKeyboardButton("Donate XLM", callback_data='1|%s|%s|XLM' % ('xxx', 'xxx'))]]
+                                    InlineKeyboardButton("Donate XLM", callback_data='1|%s|%s|XLM' % ('xxx', 'xxx')),
+                                    InlineKeyboardButton("Donate USDT", callback_data='1|%s|%s|USDT' % ('xxx', 'xxx'))]]
                         query.edit_message_text(
                             'Thank you very much for your intention to donate some crypto! '
                             'Accepted coins are BTC, ETH and NEO.\nYou may either donate by sending coins manually to '
@@ -1309,7 +1328,8 @@ class EazeBot:
                             '*BTC address:*\nbc1q5wfzxdk3xhujs6589gzdeu6fgqpvqrel5jzzt2\n'
                             '*ETH address:*\n0xE0451300D96090c1F274708Bc00d791017D7a5F3\n'
                             '*NEO address:*\nAaGRMPuwtGrudXR5s7F5n11cxK595hCWUg\n'
-                            '*XLM address:*\nGCEAF5KYYUJSYPEDAWTZUBP4TE2LUSAPAFNHFSY54RA4HNLBVYOSFM6K\n',
+                            '*XLM address:*\nGCEAF5KYYUJSYPEDAWTZUBP4TE2LUSAPAFNHFSY54RA4HNLBVYOSFM6K\n'
+                            '*USDT address:*\n0x55b1be96e951bfce21973a233970245f728782f1\n',
                             reply_markup=InlineKeyboardMarkup(buttons), parse_mode='markdown')
 
                 elif command == 'chooseExch':

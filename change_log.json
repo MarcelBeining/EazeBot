@@ -7,6 +7,30 @@
     ],
     "versions": [
         {
+            "version": "v2.12.0",
+            "date": "2021-03-21 11:20",
+            "section": [
+                {
+                    "label": "Changed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Updated donation addresses"
+                        }
+                    ]
+                },
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fix problems with creating a trading set using a signal text"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.11.1",
             "date": "2021-02-23 00:54",
             "section": [
