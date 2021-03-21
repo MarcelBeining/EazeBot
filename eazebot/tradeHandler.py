@@ -28,6 +28,8 @@ import time
 import datetime
 import sys
 import os
+
+import requests
 from ccxt.base.errors import (AuthenticationError, NetworkError, OrderNotFound, InvalidNonce, ExchangeError,
                               InsufficientFunds)
 
@@ -528,6 +530,33 @@ class tradeHandler:
         self.tradeSetHistory = []
         logger.info('Trade set history on %s cleared' % self.exchange.name, extra=self.logger_extras)
         return 1
+
+    def is_paid_by_exchange_token(self, cost: float, fee_currency: str):
+        """
+        Method to check if paying trading fees with an exchange token is set and balance is sufficient
+
+        :param cost: cost of the trading fee to be paid
+        :param fee_currency: Currency name in which the fees are paid
+        :return:
+        """
+        try:
+            if self.exchange.name.lower() == 'binance':
+                if self.exchange.request('bnbBurn', api='sapi', method='GET')['spotBNBBurn']:
+                    # if paying fees via BNB is active, check current market price of bnb and if there is enough bnb
+                    # to pay the fee
+                    fee_in_bnb = requests.get('https://min-api.cryptocompare.com/data/price',
+                                              params={'fsym': fee_currency, 'tsyms': 'BNB'}).json()['BNB'] * cost
+                    # add a factor of 5 to the fee to avoid problems with bnb market fluctuations, and multiple
+                    # orders that are set
+                    if 5 * fee_in_bnb < self.get_balance('BNB'):
+                        return True
+            elif self.exchange.name.lower() == 'kucoin':
+                # yet it is not possible to check via API if fees are paid via kcs...
+                pass
+        except Exception as e:
+            logger.error(f'Failed to check for fee payment:\n{e}',
+                         extra=self.logger_extras)
+        return False
 
     def convert_amount(self, amount, currency, target_currency):
         self.update_down_state(True)

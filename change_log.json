@@ -18,6 +18,15 @@
                             "message": "Updated donation addresses"
                         }
                     ]
+                },
+                {
+                    "label": "Fixed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Fix problems with creating a trading set using a signal text"
+                        }
+                    ]
                 }
             ]
         },

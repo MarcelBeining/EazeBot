@@ -2,6 +2,7 @@ import datetime
 import random
 
 import ccxt
+import requests
 from dateparser import parse as dateparse
 from ccxt import InsufficientFunds, OrderNotFound, ExchangeError, AuthenticationError
 import numpy as np
@@ -923,11 +924,9 @@ class BaseTradeSet:
             wasactive = self.deactivate()
 
             bought_amount = buy_amount
-            if fee['currency'] == self.coinCurrency and \
-                    (self.th.exchange.name.lower() != 'binance' or self.th.get_balance('BNB') < 0.5):
-                # this is a hack, as fees on binance are deduced from BNB if this is activated and there is enough BNB,
-                # however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay
-                # the fee for the trade and thus the fee is not subtracted from the traded coin
+            # subtract the fee cost if they are paid from the bought amount
+            if fee['currency'] == self.coinCurrency and not self.th.is_paid_by_exchange_token(fee['cost'],
+                                                                                              self.coinCurrency):
                 bought_amount -= fee['cost']
 
             self.InTrades.append({'oid': None, 'price': buy_price, 'amount': buy_amount, 'actualAmount': bought_amount,
@@ -989,11 +988,9 @@ class BaseTradeSet:
                             if fee['currency'] == self.baseCurrency else ''), extra=self.th.logger_extras)
                     return 0
                 bought_amount = amount
-                # this is a hack, as fees on binance are deduced from BNB if this is activated and there is enough BNB,
-                # however so far no API chance to see if this is the case. Here I assume that 0.5 BNB are enough to pay
-                # the fee for the trade and thus the fee is not subtracted from the traded coin
-                if fee['currency'] == self.coinCurrency and \
-                        (self.th.exchange.name.lower() != 'binance' or self.th.get_balance('BNB') < 0.5):
+                # subtract the fee cost if they are paid from the bought amount
+                if fee['currency'] == self.coinCurrency and not self.th.is_paid_by_exchange_token(fee['cost'],
+                                                                                                  self.coinCurrency):
                     bought_amount -= fee['cost']
 
                 wasactive = self.deactivate()

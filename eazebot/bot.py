@@ -448,7 +448,7 @@ class EazeBot:
                             current = 'symbol / trading pair'
                             match = re.match(r'^(?P<symbol>\w+/\w+)\n', symbol_or_raw)
                             if match is not None:
-                                symbol = match.group('symbol')
+                                symbol = match.group('symbol').upper()
                                 current = 'entry'
                                 match = re.search(r'^ENTRY (?P<entries>[-\s0-9\.]+)$', symbol_or_raw, re.MULTILINE)
                                 if match is not None:
@@ -459,37 +459,53 @@ class EazeBot:
                                     if match is not None:
                                         targets = [float(val) for val in match.group('targets').split('-')]
                                         current = 'stop loss'
-                                        match = re.search(r'^STOP LOSS (?P<time>DAILY)?\s?BELOW (?P<SL>[0-9\.]+)$',
+                                        match = re.search(r'^STOP LOSS (?P<time>DAILY)?\s?(BELOW )?(?P<SL>[0-9\.]+)$',
                                                           symbol_or_raw,
                                                           re.MULTILINE)
                                         if match is not None:
                                             stop_loss = float(match.group('SL'))
                                             sl_time_frame = match.group('time')
+                                        else:
+                                            stop_loss = None
+                                            sl_time_frame = None
 
-                                            amount_per_buy = [float(ct.exchange.amountToPrecision(
-                                                symbol, quantity / (len(entries) * price))) for price in entries]
-                                            amount_per_sell = [float(
-                                                ct.exchange.amountToPrecision(symbol,
-                                                                              sum(amount_per_buy) / len(targets)))
-                                                              ] * len(targets)
-                                            # fixing the precision rounding difference
-                                            amount_per_sell[-1] = float(ct.exchange.amountToPrecision(
-                                                symbol, amount_per_sell[-1] -
-                                                (sum(amount_per_sell) - sum(amount_per_buy))))
-                                            assert sum(amount_per_sell) <= sum(amount_per_buy)
-                                            try:
-                                                ts = ct.new_trade_set(symbol,
-                                                                      buy_levels=entries,
-                                                                      buy_amounts=amount_per_buy,
-                                                                      sell_levels=targets,
-                                                                      sell_amounts=amount_per_sell,
-                                                                      sl=stop_loss,
-                                                                      sl_close=sl_time_frame,
-                                                                      force=True)
-                                                self.print_trade_status(None, context, ts.get_uid())
-                                                current = None
-                                            except Exception as e:
-                                                current = e
+                                        coin_currency = re.search(".*(?=/)", symbol).group(0)
+                                        amount_per_buy = []
+                                        for price in entries:
+                                            amount = quantity / (len(entries) * price)
+                                            fee = ct.exchange.calculate_fee(symbol, 'limit', 'buy', amount, price,
+                                                                            'maker')
+                                            if fee['currency'] == coin_currency and not ct.is_paid_by_exchange_token(
+                                                    fee['cost'], coin_currency):
+                                                amount -= fee['cost']
+                                            amount_per_buy.append(float(ct.exchange.amountToPrecision(
+                                                symbol, amount)))
+
+                                        amount_per_sell = [float(
+                                            ct.exchange.amountToPrecision(symbol,
+                                                                          sum(amount_per_buy) / len(targets)))
+                                                          ] * len(targets)
+                                        # fixing the precision rounding difference
+                                        amount_per_sell[-1] = float(ct.exchange.amountToPrecision(
+                                            symbol, amount_per_sell[-1] -
+                                            (sum(amount_per_sell) - sum(amount_per_buy))))
+
+                                        assert sum(amount_per_sell) <= sum(amount_per_buy), \
+                                            'Amount to sell exceeds amount to buy'
+
+                                        try:
+                                            ts = ct.new_trade_set(symbol,
+                                                                  buy_levels=entries,
+                                                                  buy_amounts=amount_per_buy,
+                                                                  sell_levels=targets,
+                                                                  sell_amounts=amount_per_sell,
+                                                                  sl=stop_loss,
+                                                                  sl_close=sl_time_frame,
+                                                                  force=True)
+                                            self.print_trade_status(None, context, ts.get_uid())
+                                            current = None
+                                        except Exception as e:
+                                            current = e
                         if current is not None:
                             if isinstance(current, Exception):
                                 text = f"ERROR: {current}"
