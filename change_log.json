@@ -7,8 +7,8 @@
     ],
     "versions": [
         {
-            "version": "Unreleased",
-            "date": "",
+            "version": "v2.12.0",
+            "date": "2021-03-21 11:20",
             "section": [
                 {
                     "label": "Changed",
