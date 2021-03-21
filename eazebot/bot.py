@@ -469,8 +469,18 @@ class EazeBot:
                                             stop_loss = None
                                             sl_time_frame = None
 
-                                        amount_per_buy = [float(ct.exchange.amountToPrecision(
-                                            symbol, quantity / (len(entries) * price))) for price in entries]
+                                        coin_currency = re.search(".*(?=/)", symbol).group(0)
+                                        amount_per_buy = []
+                                        for price in entries:
+                                            amount = quantity / (len(entries) * price)
+                                            fee = ct.exchange.calculate_fee(symbol, 'limit', 'buy', amount, price,
+                                                                            'maker')
+                                            if fee['currency'] == coin_currency and not ct.is_paid_by_exchange_token(
+                                                    fee['cost'], coin_currency):
+                                                amount -= fee['cost']
+                                            amount_per_buy.append(float(ct.exchange.amountToPrecision(
+                                                symbol, amount)))
+
                                         amount_per_sell = [float(
                                             ct.exchange.amountToPrecision(symbol,
                                                                           sum(amount_per_buy) / len(targets)))
@@ -479,7 +489,10 @@ class EazeBot:
                                         amount_per_sell[-1] = float(ct.exchange.amountToPrecision(
                                             symbol, amount_per_sell[-1] -
                                             (sum(amount_per_sell) - sum(amount_per_buy))))
-                                        assert sum(amount_per_sell) <= sum(amount_per_buy)
+
+                                        assert sum(amount_per_sell) <= sum(amount_per_buy), \
+                                            'Amount to sell exceeds amount to buy'
+
                                         try:
                                             ts = ct.new_trade_set(symbol,
                                                                   buy_levels=entries,
