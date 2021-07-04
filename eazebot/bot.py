@@ -232,7 +232,7 @@ class EazeBot:
         buttons = [[InlineKeyboardButton("Add buy level", callback_data='2|%s|%s|buyAdd|chosen' % (exch, uid_ts)),
                     InlineKeyboardButton("Add sell level", callback_data='2|%s|%s|sellAdd|chosen' % (exch, uid_ts))]]
 
-        for i, trade in enumerate(ts.InTrades):
+        for i, trade in enumerate(ts.in_trades):
             if trade['oid'] == 'filled':
                 if ts.show_filled_orders:
                     buttons.append([InlineKeyboardButton("Readd BuyOrder from level #%d" % i,
@@ -241,7 +241,7 @@ class EazeBot:
             else:
                 buttons.append([InlineKeyboardButton("Delete Buy level #%d" % i,
                                                      callback_data='2|%s|%s|BLD%d|chosen' % (exch, uid_ts, i))])
-        for i, trade in enumerate(ts.OutTrades):
+        for i, trade in enumerate(ts.out_trades):
             if trade['oid'] == 'filled':
                 if ts.show_filled_orders:
                     buttons.append([InlineKeyboardButton("Readd SellOrder from level #%d" % i,
@@ -584,7 +584,7 @@ class EazeBot:
         bal = None
         if direction == 'sell':
             # free balance is coins available in trade set minus coins that will be sold plus coins that will be bought
-            bal = ts.coinsAvail - ts.sum_sell_amounts('notinitiated') + \
+            bal = ts.coins_avail() - ts.sum_sell_amounts('notinitiated') + \
                   ts.sum_buy_amounts('notfilled', subtract_fee=True)
             if temp_ts.coin_or_base == 0:
                 bal = ct.nf.amount2Prec(ts.symbol, bal)
@@ -1111,6 +1111,21 @@ class EazeBot:
                 pass
         self.print_trade_status(None, context, uid_ts)
 
+    @staticmethod
+    def ask_stop_bot_message( update: Update, context: CallbackContext):
+        context.user_data['msgs'].send(which='start',
+                                       text='Are you sure you want to stop the bot? *Caution! '
+                                            'You have to restart the Python script; '
+                                            'until then the bot will not be responding to Telegram '
+                                            'input!*',
+                                       parse_mode='markdown',
+                                       reply_markup=InlineKeyboardMarkup(
+                                           [[InlineKeyboardButton('Yes',
+                                                                  callback_data='settings|stopBot|Yes')],
+                                            [InlineKeyboardButton("No",
+                                                                  callback_data='settings|cancel')]]))
+        return MAINMENU
+
     def inline_button_callback(self, update: Update, context: CallbackContext, query=None, response=None):
         if query is None:
             query = update.callback_query
@@ -1131,17 +1146,7 @@ class EazeBot:
                 if subcommand == 'stopBot':
                     if len(args) == 0:
                         query.answer('')
-                        context.user_data['msgs'].send(which='start',
-                                                       text='Are you sure you want to stop the bot? *Caution! '
-                                                            'You have to restart the Python script; '
-                                                            'until then the bot will not be responding to Telegram '
-                                                            'input!*',
-                                                       parse_mode='markdown',
-                                                       reply_markup=InlineKeyboardMarkup(
-                                                           [[InlineKeyboardButton('Yes',
-                                                                                  callback_data='settings|stopBot|Yes')],
-                                                            [InlineKeyboardButton("No",
-                                                                                  callback_data='settings|cancel')]]))
+                        self.ask_stop_bot_message(update, context)
                     elif args[0] == 'Yes':
                         query.answer('stopping')
                         context.user_data['msgs'].send(which='start',
@@ -1405,14 +1410,14 @@ class EazeBot:
                                 logger.info(args)
                                 level = int([re.search(r'(?<=^buyReAdd)\d+', val).group(0) for val in args if
                                              isinstance(val, str) and 'buyReAdd' in val][0])
-                                trade = ts.InTrades[level]
+                                trade = ts.in_trades[level]
                                 ts.add_buy_level(trade['price'], trade['amount'], trade['candleAbove'])
                                 self.update_ts_text(context, uid_ts, query)
 
                             elif any(['sellReAdd' in val for val in args]):
                                 level = int([re.search(r'(?<=^sellReAdd)\d+', val).group(0) for val in args if
                                              isinstance(val, str) and 'sellReAdd' in val][0])
-                                trade = ts.OutTrades[level]
+                                trade = ts.out_trades[level]
                                 ts.add_sell_level(uid_ts, trade['price'], trade['amount'])
                                 self.update_ts_text(context, uid_ts, query)
 
@@ -1623,7 +1628,8 @@ class EazeBot:
                            CallbackQueryHandler(self.inline_button_callback),
                            MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'noValueRequested'))],
                 SYMBOL_OR_RAW: [MessageHandler(Filters.regex(r'^\w+/\w+$'), self.received_info),
-                                MessageHandler(Filters.regex(re.compile(r'^\w+/\w+\n.*QUANTITY', re.DOTALL)),
+                                MessageHandler(Filters.regex(re.compile(r'^\w+/\w+\n.*TARGETS',
+                                                                        re.DOTALL | re.IGNORECASE)),
                                                self.received_info),
                                 MessageHandler(Filters.text, lambda u, c: self.noncomprende(u, c, 'wrongSymbolFormat')),
                                 CallbackQueryHandler(self.inline_button_callback)],
@@ -1645,6 +1651,7 @@ class EazeBot:
 
         # %% start telegram API, add handlers to dispatcher and start bot
         self.updater.dispatcher.add_handler(conv_handler)
+        self.updater.dispatcher.add_handler(CommandHandler('exit', self.ask_stop_bot_message))
         self.updater.dispatcher.add_handler(unknown_handler)
         self.updater.dispatcher.user_data = clean_data(load_data(no_dialog=True), self.__config__['telegramUserId'])
 
