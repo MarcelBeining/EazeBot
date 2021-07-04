@@ -7,6 +7,21 @@
     ],
     "versions": [
         {
+            "version": "Unreleased",
+            "date": "",
+            "section": [
+                {
+                    "label": "Changed",
+                    "entries": [
+                        {
+                            "author": "Marcel",
+                            "message": "Make updating trade set a method of the trade set"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "version": "v2.12.0",
             "date": "2021-03-21 11:20",
             "section": [

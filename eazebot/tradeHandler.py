@@ -718,41 +718,10 @@ class tradeHandler:
                                     self.exchange.name), extra=self.logger_extras)
                         elif trade['oid'] is not None:
                             try:
-                                order_info = ts.fetch_order(trade['oid'], 'BUY')
-                                # fetch trades for all orders because a limit order might also be filled at a lower val
-                                if order_info['status'].lower() in ['closed', 'filled', 'canceled'] and \
-                                        self.exchange.has['fetchMyTrades'] != False:
-                                    trades = self.exchange.fetchMyTrades(ts.symbol)
-                                    order_info['cost'] = sum(
-                                        [tr['cost'] for tr in trades if tr['order'] == order_info['id']])
+                                trade, trades = ts.update_trade(trade)
 
-                                    if order_info['type'].lower() == 'market':
-                                            amount = sum([tr['amount'] for tr in trades if tr['order'] == order_info['id']])
-                                            fee = sum(
-                                                [tr['fee']['cost'] for tr in trades if tr['order'] ==
-                                                 order_info['id'] and tr['fee']['currency'] == ts.coinCurrency])
-                                            trade['amount'] = amount
-                                            trade['actualAmount'] = amount - fee
-
-                                    if order_info['cost'] == 0:
-                                        order_info['price'] = None
-                                    else:
-                                        order_info['price'] = np.mean(
-                                            [tr['price'] for tr in trades if tr['order'] == order_info['id']])
-                                else:
-                                    trades = None
-                                    if order_info['type'].lower() == 'market':
-                                        # update the values of the market order as they depended on the market price.
-                                        # checking the trades is better but if it is not available, use what is there...
-                                        trade['amount'] = order_info['amount']
-                                        trade['actualAmount'] = order_info['amount']
-                                        if order_info['fee']['currency'] == ts.coinCurrency:
-                                            trade['actualAmount'] -= order_info['fee']['cost']
-                                        order_info['price'] = order_info['average']
-
-                                if order_info['status'].lower() in ['closed', 'filled']:
+                                if trade.is_filled():
                                     order_executed = 1
-                                    trade['oid'] = 'filled'
                                     trade['time'] = datetime.datetime.now()
                                     trade['price'] = order_info['price']
                                     ts.costIn += order_info['cost']

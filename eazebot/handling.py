@@ -10,7 +10,7 @@ import re
 import string
 import time
 from enum import Flag, auto
-from typing import Union, Dict, Optional
+from typing import Union, Dict, Optional, Tuple, List
 import logging
 from typing import TYPE_CHECKING
 
@@ -303,6 +303,18 @@ class RegularBuy:
                     break
             return True
         return False
+
+
+class BaseTrade:
+    def __init__(self, oid, typ, price, amount, actual_amount, candle_above: float = None):
+        assert typ in ['BUY', 'SELL'], 'typ needs to be one of BUY or SELL'
+        self.oid = oid
+        self.typ = typ
+        self.price = price
+        self.amount = amount
+        self.actual_amount = actual_amount
+        self.candle_above = candle_above
+        self.status = 'open'
 
 
 class BaseTradeSet:
@@ -736,7 +748,7 @@ class BaseTradeSet:
         if self.__active:
             # initialize buy orders
             for iTrade, trade in enumerate(self.InTrades):
-                if trade['oid'] is None and trade['candleAbove'] is None:
+                if trade.oid is None and trade.candle_above is None:
                     try:
                         response = self.safe_run(
                             lambda: self.th.exchange.createLimitBuyOrder(self.symbol, trade['amount'],
@@ -748,7 +760,7 @@ class BaseTradeSet:
                                      f"(open orders are still open)! Free the missing funds and reactivate. \n {e}.",
                                      extra=self.th.logger_extras)
                         raise e
-                    self.InTrades[iTrade]['oid'] = response['id']
+                    self.InTrades[iTrade].oid = response['id']
 
     def cancel_order(self, oid, typ):
         self.th.update_down_state(True)
@@ -760,6 +772,41 @@ class BaseTradeSet:
             raise e
         except ExchangeError:
             return self.safe_run(lambda: self.th.exchange.cancel_order(oid, symbol, {'type': typ}), i_ts=self.get_uid())
+
+    def update_trade(self, trade: BaseTrade) -> Tuple[BaseTrade, List]:
+        order_info = self.fetch_order(trade.oid, trade.typ)
+
+        # fetch trades for all orders because a limit order might also be filled at a lower val
+        if order_info['status'].lower() in ['closed', 'filled', 'canceled'] and \
+                self.th.exchange.has['fetchMyTrades'] != False:
+            trades = self.th.exchange.fetchMyTrades(self.symbol)
+            order_info['cost'] = sum(
+                [tr['cost'] for tr in trades if tr['order'] == order_info['id']])
+
+            if order_info['type'].lower() == 'market':
+                amount = sum([tr['amount'] for tr in trades if tr['order'] == order_info['id']])
+                fee = sum(
+                    [tr['fee']['cost'] for tr in trades if tr['order'] ==
+                     order_info['id'] and tr['fee']['currency'] == self.coinCurrency])
+                trade.amount = amount
+                trade.actual_amount = amount - fee
+
+            if order_info['cost'] == 0:
+                order_info['price'] = None
+            else:
+                order_info['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == order_info['id']])
+        else:
+            trades = None
+            if order_info['type'].lower() == 'market':
+                # update the values of the market order as they depended on the market price.
+                # checking the trades is better but if it is not available, use what is there...
+                trade.amount = order_info['amount']
+                trade.actual_amount = order_info['amount']
+                if order_info['fee']['currency'] == self.coinCurrency:
+                    trade.actual_amount -= order_info['fee']['cost']
+                order_info['price'] = order_info['average']
+
+        return trade, trades
 
     def fetch_order(self, oid, typ):
         symbol = self.symbol
@@ -881,7 +928,7 @@ class BaseTradeSet:
         else:
             raise ValueError('Some input was no number')
 
-    def add_buy_level(self, buy_price: float, buy_amount, candle_above=None, lock=True) -> bool:
+    def add_buy_level(self, buy_price: float, buy_amount, candle_above: float = None, lock=True) -> bool:
         """
 
         :param buy_price:
