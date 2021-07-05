@@ -15,4 +15,9 @@ call python -m virtualenv %~dp0venv
 
 call venv\Scripts\activate.bat && python -m pip install -r requirements.txt 
 
+set /P question=Do you want to install the dev libraries, too?
+if /I "%question%" EQU "Y" (
+call venv\Scripts\activate.bat && python -m pip install -r dev_requirements.txt
+)
+
 pause
