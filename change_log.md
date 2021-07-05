@@ -3,7 +3,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 
+## [v2.13.0] - 2021-07-04 14:53
 ### Changed
 * Using single point of truth for cost handling [Marcel]
 * Important attributes are stored in a dict now for easier version changes in the future [Marcel]
@@ -171,27 +171,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 
 ## Changes comparison
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.12.0...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.11.1...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.11.0...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.10.1...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.10.0...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.9.3...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.9.2...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.9.1...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.9.0...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.8.0...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.2...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.1...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.0...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.2...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.1...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.0...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.3...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.2...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.1...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.0...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.3...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.2...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.1...dev>
-* **[Unreleased]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.0...dev>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.12.0...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.11.1...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.11.0...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.10.1...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.10.0...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.9.3...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.9.2...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.9.1...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.9.0...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.8.0...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.2...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.1...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.7.0...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.2...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.1...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.6.0...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.3...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.2...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.1...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.5.0...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.3...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.2...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.1...v2.13.0>
+* **[v2.13.0]**: <https://github.com/MarcelBeining/EazeBot/compare/v2.4.0...v2.13.0>
