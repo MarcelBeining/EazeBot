@@ -210,7 +210,7 @@ class EazeBot:
                 'trade': {},
                 'settings': {'fiat': [], 'showProfitIn': None, 'taxWarn': True},
                 'lastFct': []})
-            self.add_exchanges(None, context)
+            self.add_exchanges(context.user_data)
         context.user_data['msgs'].send(which='start',
                                        text="Welcome %s%s to the EazeBot! You are in the main menu." % (
                                            washere, update.message.from_user.first_name),
@@ -879,12 +879,15 @@ class EazeBot:
             self.update_ts_text(context, uid_ts)
             return MAINMENU
 
-    def add_exchanges(self, update, context: CallbackContext):
-        if 'msgs' in context.user_data:
-            context.user_data['msgs'].send(which='dialog',
+    def add_exchanges_from_context(self, update, context: CallbackContext):
+        self.add_exchanges(context.user_data)
+
+    def add_exchanges(self, user_data: Dict):
+        if 'msgs' in user_data:
+            user_data['msgs'].send(which='dialog',
                                            text='Adding/Updating exchanges, please wait...',
                                            parse_mode='markdown')
-        idx = [i for i, x in enumerate(self.__config__['telegramUserId']) if x == context.user_data['chatId']][0] + 1
+        idx = [i for i, x in enumerate(self.__config__['telegramUserId']) if x == user_data['chatId']][0] + 1
         if idx == 1:
             api_file = os.path.join(self.user_dir, "APIs.json")
         else:
@@ -921,7 +924,7 @@ class EazeBot:
         has_secret = list(available_exchanges.keys())
 
         if len(available_exchanges) > 0:
-            exch_container = ExchContainer(context.user_data['chatId'])
+            exch_container = ExchContainer(user_data['chatId'])
             logger.info('Found exchanges with keys %s, secrets %s, uids %s, password %s' % (
                 has_key, has_secret, has_uid, has_password))
             authenticated_exchanges = []
@@ -930,42 +933,42 @@ class EazeBot:
                 exch_params.pop('exchange')
                 exch_container.add(exch_name, **exch_params)
                 # if no tradeHandler object has been created yet, create one, but also check for correct authentication
-                if exch_name not in context.user_data['trade']:
-                    context.user_data['trade'][exch_name] = tradeHandler(exch_name,
-                                                                         user=context.user_data['chatId'])
+                if exch_name not in user_data['trade']:
+                    user_data['trade'][exch_name] = tradeHandler(exch_name,
+                                                                 user=user_data['chatId'])
                 else:
                     # necessary for backward compatibility
-                    context.user_data['trade'][exch_name].set_user(context.user_data['chatId'])
+                    user_data['trade'][exch_name].set_user(user_data['chatId'])
 
-                if not context.user_data['trade'][exch_name].authenticated and \
-                        not context.user_data['trade'][exch_name].tradeSets:
+                if not user_data['trade'][exch_name].authenticated and \
+                        not user_data['trade'][exch_name].tradeSets:
                     logger.warning('Authentication failed for %s' % exch_name)
-                    context.user_data['trade'].pop(exch_name)
+                    user_data['trade'].pop(exch_name)
                 else:
                     authenticated_exchanges.append(exch_name)
-            if 'msgs' in context.user_data:
-                context.user_data['msgs'].send(which='dialog',
-                                               text='Exchanges %s added/updated' % authenticated_exchanges,
-                                               parse_mode='markdown')
+            if 'msgs' in user_data:
+                user_data['msgs'].send(which='dialog',
+                                       text='Exchanges %s added/updated' % authenticated_exchanges,
+                                       parse_mode='markdown')
         else:
-            if 'msgs' in context.user_data:
-                context.user_data['msgs'].send(which='dialog',
-                                               text='No exchange found to add',
-                                               parse_mode='markdown')
+            if 'msgs' in user_data:
+                user_data['msgs'].send(which='dialog',
+                                       text='No exchange found to add',
+                                       parse_mode='markdown')
 
-        old_exchanges = set(context.user_data['trade'].keys()) - set(available_exchanges.keys())
+        old_exchanges = set(user_data['trade'].keys()) - set(available_exchanges.keys())
         removed_exchanges = []
         for exch in old_exchanges:
-            if len(context.user_data['trade'][exch].tradeSets) == 0:
-                context.user_data['trade'].pop(exch)
+            if len(user_data['trade'][exch].tradeSets) == 0:
+                user_data['trade'].pop(exch)
                 removed_exchanges.append(exch)
             else:
-                context.user_data['trade'][exch].set_user(context.user_data['chatId'])
+                user_data['trade'][exch].set_user(user_data['chatId'])
         if len(removed_exchanges) > 0:
-            if 'msgs' in context.user_data:
-                context.user_data['msgs'].send(which='dialog',
-                                               text='Old exchanges %s with no tradeSets removed' % removed_exchanges,
-                                               parse_mode='markdown')
+            if 'msgs' in user_data:
+                user_data['msgs'].send(which='dialog',
+                                       text='Old exchanges %s with no tradeSets removed' % removed_exchanges,
+                                       parse_mode='markdown')
 
     def get_remote_version(self):
         try:
@@ -1621,7 +1624,7 @@ class EazeBot:
                 MAINMENU: [MessageHandler(Filters.regex('^Status of Trade Sets$'), self.print_trade_status),
                            MessageHandler(Filters.regex('^New Trade Set$'), self.create_trade_set),
                            MessageHandler(Filters.regex('^Trade History$'), self.print_trade_history),
-                           MessageHandler(Filters.regex('^Update exchanges$'), self.add_exchanges),
+                           MessageHandler(Filters.regex('^Update exchanges$'), self.add_exchanges_from_context),
                            MessageHandler(Filters.regex('^Bot Info$'), self.bot_info),
                            MessageHandler(Filters.regex('^Check Balance$'), self.check_balance),
                            MessageHandler(Filters.regex('^Settings$'), self.show_settings),
@@ -1660,9 +1663,8 @@ class EazeBot:
                 context = CallbackContext(self.updater.dispatcher)
                 self.updater.dispatcher.user_data[user].update({'msgs': MessageContainer(bot=context.bot,
                                                                                          chat_id=user)})
-                context._user_data = self.updater.dispatcher.user_data[user]
                 time.sleep(2)  # wait because of possibility of temporary exchange lockout
-                self.add_exchanges(None, context)
+                self.add_exchanges(self.updater.dispatcher.user_data[user])
 
         # start a job updating the trade sets each interval
         self.updater.job_queue.run_repeating(self.update_trade_sets, interval=60 * self.__config__['updateInterval'],
