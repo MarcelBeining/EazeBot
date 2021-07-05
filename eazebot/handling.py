@@ -2,9 +2,8 @@ import datetime
 import random
 
 import ccxt
-import requests
 from dateparser import parse as dateparse
-from ccxt import InsufficientFunds, OrderNotFound, ExchangeError, AuthenticationError
+from ccxt import InsufficientFunds, OrderNotFound, ExchangeError
 import numpy as np
 import re
 import string
@@ -101,7 +100,7 @@ class DateFilter(MessageFilter):
     def filter(self, message):
         try:
             parsed = dateparse(message.text)
-        except:
+        except Exception:
             return False
         if parsed is None:
             return False
@@ -318,6 +317,10 @@ class BaseTrade:
 
 
 class BaseTradeSet:
+
+    attributes_to_save = ('__active', '__virgin', 'in_trades', 'out_trades', 'createdAt', 'init_coins', 'init_price',
+                          'sl', 'show_filled_orders', 'regular_buy')
+
     def __init__(self, symbol: str,
                  trade_handler: 'tradeHandler' = None,
                  uid: str = None,
@@ -338,8 +341,8 @@ class BaseTradeSet:
 
         self.name = name
         self._uid = uid
-        self.InTrades = []
-        self.OutTrades = []
+        self.in_trades = []
+        self.out_trades = []
         self.regular_buy = None
         self.show_filled_orders = True
         self.createdAt = time.time()
@@ -347,12 +350,9 @@ class BaseTradeSet:
         self.symbol = symbol
         self.baseCurrency = re.search("(?<=/).*", symbol).group(0)
         self.coinCurrency = re.search(".*(?=/)", symbol).group(0)
-        self.costIn = 0
-        self.costOut = 0
-        self.coinsAvail = 0
-        self.initCoins = 0
-        self.initPrice = None
-        self.SL = None
+        self.init_coins = 0
+        self.init_price = None
+        self.sl = None
         self.__active = False
         self.__virgin = True
         self.updating = False
@@ -384,7 +384,7 @@ class BaseTradeSet:
                     sl = BaseSL(value=ts_dict['SL'])
                 else:
                     sl = None
-                ts.SL = sl
+                ts.sl = sl
             elif key in ['trailingSL', 'dailycloseSL', 'weeklycloseSL', 'waiting', 'updating',
                          'noUpdateAfterEdit', 'uid']:
                 # SLs are handled above, waiting and updating should not be used from a saved trade set
@@ -407,16 +407,26 @@ class BaseTradeSet:
             None, None)
 
     def __setstate__(self, state):
-        # supplement with default values
-        defaults = (False, False, [], [], time.time(), 0, 0, 0, 0, None, None, True, None)
-        state = state + defaults[len(state):]
+
         # assign states
-        self.__active, self.__virgin, self.InTrades, self.OutTrades, self.createdAt, self.costIn, self.costOut, \
-            self.coinsAvail, self.initCoins, self.initPrice, self.SL, self.show_filled_orders, self.regular_buy = state
+        if isinstance(state, tuple):
+            # backward compatibility
+            # supplement with default values
+            defaults = (False, False, [], [], time.time(), 0, 0, 0, 0, None, None, True, None)
+            state = state + defaults[len(state):]
+            self.__active, self.__virgin, self.in_trades, self.out_trades, self.createdAt, _, _, \
+            _, self.init_coins, self.init_price, self.sl, self.show_filled_orders, self.regular_buy = state
+        elif isinstance(state, dict):
+            for key in self.attributes_to_save:
+                setattr(self, key if not key.startswith('__') else f'_BaseTradeSet{key}', state[key])
+        else:
+            raise TypeError(f'Unknown state type {type(state)}')
 
     def __getstate__(self):
-        return self.__active, self.__virgin, self.InTrades, self.OutTrades, self.createdAt, self.costIn, self.costOut, \
-               self.coinsAvail, self.initCoins, self.initPrice, self.SL, self.show_filled_orders, self.regular_buy
+        state = {}
+        for key in self.attributes_to_save:
+            state[key] = getattr(self, key if not key.startswith('__') else f'_BaseTradeSet{key}')
+        return state
 
     def set_tradehandler(self, trade_handler: 'tradeHandler'):
         self.th = trade_handler
@@ -467,17 +477,17 @@ class BaseTradeSet:
                 extra=self.th.logger_extras)
             return wasactive
         # sanity check of amounts to buy/sell
-        if self.sum_sell_amounts('notinitiated') - (self.sum_buy_amounts('notfilled') + self.coinsAvail) > 0:
+        if self.sum_sell_amounts('notinitiated') - (self.sum_buy_amounts('notfilled') + self.coins_avail()) > 0:
             logger.error(
                 f"Cannot activate trade set because the total amount you (still) want to sell "
                 f"({self.th.nf.amount2Prec(self.symbol, self.sum_sell_amounts('notinitiated', True))} "
                 f"{self.coinCurrency}) exceeds the total amount you want to buy "
                 f"({self.th.nf.amount2Prec(self.symbol, self.sum_buy_amounts('notfilled', True))} {self.coinCurrency} "
                 f"after fee subtraction) and the amount you already have in this trade set "
-                f"({self.th.nf.amount2Prec(self.symbol, self.coinsAvail)} {self.coinCurrency}). "
+                f"({self.th.nf.amount2Prec(self.symbol, self.coins_avail())} {self.coinCurrency}). "
                 f"Please adjust the trade set!", extra=self.th.logger_extras)
             return wasactive
-        elif self.min_buy_price(order='notfilled') is not None and self.SL is not None and self.SL.value \
+        elif self.min_buy_price(order='notfilled') is not None and self.sl is not None and self.sl.value \
                 >= self.min_buy_price(order='notfilled'):
             logger.error(
                 'Cannot activate trade set because the current stop loss price is higher than the lowest non-filled buy'
@@ -487,19 +497,19 @@ class BaseTradeSet:
         self.__virgin = False
         self.__active = True
         if verbose and not wasactive:
-            total_buy_cost = self.costIn + self.sum_buy_costs('notfilled')
+            total_buy_cost = self.cost_in() + self.sum_buy_costs('notfilled')
             prt_str = 'Estimated return if all trades are executed: %s %s' % (
                 self.th.nf.cost2Prec(self.symbol, self.sum_sell_costs() - total_buy_cost), self.baseCurrency)
-            left_coins = self.th.nf.amount2Prec(self.symbol, self.sum_buy_amounts() + self.initCoins -
+            left_coins = self.th.nf.amount2Prec(self.symbol, self.sum_buy_amounts() + self.init_coins -
                                                 self.sum_sell_amounts())
             if float(left_coins):
                 prt_str += ', and %s of leftover %ss' % (left_coins, self.coinCurrency)
             prt_str += '\n'
             logger.info(prt_str, extra = self.th.logger_extras)
 
-            if self.SL is not None or isinstance(self.SL, DailyCloseSL):
-                loss = total_buy_cost - self.costOut - (
-                        self.initCoins + self.sum_buy_amounts() - self.sum_sell_amounts('filled')) * self.SL.value
+            if self.sl is not None or isinstance(self.sl, DailyCloseSL):
+                loss = total_buy_cost - self.cost_out() - (
+                        self.init_coins + self.sum_buy_amounts() - self.sum_sell_amounts('filled')) * self.sl.value
                 logger.info('Estimated %s if stop-loss is reached: %s %s' % (
                     '*gain*' if loss < 0 else 'loss', self.th.nf.cost2Prec(self.symbol, -loss if loss < 0 else loss),
                     self.baseCurrency), extra=self.th.logger_extras)
@@ -530,14 +540,25 @@ class BaseTradeSet:
     def sum_buy_amounts(self, order='all', subtract_fee=True):
         return self.get_trade_param('amount', 'sum', 'buy', order, subtract_fee)
 
+    def coins_avail(self):
+        return self.sum_buy_amounts(order='filled', subtract_fee=True) + self.init_coins - \
+               self.sum_sell_amounts(order='open', subtract_fee=False)
+
     def sum_sell_amounts(self, order='all', subtract_fee=True):
         return self.get_trade_param('amount', 'sum', 'sell', order, subtract_fee)
 
     def sum_buy_costs(self, order='all', subtract_fee=True):
         return self.get_trade_param('cost', 'sum', 'buy', order, subtract_fee)
 
+    def cost_in(self):
+        return self.sum_buy_costs(order='filled', subtract_fee=True) + \
+               ((self.init_coins * self.init_price) if self.init_price is not None else 0)
+
     def sum_sell_costs(self, order='all', subtract_fee=True):
         return self.get_trade_param('cost', 'sum', 'sell', order, subtract_fee)
+
+    def cost_out(self):
+        return self.sum_sell_costs(order='filled', subtract_fee=True)
 
     def min_buy_price(self, order='all'):
         return self.get_trade_param('price', 'min', 'buy', order)
@@ -557,9 +578,9 @@ class BaseTradeSet:
             raise ValueError(f'Unknown method {method}')
 
         if direction == 'sell':
-            trades = self.OutTrades
+            trades = self.out_trades
         else:
-            trades = self.InTrades
+            trades = self.in_trades
 
         if order not in ['all', 'filled', 'open', 'notfilled', 'notinitiated']:
             raise ValueError('order has to be all, filled, notfilled, notinitiated or open')
@@ -617,9 +638,9 @@ class BaseTradeSet:
     def sell_all_now(self, price=None):
         self.th.update_down_state(True)
         self.deactivate(2)
-        self.SL = None  # necessary to not retrigger SL
+        self.sl = None  # necessary to not retrigger SL
         sold = True
-        if self.coinsAvail > 0 and self.th.check_quantity(self.symbol, 'amount', self.coinsAvail):
+        if self.coins_avail() > 0 and self.th.check_quantity(self.symbol, 'amount', self.coins_avail()):
             if self.th.exchange.has['createMarketOrder']:
                 params = {}
                 if self.th.exchange.name == 'Kraken':
@@ -627,8 +648,8 @@ class BaseTradeSet:
 
                 try:
                     response = self.safe_run(
-                        lambda: self.th.exchange.createMarketSellOrder(self.symbol, self.coinsAvail, params),
-                                                                       i_ts=self.get_uid())
+                        lambda: self.th.exchange.createMarketSellOrder(self.symbol, self.coins_avail(), params),
+                        i_ts=self.get_uid())
                 except InsufficientFunds:
                     response = self.sell_free_bal()
             else:
@@ -637,7 +658,7 @@ class BaseTradeSet:
                         lambda: self.th.exchange.fetch_ticker(self.symbol)['last'], i_ts=self.get_uid())
                 try:
                     response = self.safe_run(
-                        lambda: self.th.exchange.createLimitSellOrder(self.symbol, self.coinsAvail, price * 0.995),
+                        lambda: self.th.exchange.createLimitSellOrder(self.symbol, self.coins_avail(), price * 0.995),
                         i_ts=self.get_uid())
                 except InsufficientFunds:
                     response = self.sell_free_bal()
@@ -650,7 +671,8 @@ class BaseTradeSet:
                         trades = self.th.exchange.fetchMyTrades(self.symbol)
                         order_info['cost'] = sum([tr['cost'] for tr in trades if tr['order'] == order_info['id']])
                         order_info['price'] = np.mean([tr['price'] for tr in trades if tr['order'] == order_info['id']])
-                    self.costOut += order_info['cost']
+                    self.out_trades.append(
+                        {'oid': 'filled', 'price': order_info['price'], 'amount': order_info['amount']})
                     logger.info('Sold immediately at a price of %s %s: Sold %s %s for %s %s.' % (
                         self.th.nf.price2Prec(self.symbol, order_info['price']), self.symbol,
                         self.th.nf.amount2Prec(self.symbol, order_info['amount']), self.coinCurrency,
@@ -660,7 +682,7 @@ class BaseTradeSet:
                     logger.info('Sell order was not traded immediately, updating status soon.',
                                 extra=self.th.logger_extras)
                     sold = False
-                    self.OutTrades.append(
+                    self.out_trades.append(
                         {'oid': response['id'], 'price': order_info['price'], 'amount': order_info['amount']})
                     self.activate(False)
             else:
@@ -675,7 +697,7 @@ class BaseTradeSet:
         return_val = 1
         if self.num_sell_levels() > 0:
             count = 0
-            for iTrade, trade in reversed(list(enumerate(self.OutTrades))):
+            for iTrade, trade in reversed(list(enumerate(self.out_trades))):
                 if oid is None or trade['oid'] == oid:
                     if trade['oid'] is not None and trade['oid'] != 'filled':
                         try:
@@ -688,20 +710,19 @@ class BaseTradeSet:
                         time.sleep(1)
                         count += 1
                         order_info = self.fetch_order(trade['oid'], 'SELL')
-                        self.coinsAvail += trade['amount']
                         if order_info['filled'] > 0:
                             logger.warning('(Partly?) filled sell order found during canceling. Updating balance',
                                            extra=self.th.logger_extras)
-                            self.costOut += order_info['price'] * order_info['filled']
-                            self.coinsAvail -= order_info['filled']
                             trade['oid'] = 'filled'
                             trade['amount'] = order_info['filled']
+                            if order_info['price'] is not None:
+                                trade['price'] = order_info['price']
                             return_val = 0.5
                         else:
                             trade['oid'] = None
                     if delete_orders:
                         if trade['oid'] != 'filled':
-                            self.OutTrades.pop(iTrade)
+                            self.out_trades.pop(iTrade)
             if count > 0:
                 logger.info('%d sell orders canceled in total for tradeSet %d (%s)' % (
                     count, list(self.th.tradeSets.keys()).index(self._uid), self.symbol),
@@ -713,7 +734,7 @@ class BaseTradeSet:
         return_val = 1
         if self.num_buy_levels() > 0:
             count = 0
-            for iTrade, trade in reversed(list(enumerate(self.InTrades))):
+            for iTrade, trade in reversed(list(enumerate(self.in_trades))):
                 if oid is None or trade['oid'] == oid:
                     if trade['oid'] is not None and trade['oid'] != 'filled':
                         try:
@@ -727,16 +748,16 @@ class BaseTradeSet:
                         if order_info['filled'] > 0:
                             logger.warning('(Partly?) filled buy order found during canceling. Updating balance',
                                            extra=self.th.logger_extras)
-                            self.costIn += order_info['price'] * order_info['filled']
-                            self.coinsAvail += order_info['filled']
                             trade['oid'] = 'filled'
                             trade['amount'] = order_info['filled']
+                            if order_info['price'] is not None:
+                                trade['price'] = order_info['price']
                             return_val = 0.5
                         else:
                             trade['oid'] = None
                     if delete_orders:
                         if trade['oid'] != 'filled':
-                            self.InTrades.pop(iTrade)
+                            self.in_trades.pop(iTrade)
             if count > 0:
                 logger.info('%d buy orders canceled in total for tradeSet %d (%s)' % (
                     count, list(self.th.tradeSets.keys()).index(self._uid), self.symbol),
@@ -747,7 +768,7 @@ class BaseTradeSet:
         self.th.update_down_state(True)
         if self.__active:
             # initialize buy orders
-            for iTrade, trade in enumerate(self.InTrades):
+            for iTrade, trade in enumerate(self.in_trades):
                 if trade.oid is None and trade.candle_above is None:
                     try:
                         response = self.safe_run(
@@ -760,7 +781,7 @@ class BaseTradeSet:
                                      f"(open orders are still open)! Free the missing funds and reactivate. \n {e}.",
                                      extra=self.th.logger_extras)
                         raise e
-                    self.InTrades[iTrade].oid = response['id']
+                    self.in_trades[iTrade].oid = response['id']
 
     def cancel_order(self, oid, typ):
         self.th.update_down_state(True)
@@ -836,16 +857,8 @@ class BaseTradeSet:
                              extra=self.th.logger_extras)
                 return 0
             self.lock_trade_set()
-
-            if self.coinsAvail > 0 and self.initPrice is not None:
-                # remove old cost again
-                self.costIn -= (self.coinsAvail * self.initPrice)
-            self.coinsAvail = init_coins
-            self.initCoins = init_coins
-
-            self.initPrice = init_price
-            if init_price is not None:
-                self.costIn += (init_coins * init_price)
+            self.init_coins = init_coins
+            self.init_price = init_price
             self.unlock_trade_set()
             return 1
         else:
@@ -910,7 +923,7 @@ class BaseTradeSet:
                                                                                            params=params), False)
 
                 bought_amount = amount - (est_fee['cost'] if est_fee['currency'] == self.coinCurrency else 0)
-                self.InTrades.append({'oid': response['id'], 'price': price,
+                self.in_trades.append({'oid': response['id'], 'price': price,
                                       'amount': amount,
                                       'actualAmount': bought_amount,
                                       'candleAbove': None})
@@ -976,7 +989,7 @@ class BaseTradeSet:
                                                                                               self.coinCurrency):
                 bought_amount -= fee['cost']
 
-            self.InTrades.append({'oid': None, 'price': buy_price, 'amount': buy_amount, 'actualAmount': bought_amount,
+            self.in_trades.append({'oid': None, 'price': buy_price, 'amount': buy_amount, 'actualAmount': bought_amount,
                                   'candleAbove': candle_above})
 
             if wasactive:
@@ -992,9 +1005,9 @@ class BaseTradeSet:
         if self.th.check_num(i_trade):
             self.lock_trade_set()
             wasactive = self.deactivate()
-            if self.InTrades[i_trade]['oid'] is not None and self.InTrades[i_trade]['oid'] != 'filled':
-                self.cancel_buy_orders(self.InTrades[i_trade]['oid'])
-            self.InTrades.pop(i_trade)
+            if self.in_trades[i_trade]['oid'] is not None and self.in_trades[i_trade]['oid'] != 'filled':
+                self.cancel_buy_orders(self.in_trades[i_trade]['oid'])
+            self.in_trades.pop(i_trade)
             if wasactive:
                 self.activate(False)
             self.unlock_trade_set()
@@ -1004,7 +1017,7 @@ class BaseTradeSet:
     def set_buy_level(self, i_trade, price, amount):
         self.th.update_down_state(True)
         if self.th.check_num(i_trade, price, amount):
-            if self.InTrades[i_trade]['oid'] == 'filled':
+            if self.in_trades[i_trade]['oid'] == 'filled':
                 logger.error('This order is already filled! No change possible', extra=self.th.logger_extras)
                 return 0
             else:
@@ -1026,8 +1039,8 @@ class BaseTradeSet:
                     logger.warning('Free balance could not be determined as exchange does not support this! '
                                    'If free balance does not suffice there will be an error when tradeset is activated',
                                    extra=self.th.logger_extras)
-                elif bal + self.InTrades[i_trade]['amount'] * self.InTrades[i_trade]['price'] < amount * price + \
-                        fee['cost'] if fee['currency'] == self.baseCurrency else 0:
+                elif bal + self.in_trades[i_trade]['amount'] * self.in_trades[i_trade]['price'] < amount * price + \
+                     fee['cost'] if fee['currency'] == self.baseCurrency else 0:
                     logger.error(
                         'Changing buy level failed, your balance of %s does not suffice to buy this amount%s!' % (
                             self.baseCurrency, ' and pay the trading fee (%s %s)' % (
@@ -1042,24 +1055,24 @@ class BaseTradeSet:
 
                 wasactive = self.deactivate()
 
-                if self.InTrades[i_trade]['oid'] is not None and self.InTrades[i_trade]['oid'] != 'filled':
-                    return_val = self.cancel_buy_orders(self.InTrades[i_trade]['oid'])
-                    self.InTrades[i_trade]['oid'] = None
+                if self.in_trades[i_trade]['oid'] is not None and self.in_trades[i_trade]['oid'] != 'filled':
+                    return_val = self.cancel_buy_orders(self.in_trades[i_trade]['oid'])
+                    self.in_trades[i_trade]['oid'] = None
                     if return_val == 0.5:
                         bal = self.th.get_balance(self.baseCurrency)
                         if bal is None:
                             logger.warning('Free balance could not be determined as exchange does not support this! If '
                                            'free balance doesnt suffice there will be an error on trade set activation',
                                            extra=self.th.logger_extras)
-                        elif bal + self.InTrades[i_trade]['amount'] * self.InTrades[i_trade]['price'] < amount * price \
-                                + fee['cost'] if fee['currency'] == self.baseCurrency else 0:
+                        elif bal + self.in_trades[i_trade]['amount'] * self.in_trades[i_trade]['price'] < amount * price \
+                             + fee['cost'] if fee['currency'] == self.baseCurrency else 0:
                             logger.error(f"Changing buy level failed, your balance of {self.baseCurrency} does not "
                                          f"suffice to buy this amount %s!" % (
                                              f"and pay the trading fee ({self.th.nf.fee2Prec(self.symbol, fee['cost'])}"
                                              f" {self.baseCurrency})" if fee['currency'] == self.baseCurrency else ''),
                                          extra=self.th.logger_extras)
                             return 0
-                self.InTrades[i_trade].update({'amount': amount, 'actualAmount': bought_amount, 'price': price})
+                self.in_trades[i_trade].update({'amount': amount, 'actualAmount': bought_amount, 'price': price})
 
                 if wasactive:
                     self.activate(False)
@@ -1084,7 +1097,7 @@ class BaseTradeSet:
                 return False
             self.lock_trade_set()
             wasactive = self.deactivate()
-            self.OutTrades.append({'oid': None, 'price': sell_price, 'amount': sell_amount})
+            self.out_trades.append({'oid': None, 'price': sell_price, 'amount': sell_amount})
             if wasactive:
                 self.activate(False)
             self.unlock_trade_set()
@@ -1097,9 +1110,9 @@ class BaseTradeSet:
         if self.th.check_num(i_trade):
             self.lock_trade_set()
             wasactive = self.deactivate()
-            if self.OutTrades[i_trade]['oid'] is not None and self.OutTrades[i_trade]['oid'] != 'filled':
-                self.cancel_sell_orders(self.OutTrades[i_trade]['oid'])
-            self.OutTrades.pop(i_trade)
+            if self.out_trades[i_trade]['oid'] is not None and self.out_trades[i_trade]['oid'] != 'filled':
+                self.cancel_sell_orders(self.out_trades[i_trade]['oid'])
+            self.out_trades.pop(i_trade)
             self.unlock_trade_set()
             if wasactive:
                 self.activate(False)
@@ -1109,7 +1122,7 @@ class BaseTradeSet:
     def set_sell_level(self, i_trade, price, amount):
         self.th.update_down_state(True)
         if self.th.check_num(i_trade, price, amount):
-            if self.OutTrades[i_trade]['oid'] == 'filled':
+            if self.out_trades[i_trade]['oid'] == 'filled':
                 logger.error('This order is already filled! No change possible', extra=self.th.logger_extras)
                 return 0
             else:
@@ -1127,12 +1140,12 @@ class BaseTradeSet:
                     return 0
                 wasactive = self.deactivate()
 
-                if self.OutTrades[i_trade]['oid'] is not None and self.OutTrades[i_trade]['oid'] != 'filled':
-                    self.cancel_sell_orders(self.OutTrades[i_trade]['oid'])
-                    self.OutTrades[i_trade]['oid'] = None
+                if self.out_trades[i_trade]['oid'] is not None and self.out_trades[i_trade]['oid'] != 'filled':
+                    self.cancel_sell_orders(self.out_trades[i_trade]['oid'])
+                    self.out_trades[i_trade]['oid'] = None
 
-                self.OutTrades[i_trade]['amount'] = amount
-                self.OutTrades[i_trade]['price'] = price
+                self.out_trades[i_trade]['amount'] = amount
+                self.out_trades[i_trade]['price'] = price
 
                 if wasactive:
                     self.activate(False)
@@ -1168,35 +1181,35 @@ class BaseTradeSet:
         if self.th.check_num(value):
             if self.num_buy_levels('notfilled') > 0:
                 raise Exception('Trailing SL cannot be set as there are non-filled buy orders still')
-            self.SL = TrailingSL(delta=value, kind=typ, price_obj=self.th.get_price_obj(self.symbol))
+            self.sl = TrailingSL(delta=value, kind=typ, price_obj=self.th.get_price_obj(self.symbol))
         elif value is None:
-            self.SL = None
+            self.sl = None
         else:
             raise ValueError('Input was no number')
 
     def set_weekly_close_sl(self, value) -> bool:
         if self.th.check_num(value):
-            self.SL = WeeklyCloseSL(value=value)
+            self.sl = WeeklyCloseSL(value=value)
             if self.th.get_price_obj(self.symbol).get_current_price() <= value:
                 logger.warning('Weekly-close SL is set but be aware that it is higher than the current market price!',
                                extra=self.th.logger_extras)
             return True
 
         elif value is None:
-            self.SL = None
+            self.sl = None
             return True
         else:
             raise ValueError('Input was no number')
 
     def set_daily_close_sl(self, value) -> bool:
         if self.th.check_num(value):
-            self.SL = DailyCloseSL(value=value)
+            self.sl = DailyCloseSL(value=value)
             if self.th.get_price_obj(self.symbol).get_current_price() <= value:
                 logger.warning('Daily-close SL is set but be aware that it is higher than the current market price!',
                                extra=self.th.logger_extras)
             return True
         elif value is None:
-            self.SL = None
+            self.sl = None
             return True
         else:
             raise ValueError('Input was no number')
@@ -1204,12 +1217,12 @@ class BaseTradeSet:
     def set_sl(self, value) -> bool:
         if self.th.check_num(value):
             try:
-                self.SL = BaseSL(value=value)
+                self.sl = BaseSL(value=value)
                 return True
             except Exception as e:
                 logger.error(str(e), extra=self.th.logger_extras)
         elif value is None:
-            self.SL = None
+            self.sl = None
             return True
         else:
             raise ValueError('Input was no number')
@@ -1217,24 +1230,23 @@ class BaseTradeSet:
 
     def set_sl_break_even(self):
         self.th.update_down_state(True)
-        if self.initCoins > 0 and self.initPrice is None:
+        if self.init_coins > 0 and self.init_price is None:
             logger.error(f"Break even SL cannot be set as you this trade set contains {self.coinCurrency} that you "
                          f"obtained beforehand and no buy price information was given.", extra=self.th.logger_extras)
             return 0
-        elif self.costOut - self.costIn > 0:
+        elif self.cost_out() - self.cost_in() > 0:
             logger.error(
                 'Break even SL cannot be set as your sold coins of this trade already outweigh your buy expenses '
                 '(congrats!)! You might choose to sell everything immediately if this is what you want.',
                 extra=self.th.logger_extras)
             return 0
-        elif self.costOut - self.costIn == 0:
+        elif self.cost_out() - self.cost_in() == 0:
             logger.error('Break even SL cannot be set as there are no unsold %s coins right now' % self.coinCurrency,
                          extra=self.th.logger_extras)
             return 0
         else:
-            break_even_price = (self.costIn - self.costOut) / ((1 - self.th.exchange.fees['trading']['taker']) * (
-                    self.coinsAvail + sum([trade['amount'] for trade in self.OutTrades if
-                                         trade['oid'] != 'filled' and trade['oid'] is not None])))
+            break_even_price = (self.cost_in() - self.cost_out()) / ((1 - self.th.exchange.fees['trading']['taker']) * (
+                    self.coins_avail() + self.sum_sell_amounts(order='open', subtract_fee=False)))
             price_obj = self.th.get_price_obj(self.symbol)
             if price_obj.get_current_price() < break_even_price:
                 logger.error(f'Break even SL of {self.th.nf.price2Prec(self.symbol, break_even_price)} cannot be set as'

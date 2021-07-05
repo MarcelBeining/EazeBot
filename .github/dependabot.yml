@@ -1,0 +1,27 @@
+version: 2
+updates:
+- package-ecosystem: pip
+  directory: "/"
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: ccxt
+    versions:
+    - 1.40.98
+    - 1.41.35
+    - 1.41.70
+    - 1.41.90
+    - 1.42.47
+    - 1.42.66
+    - 1.43.89
+    - 1.45.41
+    - 1.46.38
+    - 1.47.47
+    - 1.48.22
+  - dependency-name: python-telegram-bot
+    versions:
+    - "13.2"
+  - dependency-name: numpy
+    versions:
+    - 1.20.0

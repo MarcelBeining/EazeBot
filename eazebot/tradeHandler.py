@@ -398,7 +398,7 @@ class tradeHandler:
             prt_str += f"*Regular buy:* {rb.amount} {rb.currency} each {interval} using " \
                 f"{rb.order_type.name.lower()} order. Next buy on **{rb.next_time.isoformat()}**\n"
 
-        for iTrade, trade in enumerate(ts.InTrades):
+        for iTrade, trade in enumerate(ts.in_trades):
             tmpstr = '*Buy level %d:* Price %s , Amount %s %s   ' % (
                 iTrade, self.nf.price2Prec(ts.symbol, trade['price']), self.nf.amount2Prec(ts.symbol, trade['amount']),
                 ts.coinCurrency)
@@ -417,7 +417,7 @@ class tradeHandler:
                 prt_str += tmpstr
         prt_str += '\n'
 
-        for iTrade, trade in enumerate(ts.OutTrades):
+        for iTrade, trade in enumerate(ts.out_trades):
             tmpstr = '*Sell level %d:* Price %s , Amount %s %s   ' % (
                 iTrade, self.nf.price2Prec(ts.symbol, trade['price']), self.nf.amount2Prec(ts.symbol, trade['amount']),
                 ts.coinCurrency)
@@ -431,27 +431,27 @@ class tradeHandler:
                 tmpstr = tmpstr + '_Open order_\n'
             if ts.show_filled_orders or trade['oid'] != 'filled':
                 prt_str += tmpstr
-        if ts.SL is not None:
-            if isinstance(ts.SL, DailyCloseSL):
-                prt_str += '\n*Stop-loss* set at daily close < %s\n\n' % (self.nf.price2Prec(ts.symbol, ts.SL.value))
-            elif isinstance(ts.SL, WeeklyCloseSL):
+        if ts.sl is not None:
+            if isinstance(ts.sl, DailyCloseSL):
+                prt_str += '\n*Stop-loss* set at daily close < %s\n\n' % (self.nf.price2Prec(ts.symbol, ts.sl.value))
+            elif isinstance(ts.sl, WeeklyCloseSL):
                 prt_str += '\n*Stop-loss* set at weekly close < %s\n\n' % (
-                    self.nf.price2Prec(ts.symbol, ts.SL.value))
+                    self.nf.price2Prec(ts.symbol, ts.sl.value))
             else:
-                prt_str += '\n*Stop-loss* set at %s%s\n\n' % (self.nf.price2Prec(ts.symbol, ts.SL.value),
-                                                              '' if not isinstance(ts.SL, TrailingSL) else (
-                                                                  ' (trailing with offset %.5g)' % ts.SL.delta if
-                                                                  ts.SL.kind == ValueType.ABSOLUTE else
+                prt_str += '\n*Stop-loss* set at %s%s\n\n' % (self.nf.price2Prec(ts.symbol, ts.sl.value),
+                                                              '' if not isinstance(ts.sl, TrailingSL) else (
+                                                                  ' (trailing with offset %.5g)' % ts.sl.delta if
+                                                                  ts.sl.kind == ValueType.ABSOLUTE else
                                                                   ' (trailing with offset %.2g %%)' % (
-                                                                          ts.SL.delta * 100)))
+                                                                          ts.sl.delta * 100)))
         else:
             prt_str += '\n*No stop-loss set.*\n\n'
         sum_buys = sum([val[0] for val in filled_buys])
         sum_sells = sum([val[0] for val in filled_sells])
-        if ts.initCoins > 0:
+        if ts.init_coins > 0:
             prt_str += '*Initial coins:* %s %s for an average price of %s\n' % (
-                self.nf.amount2Prec(ts.symbol, ts.initCoins), ts.coinCurrency,
-                self.nf.price2Prec(ts.symbol, ts.initPrice) if ts.initPrice is not None else 'unknown')
+                self.nf.amount2Prec(ts.symbol, ts.init_coins), ts.coinCurrency,
+                self.nf.price2Prec(ts.symbol, ts.init_price) if ts.init_price is not None else 'unknown')
         if sum_buys > 0:
             prt_str += '*Filled buy orders (fee subtracted):* %s %s for an average price of %s\n' % (
                 self.nf.amount2Prec(ts.symbol, sum_buys), ts.coinCurrency, self.nf.cost2Prec(ts.symbol, sum(
@@ -465,21 +465,21 @@ class tradeHandler:
             prt_str += '\n*Current market price *: %s, \t24h-high: %s, \t24h-low: %s\n' % tuple(
                 [self.nf.price2Prec(ts.symbol, val) for val in
                  [price_obj.get_current_price(), price_obj.get_high_price(), price_obj.get_low_price()]])
-            if (ts.initCoins == 0 or ts.initPrice is not None) and ts.costIn > 0 and (
-                    sum_buys > 0 or ts.initCoins > 0):
-                total_amount_to_sell = ts.coinsAvail + ts.sum_sell_amounts('open')
+            if (ts.init_coins == 0 or ts.init_price is not None) and ts.cost_in() > 0 and (
+                    sum_buys > 0 or ts.init_coins > 0):
+                total_amount_to_sell = ts.coins_avail() + ts.sum_sell_amounts('open')
                 fee = self.exchange.calculate_fee(ts.symbol, 'market', 'sell', total_amount_to_sell,
                                                   price_obj.get_current_price(), 'taker')
-                cost_sells = ts.costOut + price_obj.get_current_price() * total_amount_to_sell - (
+                cost_sells = ts.cost_out() + price_obj.get_current_price() * total_amount_to_sell - (
                     fee['cost'] if fee['currency'] == ts.baseCurrency else 0)
-                gain = cost_sells - ts.costIn
+                gain = cost_sells - ts.cost_in()
                 gain_orig = gain
                 if show_profit_in is not None:
                     gain, this_cur = self.convert_amount(gain, ts.baseCurrency, show_profit_in)
                 else:
                     this_cur = ts.baseCurrency
                 prt_str += '\n*Estimated gain/loss when selling all now: * %s %s (%+.2f %%)\n' % (
-                    self.nf.cost2Prec(ts.symbol, gain), this_cur, gain_orig / ts.costIn * 100)
+                    self.nf.cost2Prec(ts.symbol, gain), this_cur, gain_orig / ts.cost_in() * 100)
         else:
             prt_str += '\n*Warning: Symbol %s is currently deactivated for trading by the exchange!*\n' % ts.symbol
         return prt_str
@@ -489,7 +489,7 @@ class tradeHandler:
         # create a trade history entry if the trade set had any filled orders
         ts = self.tradeSets[i_ts]
         if ts.num_buy_levels('filled') > 0 or ts.num_sell_levels('filled') > 0:
-            gain = ts.costOut - ts.costIn
+            gain = ts.cost_out() - ts.cost_in()
             # try to convert gain amount into btc currency
             gain_btc, curr = self.convert_amount(gain, ts.baseCurrency, 'BTC')
             if curr != 'BTC':
@@ -506,7 +506,7 @@ class tradeHandler:
             self.tradeSetHistory.append({'time': time.time(),
                                          'days': (time.time() - ts.createdAt) / 60 / 60 / 24,
                                          'symbol': ts.symbol, 'gain': gain,
-                                         'gainRel': gain / ts.costIn * 100 if ts.costIn > 0 else None,
+                                         'gainRel': gain / ts.cost_in() * 100 if ts.cost_in() > 0 else None,
                                          'quote': ts.baseCurrency, 'gainBTC': gain_btc, 'gainUSD': gain_usd})
 
     def get_trade_history(self):
@@ -589,10 +589,10 @@ class tradeHandler:
             sold = True
             ts.deactivate(1)
         if sold:
-            gain_coins = self.nf.cost2Prec(ts.symbol, ts.costOut - ts.costIn)
+            gain_coins = self.nf.cost2Prec(ts.symbol, ts.cost_out() - ts.cost_in())
             logger.info('Trading set %s on %s completed! Total gain: %s %s and %s leftover %ss' % (
                 ts.symbol, self.exchange.name, gain_coins, ts.baseCurrency,
-                self.nf.cost2Prec(ts.symbol, ts.coinsAvail), ts.coinCurrency), extra=self.logger_extras)
+                self.nf.cost2Prec(ts.symbol, ts.coins_avail()), ts.coinCurrency), extra=self.logger_extras)
             self.create_trade_history_entry(i_ts)
             self.tradeSets.pop(i_ts)
         else:
@@ -646,16 +646,16 @@ class tradeHandler:
                     price_obj = self.get_price_obj(ts.symbol)  # get and update the price
                     # check if stop loss is reached
                     if special_check < 2:
-                        if ts.SL is not None:
-                            if ts.SL.is_below(price_obj):
-                                if isinstance(ts.SL, WeeklyCloseSL):
+                        if ts.sl is not None:
+                            if ts.sl.is_below(price_obj):
+                                if isinstance(ts.sl, WeeklyCloseSL):
                                     msg = 'Weekly candle'
-                                elif isinstance(ts.SL, DailyCloseSL):
+                                elif isinstance(ts.sl, DailyCloseSL):
                                     msg = 'Daily candle'
                                 else:
                                     msg = 'Price'
                                 logger.warning(msg + ' closed below chosen SL of %s for pair %s! Selling now!' % (
-                                    self.nf.price2Prec(ts.symbol, ts.SL.value), ts.symbol), extra=self.logger_extras)
+                                    self.nf.price2Prec(ts.symbol, ts.sl.value), ts.symbol), extra=self.logger_extras)
                                 # cancel all sell orders, create market sell order, save resulting amount of currency
                                 sold = ts.sell_all_now(price=price_obj.get_current_price())
                                 if sold:
@@ -664,7 +664,7 @@ class tradeHandler:
                                     continue
 
                     else:  # tax warning check
-                        for iTrade, trade in enumerate(ts.InTrades):
+                        for iTrade, trade in enumerate(ts.in_trades):
                             if 'time' in trade and (datetime.datetime.now() - trade['time']).days > 358 and (
                                     datetime.datetime.now() - trade['time']).days < 365:
                                 logger.warning(
@@ -704,7 +704,7 @@ class tradeHandler:
 
                     order_executed = 0
                     # go through buy trades 
-                    for iTrade, trade in enumerate(ts.InTrades):
+                    for iTrade, trade in enumerate(ts.in_trades):
                         if trade['oid'] == 'filled':
                             continue
                         elif special_check == 1 and trade['oid'] is None and trade['candleAbove'] is not None:
@@ -712,7 +712,7 @@ class tradeHandler:
                                 response = self.safe_run(
                                     lambda: self.exchange.createLimitBuyOrder(ts.symbol, trade['amount'],
                                                                               trade['price']), i_ts=i_ts)
-                                ts.InTrades[iTrade]['oid'] = response['id']
+                                ts.in_trades[iTrade]['oid'] = response['id']
                                 logger.info('Daily candle of %s above %s triggering buy level #%d on %s!' % (
                                     ts.symbol, self.nf.price2Prec(ts.symbol, trade['candleAbove']), iTrade,
                                     self.exchange.name), extra=self.logger_extras)
@@ -724,14 +724,12 @@ class tradeHandler:
                                     order_executed = 1
                                     trade['time'] = datetime.datetime.now()
                                     trade['price'] = order_info['price']
-                                    ts.costIn += order_info['cost']
                                     logger.info('Buy level of %s %s reached on %s! Bought %s %s for %s %s.' % (
                                         self.nf.price2Prec(ts.symbol, order_info['price']), ts.symbol,
                                         self.exchange.name,
                                         self.nf.amount2Prec(ts.symbol, order_info['amount']), ts.coinCurrency,
                                         self.nf.cost2Prec(ts.symbol, order_info['cost']), ts.baseCurrency),
                                                 extra=self.logger_extras)
-                                    ts.coinsAvail += trade['actualAmount']
                                 elif order_info['status'] == 'canceled':
                                     if 'reason' in order_info['info']:
                                         reason = order_info['info']['reason']
@@ -741,29 +739,27 @@ class tradeHandler:
                                         f"{list(self.tradeSets.keys()).index(i_ts)} on {self.exchange.name}) was " \
                                         f"canceled by exchange or someone else (reason: {reason}) "
                                     if order_info['cost'] > 0:
-                                        ts.InTrades[iTrade]['oid'] = 'filled'
-                                        ts.InTrades[iTrade]['price'] = order_info['price']
-                                        ts.costIn += order_info['cost']
+                                        ts.in_trades[iTrade]['oid'] = 'filled'
+                                        ts.in_trades[iTrade]['price'] = order_info['price']
                                         if trades is not None:
                                             order_info['amount'] = sum(
                                                 [tr['amount'] for tr in trades if tr['order'] == order_info['id']])
-                                        ts.coinsAvail += order_info['amount']
                                         logger.error(cancel_msg + 'but already partly filled! Treating '
                                                                   'order as closed and updating trade set info.',
                                                      extra=self.logger_extras)
                                     else:
-                                        ts.InTrades[iTrade]['oid'] = None
+                                        ts.in_trades[iTrade]['oid'] = None
                                         logger.error(cancel_msg + 'Will be reinitialized during next update.',
                                                      extra=self.logger_extras)
 
                             except OrderNotFound:
                                 ts.lock_trade_set()
                                 logger.error(
-                                    f"Buy order id {ts.InTrades[iTrade]['oid']} for trade set {ts.symbol} not "
+                                    f"Buy order id {ts.in_trades[iTrade]['oid']} for trade set {ts.symbol} not "
                                     f"found on {self.exchange.name}! Maybe exchange API has changed? Resetting order to"
                                     f" 'not initiated', will be initiated on next trade set update!",
                                     extra=self.logger_extras)
-                                ts.InTrades[iTrade]['oid'] = None
+                                ts.in_trades[iTrade]['oid'] = None
 
                         else:
                             ts.init_buy_orders()
@@ -771,15 +767,15 @@ class tradeHandler:
 
                     if not special_check:
                         # go through all selling positions and create those for which the bought coins suffice
-                        for iTrade, _ in enumerate(ts.OutTrades):
-                            if ts.OutTrades[iTrade]['oid'] is None and ts.coinsAvail >= \
-                                    ts.OutTrades[iTrade]['amount']:
+                        for iTrade, _ in enumerate(ts.out_trades):
+                            if ts.out_trades[iTrade]['oid'] is None and ts.coins_avail() >= \
+                                    ts.out_trades[iTrade]['amount']:
                                 try:
                                     response = self.safe_run(lambda: self.exchange.createLimitSellOrder(ts.symbol,
-                                                                                                        ts.OutTrades[
+                                                                                                        ts.out_trades[
                                                                                                             iTrade][
                                                                                                             'amount'],
-                                                                                                        ts.OutTrades[
+                                                                                                        ts.out_trades[
                                                                                                             iTrade][
                                                                                                             'price']),
                                                              i_ts=i_ts)
@@ -792,10 +788,9 @@ class tradeHandler:
                                                  extra=self.logger_extras)
 
                                     raise e
-                                ts.OutTrades[iTrade]['oid'] = response['id']
-                                ts.coinsAvail -= ts.OutTrades[iTrade]['amount']
-                        # go through sell trades 
-                        for iTrade, trade in enumerate(ts.OutTrades):
+                                ts.out_trades[iTrade]['oid'] = response['id']
+                        # go through sell trades
+                        for iTrade, trade in enumerate(ts.out_trades):
                             if trade['oid'] == 'filled':
                                 continue
                             elif trade['oid'] is not None:
@@ -815,10 +810,9 @@ class tradeHandler:
                                         trades = None
                                     if any([order_info['status'].lower() == val for val in ['closed', 'filled']]):
                                         order_executed = 2
-                                        ts.OutTrades[iTrade]['oid'] = 'filled'
-                                        ts.OutTrades[iTrade]['time'] = datetime.datetime.now()
-                                        ts.OutTrades[iTrade]['price'] = order_info['price']
-                                        ts.costOut += order_info['cost']
+                                        ts.out_trades[iTrade]['oid'] = 'filled'
+                                        ts.out_trades[iTrade]['time'] = datetime.datetime.now()
+                                        ts.out_trades[iTrade]['price'] = order_info['price']
                                         logger.info('Sell level of %s %s reached on %s! Sold %s %s for %s %s.' % (
                                             self.nf.price2Prec(ts.symbol, order_info['price']), ts.symbol,
                                             self.exchange.name, self.nf.amount2Prec(ts.symbol, order_info['amount']),
@@ -830,13 +824,12 @@ class tradeHandler:
                                         else:
                                             reason = 'N/A'
                                         if order_info['cost'] > 0:
-                                            ts.OutTrades[iTrade]['oid'] = 'filled'
-                                            ts.OutTrades[iTrade]['price'] = order_info['price']
-                                            ts.costOut += order_info['cost']
+                                            ts.out_trades[iTrade]['oid'] = 'filled'
+                                            ts.out_trades[iTrade]['price'] = order_info['price']
                                             if trades is not None:
                                                 order_info['amount'] = sum(
                                                     [tr['amount'] for tr in trades if tr['order'] == order_info['id']])
-                                            ts.coinsAvail += ts.OutTrades[iTrade]['amount'] - order_info['amount']
+                                            ts.out_trades[iTrade]['amount'] = order_info['amount']
                                             logger.error(
                                                 f"Sell order (level {iTrade} of trade set "
                                                 f"{list(self.tradeSets.keys()).index(i_ts)} on {self.exchange.name}) "
@@ -844,8 +837,7 @@ class tradeHandler:
                                                 f"already partly filled! Treating order as closed and updating trade "
                                                 f"set info.", extra=self.logger_extras)
                                         else:
-                                            ts.OutTrades[iTrade]['oid'] = None
-                                            ts.coinsAvail += ts.OutTrades[iTrade]['amount']
+                                            ts.out_trades[iTrade]['oid'] = None
                                             logger.error(
                                                 f"Sell order (level {iTrade} of trade set "
                                                 f"{list(self.tradeSets.keys()).index(i_ts)} on {self.exchange.name}) "
@@ -855,23 +847,22 @@ class tradeHandler:
                                 except OrderNotFound:
                                     ts.lock_trade_set()
                                     logger.error(
-                                        f"Sell order id {ts.OutTrades[iTrade]['oid']} for trade set {ts.symbol} "
+                                        f"Sell order id {ts.out_trades[iTrade]['oid']} for trade set {ts.symbol} "
                                         f"not found on {self.exchange.name}! Maybe exchange API has changed? "
                                         f"Resetting order to 'not initiated'! If InsufficientFunds errors pop up, the "
                                         f"order had probably been executed. In this case please delete the trade set.",
                                         extra=self.logger_extras)
-                                    ts.coinsAvail += ts.OutTrades[iTrade]['amount']
-                                    ts.OutTrades[iTrade]['oid'] = None
+                                    ts.out_trades[iTrade]['oid'] = None
 
                         # delete Tradeset when all orders have been filled (but only if there were any to execute
                         # and if no significant coin amount is left)
-                        left_coins = ts.sum_buy_amounts(order='filled') + ts.initCoins - \
+                        left_coins = ts.sum_buy_amounts(order='filled') + ts.init_coins - \
                                      ts.sum_sell_amounts(order='filled')
-                        if not (ts.num_buy_levels(order='filled') + ts.initCoins):
+                        if not (ts.num_buy_levels(order='filled') + ts.init_coins):
                             significant_amount = np.inf
                         else:
                             significant_amount = left_coins / (left_coins + ts.sum_sell_amounts(order='filled'))
-                        if ts.regular_buy is None and ((ts.SL is None and order_executed > 0) or
+                        if ts.regular_buy is None and ((ts.sl is None and order_executed > 0) or
                                                        (order_executed == 2 and significant_amount < 0.01)) and \
                                 ts.num_sell_levels('notfilled') == 0 and \
                                 ts.num_buy_levels('notfilled') == 0:
