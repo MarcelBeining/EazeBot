@@ -1,4 +1,4 @@
-ccxt == 1.52.40
+ccxt == 1.58.55
 python-dateutil == 2.8.1
 dill == 0.3.4
 numpy == 1.19.5
