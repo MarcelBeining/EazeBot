@@ -1,6 +1,6 @@
 ccxt == 1.52.40
 python-dateutil == 2.8.1
-dill == 0.3.4
+dill == 0.3.5.1
 numpy == 1.19.5
 requests == 2.25.1
 python-telegram-bot == 13.7
